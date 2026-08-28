@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class RS : ModuleRules
@@ -7,6 +8,14 @@ public class RS : ModuleRules
 	public RS(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+
+		PublicIncludePaths.AddRange(new string[] {
+			Path.Combine(ModuleDirectory, "Character"),
+			Path.Combine(ModuleDirectory, "Character", "Player"),
+			Path.Combine(ModuleDirectory, "Controller"),
+			Path.Combine(ModuleDirectory, "Controller", "Player"),
+			Path.Combine(ModuleDirectory, "GameMode"),
+		});
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
