@@ -15,9 +15,11 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "Controller"),
 			Path.Combine(ModuleDirectory, "Controller", "Player"),
 			Path.Combine(ModuleDirectory, "GameMode"),
+			Path.Combine(ModuleDirectory, "GameplayTags"),
+			Path.Combine(ModuleDirectory, "Input"),
 		});
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
