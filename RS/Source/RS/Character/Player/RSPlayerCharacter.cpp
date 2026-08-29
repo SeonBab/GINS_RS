@@ -5,9 +5,22 @@
 
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
 #include "RSGameplayTags.h"
 #include "RSInputComponent.h"
 #include "RSInputConfig.h"
+
+ARSPlayerCharacter::ARSPlayerCharacter()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
+	SpringArmComp->SetupAttachment(GetRootComponent());
+
+	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
+	CameraComp->SetupAttachment(SpringArmComp);
+}
 
 // Called to bind functionality to input
 void ARSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

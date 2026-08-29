@@ -8,6 +8,8 @@
 
 class UInputMappingContext;
 class URSInputConfig;
+class UCameraComponent;
+class USpringArmComponent;
 
 struct FInputActionValue;
 
@@ -17,6 +19,8 @@ class RS_API ARSPlayerCharacter : public ARSBaseCharacter
 	GENERATED_BODY()
 
 public:
+	ARSPlayerCharacter();
+
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -29,4 +33,11 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<URSInputConfig> InputConfig;
+
+private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCameraComponent> CameraComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USpringArmComponent> SpringArmComp;
 };
