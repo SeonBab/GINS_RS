@@ -60,18 +60,12 @@ void URSHealthComponent::UninitializeFromAbilitySystem()
 	{
 		if (HealthChangedDelegateHandle.IsValid())
 		{
-			AbilitySystemComp
-				->GetGameplayAttributeValueChangeDelegate(
-					URSHealthSet::GetHealthAttribute())
-				.Remove(HealthChangedDelegateHandle);
+			AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetHealthAttribute()).Remove(HealthChangedDelegateHandle);
 		}
 
 		if (MaxHealthChangedDelegateHandle.IsValid())
 		{
-			AbilitySystemComp
-				->GetGameplayAttributeValueChangeDelegate(
-					URSHealthSet::GetMaxHealthAttribute())
-				.Remove(MaxHealthChangedDelegateHandle);
+			AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetMaxHealthAttribute()).Remove(MaxHealthChangedDelegateHandle);
 		}
 	}
 
