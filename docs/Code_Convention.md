@@ -1,17 +1,87 @@
 # Code Convention
 
+## 네이밍
+
+### 기본 원칙
+
+- 코드의 식별자는 영문으로 작성한다
+- 클래스, 구조체, 열거형, 함수, 변수는 `PascalCase`로 작성한다
+- 이름은 역할과 의미를 명확하게 나타내고 불필요하게 줄이지 않는다
+- 타입과 변수는 명사로 작성한다
+
+### Unreal 타입 접두사
+
+프로젝트에서 정의하는 타입은 Unreal 접두사 뒤에 프로젝트 접두사 `RS`를 붙인다.
+
+| 접두사 | 대상 | 예시 |
+| --- | --- | --- |
+| `A` | `AActor` 파생 클래스 | `ARSPlayerCharacter` |
+| `U` | `UObject` 파생 클래스 | `URSHealthComponent` |
+| `F` | 구조체와 일반 값 타입 | `FRSInputAction` |
+| `E` | 열거형 | `ERSAbilityActivationPolicy` |
+| `I` | 인터페이스 | `IRSInteractable` |
+| `T` | 템플릿 타입 | `TRSObjectPool` |
+
+- 접두사와 `RS` 사이에는 밑줄을 사용하지 않는다
+- Unreal 또는 외부 라이브러리의 타입에는 `RS`를 추가하지 않는다
+- 프로젝트에서 정의하는 델리게이트 타입에도 `F`와 `RS`를 사용한다
+
+### 밑줄
+
+이름은 `PascalCase`를 기본으로 하되 기능이나 타입 관계를 명확하게 구분할 필요가 있을 때 `_`를 사용할 수 있다.
+
+- 같은 기반 개념의 세부 타입을 구분할 때 사용할 수 있다
+- 함수 이름에서 기능 그룹과 실제 동작을 구분할 때 사용할 수 있다
+- Unreal이 이름을 요구하거나 자동으로 생성하는 함수에는 해당 형식을 유지한다
+- `_`로 구분한 각 부분은 `PascalCase`로 작성한다
+- 단어마다 `_`를 넣는 `snake_case`는 사용하지 않는다
+- 이름의 시작이나 끝에 `_`를 사용하지 않는다
+
+### 불리언
+
+모든 불리언 변수와 매개변수에는 `b` 접두사를 사용한다.
+
+- 의미에 따라 `bIs...`, `bHas...`, `bCan...`, `bShould...`를 사용하고 의미가 분명하면 간결한 이름을 사용할 수 있다
+- 이중 부정이 생길 수 있는 부정형 이름은 피한다
+- 불리언 반환 함수에는 `b`를 붙이지 않고 질문 형태를 사용한다
+
+### 약어
+
+약어는 프로젝트에서 허용한 다음 목록만 사용한다.
+
+| 약어 | 의미 | 사용 범위 |
+| --- | --- | --- |
+| `RS` | 프로젝트 접두사 | 타입과 프로젝트 API |
+| `ASC` | Ability System Component | 주석, region, 문맥이 분명한 이름 |
+| `GAS` | Gameplay Ability System | 주석과 region |
+| `Comp` | Component | 변수 이름의 접미사 |
+| `Spec` | Specification | Gameplay Ability Spec 관련 이름 |
+
+- 허용 목록에 없는 약어는 전체 단어로 작성한다
+- 새로운 약어가 필요하면 허용 목록에 추가한 뒤 사용한다
+- 타입과 공개 API에서는 의미가 명확한 전체 단어를 우선한다
+- 같은 개념에 서로 다른 약어를 혼용하지 않는다
+
+### 멤버 변수
+
+멤버 변수와 지역 변수에는 `m_`, `_`, `Member`와 같은 별도의 접두사를 사용하지 않는다.
+
+- 멤버임을 나타내기 위한 `this->`는 사용하지 않는다
+- 매개변수와 멤버 변수의 이름이 충돌하면 매개변수에 `In`, `Out`, `InOut`을 사용한다
+
+### 함수와 이벤트
+
+- 동작을 수행하는 함수는 명확한 동사로 시작한다
+- 값을 반환하는 함수는 반환하는 값을 이름에 나타낸다
+- Getter는 `Get`으로 시작한다
+- 불리언 반환 함수는 `Is`, `Has`, `Can`, `Should`처럼 질문을 나타내는 단어로 시작한다
+- 델리게이트와 이벤트는 `On`으로 시작한다
+- 이벤트 처리 함수는 `Handle`로 시작한다
+- 초기화와 해제처럼 서로 대응하는 함수는 대칭되는 이름을 사용한다
+
 ## 줄바꿈
 
 메서드 체이닝 호출은 중간에 줄바꿈하지 않고 한 줄로 작성한다.
-
-```cpp
-// Bad
-AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(
-    URSHealthSet::GetMaxHealthAttribute()).Remove(MaxHealthChangedDelegateHandle);
-
-// Good
-AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetMaxHealthAttribute()).Remove(MaxHealthChangedDelegateHandle);
-```
 
 ## 주석
 
@@ -22,17 +92,6 @@ AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetMaxH
 - 주석은 코드를 한 줄씩 해석하거나 동작을 그대로 설명하지 않는다
 - 코드가 왜 필요한지, 어떤 의도로 작성되었는지, 어떤 제약과 예외가 있는지처럼 코드 자체에 드러나지 않는 정보를 설명한다
 - 주석은 설명하는 대상의 바로 위에 작성하며 대상과 같은 수준으로 들여쓴다
-- 코드가 변경되면 관련 주석도 함께 수정하여 실제 동작과 일치하게 유지한다
-
-```cpp
-// Bad: 코드를 그대로 읽어 설명합니다
-// 최대 이동 속도에 SprintSpeed를 대입합니다
-MovementComponent->MaxWalkSpeed = SprintSpeed;
-
-// Good: 이 코드를 작성한 의도를 설명합니다
-// 종료 시 정확한 값으로 되돌릴 수 있도록 적용 직전의 이동 속도를 보관합니다
-PreviousMaxWalkSpeed = MovementComponent->MaxWalkSpeed;
-```
 
 ### 선언부 주석
 
@@ -43,36 +102,22 @@ PreviousMaxWalkSpeed = MovementComponent->MaxWalkSpeed;
 ```cpp
 /** 현재 체력을 반환합니다 */
 float GetHealth() const;
-```
 
-두 문장 이상이 필요하면 여러 줄로 작성하고 각 줄 앞에 ` *`를 붙인다.
-
-```cpp
 /**
- * HealthSet의 체력 변경을 캐릭터, UI 등의 외부 시스템에 전달합니다
+ * HealthSet의 체력 변경을 캐릭터, 사용자 인터페이스 등의 외부 시스템에 전달합니다
  * 실제 체력 데이터는 소유하지 않고 ASC와 HealthSet을 연결하는 역할을 합니다
  */
 UCLASS()
 class RS_API URSHealthComponent : public UActorComponent
 ```
 
+두 문장 이상이 필요하면 여러 줄로 작성하고 각 줄 앞에 ` *`를 붙인다.
+
 ### 구현부 주석
 
 함수 내부의 처리 의도, 분기 이유, 예외 상황, 상태 변화 등을 설명할 때는 한 줄 주석 `//`을 사용한다.
 
-```cpp
-// 입력 조건이 중간에 취소되어도 ASC의 Held 상태가 남지 않도록 해제 콜백을 호출합니다
-BindAction(Action.InputAction, ETriggerEvent::Canceled, Object, ReleasedFunc, Action.InputTag);
-```
-
 연속된 주석이 하나의 설명이라면 각 줄에 `//`을 사용한다.
-
-```cpp
-// Pressed와 Released는 한 프레임 상태이므로 처리 후 초기화합니다
-// Held는 입력을 해제할 때까지 다음 프레임에도 유지합니다
-InputPressedSpecHandles.Reset();
-InputReleasedSpecHandles.Reset();
-```
 
 헤더의 문서 주석과 같은 내용을 소스 파일의 함수 정의 위에 반복하지 않는다. 구현에서 추가로 알아야 할 의도가 있을 때만 함수 내부에 주석을 작성한다.
 
@@ -80,23 +125,9 @@ InputReleasedSpecHandles.Reset();
 
 Gameplay Tag 선언처럼 같은 성격의 항목을 묶을 때는 짧은 영문 명사 형태의 한 줄 주석을 사용한다.
 
-```cpp
-// Input
-RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Move);
-
-// Ability
-RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Sprint);
-```
-
 ### 주석 처리된 코드
 
-사용하지 않는 코드를 주석으로 남겨두지 않는다. 다시 필요할 수 있는 코드는 버전 관리 기록을 통해 확인한다.
-
-```cpp
-// Bad
-// const FRotator CameraRotation = CameraComp->GetComponentRotation();
-// const FRotator YawRotation(0.0f, CameraRotation.Yaw, 0.0f);
-```
+사용하지 않는 코드를 주석으로 남겨두지 않는다.
 
 ## 클래스 구성
 
@@ -108,39 +139,13 @@ RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Sprint);
 2. 생성자
 3. 여러 기능에 걸친 Unreal 생명주기 함수
 4. 기능별 `#pragma region`
-5. region으로 구분하지 않는 멤버
+5. region을 사용하지 않는 함수와 멤버 변수
 
-생성자와 Unreal 생명주기 함수는 클래스 상단에 작성한다. 특정 기능에만 속하는 Unreal 오버라이드 함수는 해당 기능의 region에 작성할 수 있다.
-
-```cpp
-UCLASS()
-class RS_API ARSPlayerCharacter : public ARSBaseCharacter
-{
-	GENERATED_BODY()
-
-public:
-	ARSPlayerCharacter();
-
-	virtual void PossessedBy(AController* NewController) override;
-	virtual void OnRep_PlayerState() override;
-
-	// 기능별 region
-};
-```
+특정 기능에만 속하는 Unreal 오버라이드 함수는 예외적으로 해당 기능의 region에 작성할 수 있다.
 
 ### 함수와 변수
 
 함수와 멤버 변수는 별도의 그룹으로 구분하며 함수를 먼저 작성한다. 각 그룹은 접근 지정자를 독립적으로 적용하고 `public`, `protected`, `private` 순서로 작성한다.
-
-```text
-public 함수
-protected 함수
-private 함수
-
-public 변수
-protected 변수
-private 변수
-```
 
 - 함수와 변수의 접근 수준이 같아도 그룹이 바뀌면 접근 지정자를 다시 작성한다
 - 해당하는 멤버가 없는 접근 지정자는 생략한다
@@ -155,10 +160,7 @@ private 변수
 - `Public`, `Functions`, `Variables`처럼 선언 형태만 나타내는 이름은 사용하지 않는다
 - 멤버가 적은 기능에는 region을 만들지 않는다
 - region을 중첩하지 않는다
-- region이 지나치게 커지면 region을 추가하기보다 클래스 분리를 먼저 검토한다
 - `#pragma region` 다음과 `#pragma endregion` 앞에는 빈 줄을 둔다
-
-region은 C++ 스코프를 생성하지 않으므로 이전 코드의 접근 상태에 의존하지 않는다.
 
 - 각 region은 첫 번째 멤버의 접근 지정자를 반드시 명시한다
 - 각 region 안에서 함수 그룹을 먼저 작성하고 변수 그룹을 나중에 작성한다
@@ -168,21 +170,136 @@ region은 C++ 스코프를 생성하지 않으므로 이전 코드의 접근 상
 ```cpp
 #pragma region Input
 
-public:
-	/** 플레이어 입력 컴포넌트에 입력 액션을 바인딩합니다 */
-	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-
 protected:
 	void Input_Move(const FInputActionValue& InputActionValue);
-	void Input_AbilityTagPressed(FGameplayTag InputTag);
-	void Input_AbilityTagReleased(FGameplayTag InputTag);
 
 protected:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputMappingContext> DefaultMappingContext;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input")
 	TObjectPtr<URSInputConfig> InputConfig;
 
 #pragma endregion
 ```
+
+## 함수 작성 스타일
+
+### 조기 반환
+
+유효하지 않은 입력이나 실행할 수 없는 상태는 함수 시작 부분에서 확인하고 즉시 반환한다.
+
+- 실패 원인을 호출자가 알아야 한다면 `bool`, 열거형 또는 결과 구조체를 반환한다
+- 여러 반환 경로에서 공통 정리 작업이 누락되지 않도록 주의한다
+
+### 하나의 책임
+
+함수는 이름으로 표현할 수 있는 하나의 명확한 목적을 담당한다.
+
+- 검증, 계산, 상태 적용, 이벤트 전달처럼 독립적인 작업은 별도 함수로 분리한다
+- 상위 함수가 하나의 작업 흐름을 구성하기 위해 여러 세부 함수를 순서대로 호출하는 것은 허용한다
+- 단순히 코드 줄 수를 줄이기 위한 의미 없는 함수 분리는 피한다
+
+### 입력 인자
+
+입력 인자는 타입의 크기와 복사 비용, 함수에서의 수정 여부에 따라 값 또는 `const` 참조로 전달한다.
+
+- 기본 타입, 열거형, 포인터, 복사 비용이 작은 값 타입은 값으로 전달한다
+- `FString`, `FText`, 컨테이너, 크기가 크거나 복사 비용이 있는 구조체는 `const` 참조로 전달한다
+
+- 함수가 인자를 수정하지 않는다면 비-const 참조를 사용하지 않는다
+- 객체를 수정하지 않는 포인터는 가능한 경우 `const` 객체 포인터로 받는다
+- 값으로 전달하는 인자의 `const`는 헤더의 함수 선언에 작성하지 않는다
+
+### 출력 인자
+
+단일 결과는 출력 인자보다 반환값을 우선한다.
+
+여러 결과를 반환하거나 Unreal API의 형식을 따라야 할 때 출력 인자를 사용한다.
+
+- 출력 전용 인자는 `Out`, 입력과 출력에 모두 사용하는 인자는 `InOut` 접두사를 사용한다
+- 입력 인자를 먼저 작성하고 출력 인자를 나중에 작성한다
+- 필수 출력 인자는 참조로 받고 선택적 출력 인자는 포인터로 받아 `nullptr`을 허용한다
+- 실패 여부를 호출자가 알아야 한다면 `bool`을 반환하고 실패 시 출력 인자의 상태를 정의한다
+
+## 포인터와 객체 참조
+
+### 포인터 타입 선택
+
+#### `TObjectPtr`
+
+- 강한 UObject 멤버 참조에는 `UPROPERTY`가 적용된 `TObjectPtr`을 사용한다
+- 지역 변수, 함수 매개변수, 반환 타입에는 사용하지 않는다
+
+#### 일반 포인터
+
+- 지역 변수, 함수 매개변수, 반환값에는 일반 포인터를 사용한다
+- 함수 호출 이후에도 참조를 보관해야 한다면 `TObjectPtr` 또는 `TWeakObjectPtr`을 사용한다
+
+#### `TWeakObjectPtr`
+
+- 참조 대상의 생명주기를 유지하지 않으며 대상이 먼저 제거될 수 있을 때 사용한다
+- `Get()`의 결과를 지역 변수에 저장하고 유효성을 확인한 뒤 사용한다
+- 참조를 명시적으로 제거할 때는 `Reset()`을 사용한다
+
+### 포인터 유효성 검사
+
+- 참조가 설정되었는지만 확인할 때는 `if (Object)` 또는 `if (!Object)`를 사용한다
+- `== nullptr`, `!= nullptr`을 직접 비교하는 방식은 사용하지 않는다
+- Actor나 Component가 파괴 중이거나 사용 불가능한 상태일 가능성이 있으면 `IsValid(Object)`를 사용한다
+
+### 캐스팅
+
+UObject 타입 변환에는 `Cast` 또는 `CastChecked`를 사용하고 `dynamic_cast`는 사용하지 않는다.
+
+#### `Cast`
+
+타입이 다를 가능성이 있거나 캐스팅 실패를 정상적으로 처리할 수 있을 때 사용한다.
+
+- 캐스팅 결과는 사용하기 전에 확인한다
+- 실패하면 조기 반환하거나 명시적인 대체 흐름을 사용한다
+- `IsA`로 타입을 확인한 뒤 다시 캐스팅하지 않고 `Cast`를 한 번만 수행한다
+
+#### `CastChecked`
+
+대상이 해당 타입이라는 사실이 반드시 보장되고 실패가 프로그램 구성 오류일 때만 사용한다. 실패 가능성이 있거나 실패를 처리할 수 있다면 `Cast`를 사용한다.
+
+## Unreal 매크로
+
+### 지정자 순서
+
+다음 목록의 `UPROPERTY` 지정자를 함께 사용할 때는 다음 순서로 작성한다.
+
+1. `Transient`, `SaveGame`, `Replicated`, `ReplicatedUsing`
+2. `EditDefaultsOnly`, `EditAnywhere`, `VisibleAnywhere`
+3. `BlueprintReadOnly`, `BlueprintReadWrite`, `BlueprintAssignable`
+4. `Category`
+5. `meta`
+
+사용하지 않는 지정자 그룹은 생략하고 `meta`는 항상 마지막에 작성한다.
+
+`UFUNCTION` 지정자는 네트워크·실행 방식, Blueprint 노출 방식, `Category`, `meta` 순서로 작성한다.
+
+Blueprint에 노출하지 않는 함수는 필요한 경우 빈 `UFUNCTION` 매크로를 허용한다.
+
+### Category
+
+Blueprint 또는 에디터에 노출되는 `UPROPERTY`, `UFUNCTION`, 델리게이트는 `RS`를 최상위 Category로 사용한다.
+
+- Category 이름은 영문으로 작성한다
+- 각 단어의 첫 글자는 대문자로 작성한다
+- 하위 Category는 `|`로 구분하고 앞뒤에 공백을 넣지 않는다
+- 같은 기능에는 프로젝트 전체에서 동일한 Category 이름을 사용한다
+- Blueprint나 에디터에 노출하지 않는 멤버에는 Category를 작성하지 않는다
+
+### 프로퍼티 노출
+
+- 기본적으로 `BlueprintReadOnly`를 사용한다
+- Blueprint가 직접 변경하는 것이 의도된 값에만 `BlueprintReadWrite`를 사용한다
+- 변경할 때 검증이나 추가 처리가 필요하면 `BlueprintReadWrite` 대신 함수나 `BlueprintSetter`를 제공한다
+- private 멤버를 Blueprint에 노출할 때는 `meta = (AllowPrivateAccess = "true")`를 사용한다
+
+### 에디터 편집
+
+- 기본 설정값은 `EditDefaultsOnly`를 사용한다
+- 인스턴스별 편집이 명확하게 필요한 경우에만 `EditAnywhere`를 사용한다
+- 생성된 컴포넌트 참조에는 `VisibleAnywhere`를 사용한다
+- 런타임 상태에는 편집 지정자를 사용하지 않는다
+- 저장하거나 직렬화할 필요가 없는 런타임 프로퍼티에는 `Transient`를 사용한다
