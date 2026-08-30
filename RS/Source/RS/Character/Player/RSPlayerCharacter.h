@@ -12,6 +12,7 @@ class UInputMappingContext;
 class URSInputConfig;
 class UCameraComponent;
 class USpringArmComponent;
+class URSHealthComponent;
 
 struct FInputActionValue;
 
@@ -58,6 +59,10 @@ public:
 	/** PlayerState가 소유한 ASC를 반환합니다 */
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
+	/** PlayerState의 HealthSet을 현재 캐릭터에 연결하는 컴포넌트를 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Health")
+	URSHealthComponent* GetHealthComponent() const { return HealthComp; }
+
 protected:
 	/**
 	 * 이 캐릭터가 초기화될 때 기본으로 부여할 AbilitySet입니다
@@ -81,4 +86,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USpringArmComponent> SpringArmComp;
+
+private:
+	/** PlayerState의 HealthSet 변경을 캐릭터와 UI에 전달합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Health", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSHealthComponent> HealthComp;
 };

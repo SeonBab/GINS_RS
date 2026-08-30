@@ -8,6 +8,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSHealthComponent.h"
 #include "RSPlayerState.h"
 #include "RSGameplayTags.h"
 #include "RSInputComponent.h"
@@ -22,6 +23,8 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	CameraComp->SetupAttachment(SpringArmComp);
+
+	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
 }
 
 void ARSPlayerCharacter::PossessedBy(AController* NewController)
@@ -137,16 +140,24 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 	ARSPlayerState* RSPlayerState = GetPlayerState<ARSPlayerState>();
 	if (!RSPlayerState)
 	{
+		// PlayerState가 교체되거나 제거된 경우 이전 ASC의 델리게이트 연결을 정리합니다
+		HealthComp->UninitializeFromAbilitySystem();
+
 		return;
 	}
 
 	URSAbilitySystemComponent* AbilitySystemComp = RSPlayerState->GetRSAbilitySystemComponent();
 	if (!AbilitySystemComp)
 	{
+		HealthComp->UninitializeFromAbilitySystem();
+
 		return;
 	}
 
 	AbilitySystemComp->InitAbilityActorInfo(RSPlayerState, this);
+
+	// ActorInfo 초기화가 끝난 ASC와 HealthSet을 캐릭터의 HealthComponent에 연결합니다
+	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
 
 	if (AbilitySystemComp->IsOwnerActorAuthoritative() && !bDefaultAbilitiesGranted && DefaultAbilitySet)
 	{

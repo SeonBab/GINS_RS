@@ -30,11 +30,18 @@ public:
 	RS_ATTRIBUTE_ACCESSORS(URSHealthSet, Damage);
 
 protected:
-	/** Attribute가 변경되기 전에 유효한 범위로 제한합니다 */
+	/** Attribute의 Base Value가 변경되기 전에 유효한 범위로 제한합니다 */
+	virtual void PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const override;
+
+	/** Attribute의 Current Value가 변경되기 전에 유효한 범위로 제한합니다 */
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 
-	/** GameplayEffect 결과를 실제 Health에 반영합니다 */
+	/** GameplayEffect 결과를 Health에 반영하고 최종 값의 범위를 보정합니다 */
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
+
+private:
+	/** Health와 MaxHealth에 허용되는 값의 범위를 적용합니다 */
+	void ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const;
 
 private:
 	/**
@@ -52,7 +59,7 @@ private:
 	 * 이번 GameplayEffect에서 적용된 회복량입니다
 	 * Health에 반영한 뒤 즉시 0으로 초기화합니다
 	 */
-	UPROPERTY(BlueprintReadOnly,Category = "Health", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	FGameplayAttributeData Healing;
 
 	/**
