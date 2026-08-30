@@ -10,6 +10,10 @@ public class RS : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicIncludePaths.AddRange(new string[] {
+			Path.Combine(ModuleDirectory, "AbilitySystem"),
+			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities"),
+			Path.Combine(ModuleDirectory, "AbilitySystem", "Attributes"),
+			Path.Combine(ModuleDirectory, "AnimInstance"),
 			Path.Combine(ModuleDirectory, "Character"),
 			Path.Combine(ModuleDirectory, "Character", "Player"),
 			Path.Combine(ModuleDirectory, "Controller"),
@@ -17,7 +21,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "GameMode"),
 			Path.Combine(ModuleDirectory, "GameplayTags"),
 			Path.Combine(ModuleDirectory, "Input"),
-			Path.Combine(ModuleDirectory, "AnimInstance"),
+			Path.Combine(ModuleDirectory, "PlayerState"),
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks" });

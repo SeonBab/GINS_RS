@@ -8,5 +8,12 @@ namespace RSGameplayTags
 {
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Move);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Sprint);
+
+	// Ability
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Sprint);
+
+	// State
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Sprinting);
 
 }

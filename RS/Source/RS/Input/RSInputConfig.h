@@ -29,7 +29,15 @@ class RS_API URSInputConfig : public UDataAsset
 public:
 	const UInputAction* FindNativeInputAction(const FGameplayTag& InputTag, bool bLogNotFound = true) const;
 
+	const TArray<FRSInputAction>& GetAbilityInputActions() const
+	{
+		return AbilityInputActions;
+	}
+
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TArray<FRSInputAction> NativeInputActions;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true", Categories = "InputTag.Ability"))
+	TArray<FRSInputAction> AbilityInputActions;
 };

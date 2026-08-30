@@ -14,4 +14,8 @@ class RS_API ARSGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
 
+public:
+	ARSGameModeBase();
+
+
 };

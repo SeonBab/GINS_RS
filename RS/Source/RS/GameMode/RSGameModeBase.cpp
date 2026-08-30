@@ -2,3 +2,12 @@
 
 
 #include "RSGameModeBase.h"
+
+#include "RSPlayerState.h"
+#include "RSPlayerCharacter.h"
+
+ARSGameModeBase::ARSGameModeBase()
+{
+	PlayerStateClass = ARSPlayerState::StaticClass();
+	DefaultPawnClass = ARSPlayerCharacter::StaticClass();
+}
