@@ -16,8 +16,10 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Components"),
 			Path.Combine(ModuleDirectory, "AnimInstance"),
 			Path.Combine(ModuleDirectory, "Character"),
+			Path.Combine(ModuleDirectory, "Character", "Boss"),
 			Path.Combine(ModuleDirectory, "Character", "Player"),
 			Path.Combine(ModuleDirectory, "Controller"),
+			Path.Combine(ModuleDirectory, "Controller", "Boss"),
 			Path.Combine(ModuleDirectory, "Controller", "Player"),
 			Path.Combine(ModuleDirectory, "GameMode"),
 			Path.Combine(ModuleDirectory, "GameplayTags"),
@@ -25,7 +27,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "PlayerState"),
 		});
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
