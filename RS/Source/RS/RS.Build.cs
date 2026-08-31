@@ -21,6 +21,8 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "Controller"),
 			Path.Combine(ModuleDirectory, "Controller", "Boss"),
 			Path.Combine(ModuleDirectory, "Controller", "Player"),
+			Path.Combine(ModuleDirectory, "Encounter"),
+			Path.Combine(ModuleDirectory, "Encounter", "Boss"),
 			Path.Combine(ModuleDirectory, "GameMode"),
 			Path.Combine(ModuleDirectory, "GameplayTags"),
 			Path.Combine(ModuleDirectory, "Input"),
