@@ -12,9 +12,16 @@ class UPanelWidget;
 UENUM(BlueprintType)
 enum class ERSWidgetLayer : uint8
 {
+	/** 항상 표시되는 게임플레이 사용자 인터페이스 계층입니다 */
 	Gameplay,
+
+	/** 게임플레이 화면 위에 표시되는 메뉴 계층입니다 */
 	Menu,
+
+	/** 다른 입력을 차단하는 화면을 표시하는 계층입니다 */
 	Modal,
+
+	/** 알림을 가장 앞에 표시하는 계층입니다 */
 	Notification
 };
 

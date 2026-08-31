@@ -15,8 +15,10 @@ class RS_API ARSPlayerHeadUpDisplay : public AHUD
 	GENERATED_BODY()
 
 protected:
+	/** 로컬 플레이어의 루트 레이아웃을 생성하고 화면에 표시합니다 */
 	virtual void BeginPlay() override;
 
+	/** HUD 종료 시 생성한 루트 레이아웃을 화면에서 제거합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
@@ -25,8 +27,10 @@ public:
 	URSPrimaryLayout* GetPrimaryLayout() const;
 
 private:
+	/** 설정된 클래스에서 루트 레이아웃을 생성하고 공유 ViewModel을 연결합니다 */
 	void CreatePrimaryLayout();
 
+	/** 루트 레이아웃에 선언된 수동 ViewModel 소스를 로컬 플레이어의 공유 인스턴스로 설정합니다 */
 	void SetSharedViewModels();
 
 private:

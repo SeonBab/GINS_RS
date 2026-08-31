@@ -14,6 +14,7 @@ class RS_API URSLocalPlayerViewModelSubsystem : public ULocalPlayerSubsystem
 	GENERATED_BODY()
 
 public:
+	/** LocalPlayer 종료 시 보관한 ViewModel 참조를 해제합니다 */
 	virtual void Deinitialize() override;
 
 public:
