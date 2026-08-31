@@ -28,6 +28,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ModelViewViewModel",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelContextProtocol",
 			"Enabled": true
 		},
