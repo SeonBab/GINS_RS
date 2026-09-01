@@ -5,6 +5,7 @@
 
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "RSAbilitySystemComponent.h"
@@ -25,6 +26,17 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	CameraComp->SetupAttachment(SpringArmComp);
 
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+
+	// 클릭 경로가 꺾일 때 CharacterMovement가 현재 진행 방향을 기준으로 캐릭터를 회전시킵니다
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+}
+
+void ARSPlayerCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 }
 
 void ARSPlayerCharacter::PossessedBy(AController* NewController)
@@ -135,6 +147,11 @@ UAbilitySystemComponent* ARSPlayerCharacter::GetAbilitySystemComponent() const
 	return RSPlayerState ? RSPlayerState->GetAbilitySystemComponent() : nullptr;
 }
 
+bool ARSPlayerCharacter::IsDead() const
+{
+	return HealthComp && HealthComp->IsDead();
+}
+
 void ARSPlayerCharacter::InitializeAbilitySystem()
 {
 	ARSPlayerState* RSPlayerState = GetPlayerState<ARSPlayerState>();
@@ -165,4 +182,35 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 
 		bDefaultAbilitiesGranted = true;
 	}
+}
+
+void ARSPlayerCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
+{
+	if (InHealthComponent != HealthComp)
+	{
+		return;
+	}
+
+	if (URSAbilitySystemComponent* AbilitySystemComp = Cast<URSAbilitySystemComponent>(GetAbilitySystemComponent()))
+	{
+		AbilitySystemComp->ClearAbilityInput();
+		AbilitySystemComp->CancelAbilities();
+	}
+
+	if (Controller)
+	{
+		// StopMovementImmediately만 호출하면 Navigation 경로 추종이 다음 프레임에 이동을 다시 요청할 수 있습니다
+		Controller->StopMovement();
+	}
+
+	UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
+	CharacterMovementComp->StopMovementImmediately();
+	CharacterMovementComp->DisableMovement();
+
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+
+	ReceiveDeathStarted();
 }

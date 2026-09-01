@@ -16,6 +16,7 @@ namespace RSGameplayTags
 
 	// State
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Sprinting, "State.Movement.Sprinting", "");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Character is dead");
 
 
 }

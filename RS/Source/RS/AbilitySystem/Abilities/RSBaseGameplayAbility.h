@@ -25,6 +25,9 @@ class RS_API URSBaseGameplayAbility : public UGameplayAbility
 	GENERATED_BODY()
 
 public:
+	/** Dead 상태에서 활성화되지 않는 RS 어빌리티의 공통 기본값을 구성합니다 */
+	URSBaseGameplayAbility();
+
 	/** 이 어빌리티의 자동 활성화 정책을 반환합니다 */
 	ERSAbilityActivationPolicy GetActivationPolicy() const;
 

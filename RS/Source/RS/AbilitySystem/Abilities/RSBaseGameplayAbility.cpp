@@ -2,6 +2,13 @@
 
 #include "RSBaseGameplayAbility.h"
 
+#include "RSGameplayTags.h"
+
+URSBaseGameplayAbility::URSBaseGameplayAbility()
+{
+	ActivationBlockedTags.AddTag(RSGameplayTags::State_Dead);
+}
+
 ERSAbilityActivationPolicy URSBaseGameplayAbility::GetActivationPolicy() const
 {
 	return ActivationPolicy;

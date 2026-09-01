@@ -4,10 +4,11 @@
 #include "RSAbilitySystemComponent.h"
 
 #include "Abilities/RSBaseGameplayAbility.h"
+#include "RSGameplayTags.h"
 
 void URSAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
 {
-	if (!InputTag.IsValid())
+	if (!InputTag.IsValid() || HasMatchingGameplayTag(RSGameplayTags::State_Dead))
 	{
 		return;
 	}
@@ -57,6 +58,12 @@ void URSAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& Inpu
 
 void URSAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
 {
+	if (HasMatchingGameplayTag(RSGameplayTags::State_Dead))
+	{
+		ClearAbilityInput();
+		return;
+	}
+
 	TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
 
 	// 입력을 유지하는 동안 비활성 상태인 WhileInputActive 어빌리티를 수집합니다

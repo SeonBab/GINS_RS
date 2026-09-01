@@ -15,5 +15,6 @@ namespace RSGameplayTags
 
 	// State
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Sprinting);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
 
 }

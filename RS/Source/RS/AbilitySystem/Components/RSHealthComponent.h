@@ -13,6 +13,7 @@ class URSHealthSet;
 struct FOnAttributeChangeData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRSHealthChangedSignature, URSHealthComponent*, HealthComponent, float, OldValue, float, NewValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRSDeathSignature, URSHealthComponent*, HealthComponent);
 
 /**
  * HealthSet의 체력 변경을 캐릭터, UI 등의 외부 시스템에 전달합니다
@@ -48,6 +49,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Health")
 	float GetHealthNormalized() const;
 
+	/** 캐릭터의 사망 상태를 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Death")
+	bool IsDead() const { return bIsDead; }
+
 public:
 	/** 현재 체력이 변경될 때 발생합니다 */
 	UPROPERTY(BlueprintAssignable, Category = "RS|Health")
@@ -57,12 +62,22 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "RS|Health")
 	FRSHealthChangedSignature OnMaxHealthChanged;
 
+	/** 체력이 0이 되어 사망 상태가 시작될 때 발생합니다 */
+	UPROPERTY(BlueprintAssignable, Category = "RS|Death")
+	FRSDeathSignature OnDeathStarted;
+
 private:
 	/** ASC에서 전달된 현재 체력 변경을 외부 이벤트로 변환합니다 */
 	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
 
 	/** ASC에서 전달된 최대 체력 변경을 외부 이벤트로 변환합니다 */
 	void HandleMaxHealthChanged(const FOnAttributeChangeData& ChangeData);
+
+	/** 사망 상태를 시작하고 Dead Gameplay Tag와 이벤트를 적용합니다 */
+	void StartDeath();
+
+	/** 현재 사망 상태에 맞춰 ASC의 Dead Gameplay Tag를 동기화합니다 */
+	void UpdateDeadGameplayTag();
 
 private:
 	/** 현재 체력 Attribute를 제공하는 ASC입니다 */
@@ -78,4 +93,11 @@ private:
 
 	/** ASC에서 최대 체력 변경 이벤트를 제거하기 위한 핸들입니다 */
 	FDelegateHandle MaxHealthChangedDelegateHandle;
+
+	/** 현재 실행 인스턴스에서 확정한 사망 상태입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Death", meta = (AllowPrivateAccess = "true"))
+	bool bIsDead = false;
+
+	/** 이 컴포넌트가 현재 ASC에 Dead Gameplay Tag를 적용했는지 나타냅니다 */
+	bool bDeadGameplayTagApplied = false;
 };

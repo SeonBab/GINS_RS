@@ -9,6 +9,7 @@
 #include "RSPlayerCharacter.generated.h"
 
 class UInputMappingContext;
+class UAnimMontage;
 class URSInputConfig;
 class UCameraComponent;
 class USpringArmComponent;
@@ -23,6 +24,7 @@ class RS_API ARSPlayerCharacter : public ARSBaseCharacter, public IAbilitySystem
 
 public:
 	ARSPlayerCharacter();
+	virtual void PostInitializeComponents() override;
 
 	virtual void PossessedBy(AController* NewController) override;
 
@@ -63,6 +65,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Health")
 	URSHealthComponent* GetHealthComponent() const { return HealthComp; }
 
+	/** 현재 플레이어 캐릭터가 사망 상태인지 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Death")
+	bool IsDead() const;
+
 protected:
 	/**
 	 * 이 캐릭터가 초기화될 때 기본으로 부여할 AbilitySet입니다
@@ -78,6 +84,25 @@ private:
 
 	/** ASC 초기화가 여러 번 호출되어도 기본 어빌리티가 중복으로 부여되지 않게 합니다 */
 	bool bDefaultAbilitiesGranted = false;
+#pragma endregion
+
+#pragma region Death
+
+protected:
+	/** 사망 애니메이션 또는 Ragdoll 같은 시각적 연출을 Blueprint에서 시작합니다 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RS|Death", meta = (DisplayName = "Death Started"))
+	void ReceiveDeathStarted();
+
+private:
+	/** 사망 시 어빌리티와 이동을 중지하고 Blueprint 사망 연출을 시작합니다 */
+	UFUNCTION()
+	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
+
+protected:
+	/** 사망 상태가 시작될 때 재생할 Animation Montage입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Death")
+	TObjectPtr<UAnimMontage> DeathMontage;
+
 #pragma endregion
 
 private:
