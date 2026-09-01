@@ -3,6 +3,7 @@
 
 #include "RSPlayerCharacter.h"
 
+#include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -10,6 +11,7 @@
 #include "Camera/CameraComponent.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSHealthComponent.h"
+#include "RSPlayerController.h"
 #include "RSPlayerState.h"
 #include "RSGameplayTags.h"
 #include "RSInputComponent.h"
@@ -76,8 +78,8 @@ void ARSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		return;
 	}
 
-	// Native Input은 캐릭터가 직접 처리할 콜백에 바인딩합니다
-	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Input_Move);
+	// 한 번의 클릭으로 목적지를 확정하므로 입력을 누른 최초 시점에만 처리합니다
+	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Started, this, &ThisClass::Input_MoveTo);
 
 	// Ability Input은 입력 태그를 함께 전달하여 ASC의 입력 상태로 기록합니다
 	RSInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityTagPressed, &ThisClass::Input_AbilityTagReleased);
@@ -90,28 +92,27 @@ void ARSPlayerCharacter::OnRep_PlayerState()
 	InitializeAbilitySystem();
 }
 
-void ARSPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
+void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 {
-	if (!Controller)
+	if (!InputActionValue.Get<bool>() || IsDead())
 	{
 		return;
 	}
 
-	const FVector2D MovementValue = InputActionValue.Get<FVector2D>();
+	ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
+	if (!PlayerController)
+	{
+		return;
+	}
 
-	// 컨트롤러의 Yaw 회전을 기준으로 이동 방향을 계산합니다
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+	FVector MoveToLocation;
+	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
+	if (!PlayerController->GetMoveToLocation(MoveToLocation))
+	{
+		return;
+	}
 
-	// 카메라 기준 이동이 필요하면 아래 회전을 대신 사용합니다
-	// const FRotator CameraRotation = CameraComp->GetComponentRotation();
-	// const FRotator YawRotation(0.0f, CameraRotation.Yaw, 0.0f);
-
-	const FVector ForwardDirection = YawRotation.RotateVector(FVector::ForwardVector);
-	const FVector RightDirection = YawRotation.RotateVector(FVector::RightVector);
-
-	AddMovementInput(ForwardDirection, MovementValue.Y);
-	AddMovementInput(RightDirection, MovementValue.X);
+	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
 }
 
 void ARSPlayerCharacter::Input_AbilityTagPressed(FGameplayTag InputTag)

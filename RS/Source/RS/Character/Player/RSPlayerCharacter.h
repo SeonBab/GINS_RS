@@ -37,7 +37,8 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 protected:
-	void Input_Move(const FInputActionValue& InputActionValue);
+	/** PlayerController가 반환한 마우스 위치까지 Navigation 이동을 요청합니다 */
+	void Input_MoveTo(const FInputActionValue& InputActionValue);
 
 	/** 어빌리티 입력 태그의 누름 상태를 ASC에 전달합니다 */
 	void Input_AbilityTagPressed(FGameplayTag InputTag);

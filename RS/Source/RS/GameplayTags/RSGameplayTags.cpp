@@ -6,7 +6,7 @@
 namespace RSGameplayTags
 {
 	// Input
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Move, "InputTag.Move", "Character movement input");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_MoveTo, "InputTag.MoveTo", "Move to the clicked world location");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_Sprint, "InputTag.Ability.Sprint", "");
 
 	// Ability

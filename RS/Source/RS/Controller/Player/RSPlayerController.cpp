@@ -14,6 +14,8 @@ void ARSPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ConfigureMouseInput();
+
 	URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem();
 	if (!ViewModelSubsystem)
 	{
@@ -55,6 +57,45 @@ void ARSPlayerController::PostProcessInput(float DeltaTime, bool bGamePaused)
 	}
 
 	Super::PostProcessInput(DeltaTime, bGamePaused);
+}
+
+bool ARSPlayerController::GetMoveToLocation(FVector& OutMoveToLocation) const
+{
+	// 화면 커서가 존재하는 로컬 PlayerController만 월드 위치를 조회할 수 있습니다
+	if (!IsLocalController())
+	{
+		return false;
+	}
+
+	FHitResult CursorHit;
+	const ETraceTypeQuery TraceChannel = UEngineTypes::ConvertToTraceType(ECC_Visibility);
+
+	// 이동 허용 여부는 Character와 Navigation이 판단하고 Controller는 Visibility Hit 위치만 제공합니다
+	if (!GetHitResultUnderCursorByChannel(TraceChannel, false, CursorHit) || !CursorHit.bBlockingHit)
+	{
+		return false;
+	}
+
+	OutMoveToLocation = CursorHit.ImpactPoint;
+
+	return true;
+}
+
+void ARSPlayerController::ConfigureMouseInput()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	bShowMouseCursor = true;
+	DefaultMouseCursor = EMouseCursor::Default;
+
+	// HUD가 입력을 먼저 처리할 수 있게 하면서 월드 조작 중에도 마우스 커서를 유지합니다
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
 }
 
 URSLocalPlayerViewModelSubsystem* ARSPlayerController::GetViewModelSubsystem() const

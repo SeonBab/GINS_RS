@@ -8,7 +8,7 @@
 
 class URSLocalPlayerViewModelSubsystem;
 
-/** 플레이어 입력을 처리하고 로컬 플레이어의 ViewModel을 게임플레이 데이터와 연결합니다 */
+/** 마우스 위치를 게임플레이 입력에 제공하고 로컬 플레이어의 ViewModel을 게임플레이 데이터와 연결합니다 */
 UCLASS()
 class RS_API ARSPlayerController : public APlayerController
 {
@@ -28,7 +28,16 @@ public:
 	/** 매 프레임 기록된 어빌리티 입력을 처리합니다 */
 	virtual void PostProcessInput(float DeltaTime, bool bGamePaused) override;
 
+	/**
+	 * 마우스 커서 아래의 유효한 월드 위치를 반환합니다
+	 * 위치 조회만 담당하며 Character의 이동 상태를 판단하거나 Navigation 이동을 요청하지 않습니다
+	 */
+	bool GetMoveToLocation(FVector& OutMoveToLocation) const;
+
 private:
+	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
+	void ConfigureMouseInput();
+
 	/** 현재 로컬 플레이어의 ViewModel 저장소를 반환합니다 */
 	URSLocalPlayerViewModelSubsystem* GetViewModelSubsystem() const;
 
