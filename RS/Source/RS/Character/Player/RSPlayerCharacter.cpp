@@ -78,8 +78,8 @@ void ARSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		return;
 	}
 
-	// 한 번의 클릭으로 목적지를 확정하므로 입력을 누른 최초 시점에만 처리합니다
-	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Started, this, &ThisClass::Input_MoveTo);
+	// Triggered를 사용해 우클릭을 누르는 동안 현재 커서 위치를 계속 추적합니다
+	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Triggered, this, &ThisClass::Input_MoveTo);
 
 	// Ability Input은 입력 태그를 함께 전달하여 ASC의 입력 상태로 기록합니다
 	RSInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityTagPressed, &ThisClass::Input_AbilityTagReleased);
@@ -99,6 +99,14 @@ void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 		return;
 	}
 
+	const double CurrentTime = GetWorld()->GetTimeSeconds();
+	if (CurrentTime - LastMoveToUpdateTime < MoveToUpdateInterval)
+	{
+		return;
+	}
+
+	LastMoveToUpdateTime = CurrentTime;
+
 	ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
 	if (!PlayerController)
 	{
@@ -107,7 +115,7 @@ void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 
 	FVector MoveToLocation;
 	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
-	if (!PlayerController->GetMoveToLocation(MoveToLocation))
+	if (!PlayerController->GetCursorWorldLocation(MoveToLocation))
 	{
 		return;
 	}

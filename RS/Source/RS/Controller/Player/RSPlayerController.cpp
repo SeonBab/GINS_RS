@@ -59,7 +59,7 @@ void ARSPlayerController::PostProcessInput(float DeltaTime, bool bGamePaused)
 	Super::PostProcessInput(DeltaTime, bGamePaused);
 }
 
-bool ARSPlayerController::GetMoveToLocation(FVector& OutMoveToLocation) const
+bool ARSPlayerController::GetCursorWorldLocation(FVector& OutCursorWorldLocation) const
 {
 	// 화면 커서가 존재하는 로컬 PlayerController만 월드 위치를 조회할 수 있습니다
 	if (!IsLocalController())
@@ -76,7 +76,7 @@ bool ARSPlayerController::GetMoveToLocation(FVector& OutMoveToLocation) const
 		return false;
 	}
 
-	OutMoveToLocation = CursorHit.ImpactPoint;
+	OutCursorWorldLocation = CursorHit.ImpactPoint;
 
 	return true;
 }

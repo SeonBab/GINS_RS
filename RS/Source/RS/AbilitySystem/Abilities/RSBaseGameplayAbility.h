@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "ScalableFloat.h"
 #include "RSBaseGameplayAbility.generated.h"
 
 /**
@@ -32,7 +33,22 @@ public:
 	ERSAbilityActivationPolicy GetActivationPolicy() const;
 
 protected:
+	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
+	virtual const FGameplayTagContainer* GetCooldownTags() const override;
+
+	/** 공용 GameplayEffect에 실행별 쿨다운 시간과 Tag를 설정하여 적용합니다 */
+	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
+
+protected:
 	/** RS 프레임워크가 사용할 자동 활성화 정책입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Activation")
 	ERSAbilityActivationPolicy ActivationPolicy = ERSAbilityActivationPolicy::None;
+
+	/** 어빌리티 레벨에 따라 적용할 쿨다운 시간입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Cooldown")
+	FScalableFloat CooldownDuration = 0.0f;
+
+	/** 쿨다운 중 이 어빌리티의 재활성화를 차단하는 Tag입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Cooldown", meta = (Categories = "Cooldown"))
+	FGameplayTagContainer CooldownTags;
 };

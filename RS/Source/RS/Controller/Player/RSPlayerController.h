@@ -30,9 +30,9 @@ public:
 
 	/**
 	 * 마우스 커서 아래의 유효한 월드 위치를 반환합니다
-	 * 위치 조회만 담당하며 Character의 이동 상태를 판단하거나 Navigation 이동을 요청하지 않습니다
+	 * 위치 조회만 담당하며 Character의 이동 또는 어빌리티 실행 상태를 변경하지 않습니다
 	 */
-	bool GetMoveToLocation(FVector& OutMoveToLocation) const;
+	bool GetCursorWorldLocation(FVector& OutCursorWorldLocation) const;
 
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */

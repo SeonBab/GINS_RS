@@ -52,6 +52,14 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<URSInputConfig> InputConfig;
+
+	/** 우클릭을 누르는 동안 커서 위치와 Navigation 경로를 갱신할 최소 시간 간격입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (ClampMin = "0.0", Units = "s"))
+	float MoveToUpdateInterval = 0.1f;
+
+private:
+	/** 마지막으로 커서 위치 갱신을 시도한 월드 시간입니다 */
+	double LastMoveToUpdateTime = -TNumericLimits<double>::Max();
 #pragma endregion
 
 #pragma region GAS
