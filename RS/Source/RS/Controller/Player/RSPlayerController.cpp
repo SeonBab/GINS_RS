@@ -6,9 +6,15 @@
 #include "Engine/LocalPlayer.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
+#include "RSPlayerCameraComponent.h"
 #include "RSPlayerCharacter.h"
 #include "RSPlayerState.h"
 #include "RSPlayerStatusViewModel.h"
+
+ARSPlayerController::ARSPlayerController()
+{
+	PlayerCameraComp = CreateDefaultSubobject<URSPlayerCameraComponent>(TEXT("PlayerCameraComponent"));
+}
 
 void ARSPlayerController::BeginPlay()
 {
@@ -79,6 +85,11 @@ bool ARSPlayerController::GetCursorWorldLocation(FVector& OutCursorWorldLocation
 	OutCursorWorldLocation = CursorHit.ImpactPoint;
 
 	return true;
+}
+
+URSPlayerCameraComponent* ARSPlayerController::GetPlayerCameraComponent() const
+{
+	return PlayerCameraComp;
 }
 
 void ARSPlayerController::ConfigureMouseInput()

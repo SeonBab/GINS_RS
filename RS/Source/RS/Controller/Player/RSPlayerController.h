@@ -7,18 +7,23 @@
 #include "RSPlayerController.generated.h"
 
 class URSLocalPlayerViewModelSubsystem;
+class URSPlayerCameraComponent;
 
-/** 마우스 위치를 게임플레이 입력에 제공하고 로컬 플레이어의 ViewModel을 게임플레이 데이터와 연결합니다 */
+/** 마우스 위치, 로컬 카메라 컴포넌트와 Player ViewModel 연결을 관리합니다 */
 UCLASS()
 class RS_API ARSPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+public:
+	/** 로컬 플레이어의 카메라 컴포넌트를 생성합니다 */
+	ARSPlayerController();
+
 protected:
 	/** 로컬 플레이어의 공유 ViewModel을 준비하고 현재 Pawn의 데이터 원본을 연결합니다 */
 	virtual void BeginPlay() override;
 
-	/** PlayerController가 연결한 ViewModel의 데이터 원본과 이벤트 구독을 해제합니다 */
+	/** PlayerController가 연결한 ViewModel의 데이터 원본을 해제합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
@@ -34,6 +39,9 @@ public:
 	 */
 	bool GetCursorWorldLocation(FVector& OutCursorWorldLocation) const;
 
+	/** 로컬 플레이어의 카메라 상태와 ViewTarget 전환을 담당하는 컴포넌트를 반환합니다 */
+	URSPlayerCameraComponent* GetPlayerCameraComponent() const;
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();
@@ -43,4 +51,9 @@ private:
 
 	/** 현재 PlayerCharacter의 HealthComponent를 PlayerStatusViewModel에 연결합니다 */
 	void UpdatePlayerStatusViewModelSource();
+
+private:
+	/** 로컬 플레이어의 카메라 상태와 전투 CameraActor 수명을 관리합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSPlayerCameraComponent> PlayerCameraComp;
 };

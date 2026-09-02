@@ -9,6 +9,8 @@ class ARSBossCharacter;
 class ARSBossEncounter;
 class ARSPlayerState;
 class UBoxComponent;
+class URSPlayerCameraComponent;
+class USceneComponent;
 
 /** 보스전의 진행 상태입니다 */
 UENUM(BlueprintType)
@@ -75,6 +77,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	ERSBossEncounterState GetEncounterState() const { return EncounterState; }
 
+	/** 보스전 카메라가 궤도와 LookAt 계산에 사용할 공간 기준 Component를 반환합니다 */
+	USceneComponent* GetCameraPivot() const;
+
 	/** 현재 살아 있으며 공격 대상으로 사용할 수 있는 참가자 Pawn을 수집합니다 */
 	void GetActiveParticipantPawns(TArray<APawn*>& OutParticipantPawns) const;
 
@@ -103,6 +108,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Boss")
 	TObjectPtr<UBoxComponent> EncounterArea;
 
+	/** BossCharacter의 이동과 애니메이션에 영향받지 않는 보스전 카메라 중심입니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Camera")
+	TObjectPtr<USceneComponent> CameraPivot;
+
 	/** 이 Encounter가 제어할 보스 캐릭터입니다 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "RS|Boss")
 	TObjectPtr<ARSBossCharacter> BossCharacter;
@@ -122,6 +131,21 @@ private:
 
 	/** BossController가 Blackboard와 현재 공격 대상을 정리하게 합니다 */
 	void NotifyControllerEncounterEnded();
+
+	/**
+	 * 참가자를 직접 조종하는 로컬 플레이어의 카메라 컴포넌트를 반환합니다
+	 * 보스전 카메라는 로컬 표현이므로 이 프로세스에서 조종하지 않는 참가자는 대상이 아닙니다
+	 */
+	URSPlayerCameraComponent* GetParticipantCameraComponent(ARSPlayerState* Participant) const;
+
+	/** 참가자의 로컬 카메라가 보스전 구도를 사용하도록 요청합니다 */
+	void RequestParticipantCameraActivation(ARSPlayerState* Participant) const;
+
+	/**
+	 * 참가자의 로컬 카메라가 기본 플레이어 카메라로 돌아가도록 요청합니다
+	 * 보스 처치 후에도 전투 구도를 유지하므로 참가자가 목록에서 빠질 때만 호출합니다
+	 */
+	void RequestParticipantCameraDeactivation(ARSPlayerState* Participant) const;
 
 	/** 영역에 진입한 플레이어를 참가자로 등록합니다 */
 	UFUNCTION()

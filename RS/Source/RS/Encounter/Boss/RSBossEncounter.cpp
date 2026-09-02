@@ -1,11 +1,14 @@
 #include "RSBossEncounter.h"
 
 #include "Components/BoxComponent.h"
+#include "Components/SceneComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
 #include "RSHealthSet.h"
+#include "RSPlayerCameraComponent.h"
+#include "RSPlayerController.h"
 #include "RSPlayerState.h"
 
 ARSBossEncounter::ARSBossEncounter()
@@ -22,6 +25,9 @@ ARSBossEncounter::ARSBossEncounter()
 	EncounterArea->SetCollisionResponseToAllChannels(ECR_Ignore);
 	EncounterArea->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	EncounterArea->SetGenerateOverlapEvents(true);
+
+	CameraPivot = CreateDefaultSubobject<USceneComponent>(TEXT("CameraPivot"));
+	CameraPivot->SetupAttachment(EncounterArea);
 }
 
 void ARSBossEncounter::BeginPlay()
@@ -80,13 +86,14 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 		SetEncounterState(ERSBossEncounterState::Active, false);
 		NotifyControllerEncounterStarted();
 		BroadcastEncounterStateChanged(OldState);
-		return;
 	}
-
-	if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
+	else if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
 	{
 		BossController->StartEncounter(this);
 	}
+
+	// 카메라 전환 기준은 전투 시작 순간이 아니라 이 플레이어가 참가자가 되었는지 여부입니다
+	RequestParticipantCameraActivation(Participant);
 }
 
 void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
@@ -107,6 +114,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 	}
 
 	OnParticipantRemoved.Broadcast(this, Participant);
+	RequestParticipantCameraDeactivation(Participant);
 
 	if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
 	{
@@ -145,6 +153,7 @@ void ARSBossEncounter::ResetEncounter()
 		if (Participant)
 		{
 			OnParticipantRemoved.Broadcast(this, Participant);
+			RequestParticipantCameraDeactivation(Participant);
 		}
 	}
 
@@ -165,6 +174,11 @@ void ARSBossEncounter::GetActiveParticipantPawns(TArray<APawn*>& OutParticipantP
 			OutParticipantPawns.Add(ParticipantPawn);
 		}
 	}
+}
+
+USceneComponent* ARSBossEncounter::GetCameraPivot() const
+{
+	return CameraPivot;
 }
 
 bool ARSBossEncounter::IsParticipantPawnActive(const APawn* ParticipantPawn) const
@@ -258,6 +272,39 @@ void ARSBossEncounter::NotifyControllerEncounterEnded()
 	if (BossController)
 	{
 		BossController->EndEncounter();
+	}
+}
+
+URSPlayerCameraComponent* ARSBossEncounter::GetParticipantCameraComponent(ARSPlayerState* Participant) const
+{
+	if (!IsValid(Participant))
+	{
+		return nullptr;
+	}
+
+	ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Participant->GetPlayerController());
+	if (!PlayerController || !PlayerController->IsLocalController())
+	{
+		return nullptr;
+	}
+
+	return PlayerController->GetPlayerCameraComponent();
+}
+
+void ARSBossEncounter::RequestParticipantCameraActivation(ARSPlayerState* Participant) const
+{
+	if (URSPlayerCameraComponent* PlayerCameraComp = GetParticipantCameraComponent(Participant))
+	{
+		// 카메라에는 Encounter가 아니라 공전 중심이 될 Component만 전달합니다
+		PlayerCameraComp->ActivateBossCamera(CameraPivot);
+	}
+}
+
+void ARSBossEncounter::RequestParticipantCameraDeactivation(ARSPlayerState* Participant) const
+{
+	if (URSPlayerCameraComponent* PlayerCameraComp = GetParticipantCameraComponent(Participant))
+	{
+		PlayerCameraComp->DeactivateBossCamera();
 	}
 }
 
