@@ -3,6 +3,7 @@
 
 #include "RSPlayerCharacter.h"
 
+#include "AbilitySystemComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
@@ -39,6 +40,13 @@ void ARSPlayerCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+}
+
+void ARSPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UninitializeMovementBlocking();
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void ARSPlayerCharacter::PossessedBy(AController* NewController)
@@ -94,7 +102,7 @@ void ARSPlayerCharacter::OnRep_PlayerState()
 
 void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 {
-	if (!InputActionValue.Get<bool>() || IsDead())
+	if (!InputActionValue.Get<bool>() || !CanRequestMoveTo())
 	{
 		return;
 	}
@@ -121,6 +129,79 @@ void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 	}
 
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
+}
+
+bool ARSPlayerCharacter::CanRequestMoveTo() const
+{
+	const UAbilitySystemComponent* AbilitySystemComp = GetAbilitySystemComponent();
+
+	return AbilitySystemComp
+		&& !IsDead()
+		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Action_Locked)
+		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Movement_Blocked);
+}
+
+void ARSPlayerCharacter::StopNavigationMovement()
+{
+	if (Controller)
+	{
+		// 속도만 중단하면 Navigation 경로 추종이 다음 프레임에 이동을 다시 요청할 수 있습니다
+		Controller->StopMovement();
+	}
+
+	GetCharacterMovement()->StopMovementImmediately();
+}
+
+void ARSPlayerCharacter::InitializeMovementBlocking(UAbilitySystemComponent* AbilitySystemComp)
+{
+	if (!AbilitySystemComp)
+	{
+		UninitializeMovementBlocking();
+
+		return;
+	}
+
+	if (MovementStateAbilitySystemComp.Get() != AbilitySystemComp || !ActionLockedTagDelegateHandle.IsValid() || !MovementBlockedTagDelegateHandle.IsValid())
+	{
+		UninitializeMovementBlocking();
+
+		MovementStateAbilitySystemComp = AbilitySystemComp;
+		ActionLockedTagDelegateHandle = AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Action_Locked, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleMovementBlockingTagChanged);
+		MovementBlockedTagDelegateHandle = AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Movement_Blocked, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleMovementBlockingTagChanged);
+	}
+
+	HandleMovementBlockingTagChanged(RSGameplayTags::State_Action_Locked, AbilitySystemComp->GetTagCount(RSGameplayTags::State_Action_Locked));
+	HandleMovementBlockingTagChanged(RSGameplayTags::State_Movement_Blocked, AbilitySystemComp->GetTagCount(RSGameplayTags::State_Movement_Blocked));
+}
+
+void ARSPlayerCharacter::UninitializeMovementBlocking()
+{
+	UAbilitySystemComponent* AbilitySystemComp = MovementStateAbilitySystemComp.Get();
+	if (AbilitySystemComp)
+	{
+		if (ActionLockedTagDelegateHandle.IsValid())
+		{
+			AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Action_Locked, EGameplayTagEventType::NewOrRemoved).Remove(ActionLockedTagDelegateHandle);
+		}
+
+		if (MovementBlockedTagDelegateHandle.IsValid())
+		{
+			AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Movement_Blocked, EGameplayTagEventType::NewOrRemoved).Remove(MovementBlockedTagDelegateHandle);
+		}
+	}
+
+	MovementStateAbilitySystemComp.Reset();
+	ActionLockedTagDelegateHandle.Reset();
+	MovementBlockedTagDelegateHandle.Reset();
+}
+
+void ARSPlayerCharacter::HandleMovementBlockingTagChanged(FGameplayTag GameplayTag, int32 NewCount)
+{
+	const bool bIsMovementBlockingTag = GameplayTag == RSGameplayTags::State_Action_Locked || GameplayTag == RSGameplayTags::State_Movement_Blocked;
+	if (bIsMovementBlockingTag && NewCount > 0)
+	{
+		StopNavigationMovement();
+	}
 }
 
 void ARSPlayerCharacter::Input_AbilityTagPressed(FGameplayTag InputTag)
@@ -167,6 +248,7 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 	if (!RSPlayerState)
 	{
 		// PlayerState가 교체되거나 제거된 경우 이전 ASC의 델리게이트 연결을 정리합니다
+		UninitializeMovementBlocking();
 		HealthComp->UninitializeFromAbilitySystem();
 
 		return;
@@ -175,6 +257,7 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 	URSAbilitySystemComponent* AbilitySystemComp = RSPlayerState->GetRSAbilitySystemComponent();
 	if (!AbilitySystemComp)
 	{
+		UninitializeMovementBlocking();
 		HealthComp->UninitializeFromAbilitySystem();
 
 		return;
@@ -184,6 +267,7 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 
 	// ActorInfo 초기화가 끝난 ASC와 HealthSet을 캐릭터의 HealthComponent에 연결합니다
 	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
+	InitializeMovementBlocking(AbilitySystemComp);
 
 	if (AbilitySystemComp->IsOwnerActorAuthoritative() && !bDefaultAbilitiesGranted && DefaultAbilitySet)
 	{
@@ -206,15 +290,8 @@ void ARSPlayerCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponen
 		AbilitySystemComp->CancelAbilities();
 	}
 
-	if (Controller)
-	{
-		// StopMovementImmediately만 호출하면 Navigation 경로 추종이 다음 프레임에 이동을 다시 요청할 수 있습니다
-		Controller->StopMovement();
-	}
-
-	UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
-	CharacterMovementComp->StopMovementImmediately();
-	CharacterMovementComp->DisableMovement();
+	StopNavigationMovement();
+	GetCharacterMovement()->DisableMovement();
 
 	if (DeathMontage)
 	{

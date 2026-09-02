@@ -10,6 +10,7 @@
 
 class UInputMappingContext;
 class UAnimMontage;
+class UAbilitySystemComponent;
 class URSInputConfig;
 class UCameraComponent;
 class USpringArmComponent;
@@ -25,6 +26,7 @@ class RS_API ARSPlayerCharacter : public ARSBaseCharacter, public IAbilitySystem
 public:
 	ARSPlayerCharacter();
 	virtual void PostInitializeComponents() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	virtual void PossessedBy(AController* NewController) override;
 
@@ -46,6 +48,22 @@ protected:
 	/** 어빌리티 입력 태그의 해제 상태를 ASC에 전달합니다 */
 	void Input_AbilityTagReleased(FGameplayTag InputTag);
 
+private:
+	/** 현재 Gameplay State에서 새 Navigation 이동을 요청할 수 있는지 반환합니다 */
+	bool CanRequestMoveTo() const;
+
+	/** 진행 중인 Navigation 경로 추종과 CharacterMovement의 속도를 중단합니다 */
+	void StopNavigationMovement();
+
+	/** 현재 ASC의 행동 및 이동 차단 상태 변경을 구독합니다 */
+	void InitializeMovementBlocking(UAbilitySystemComponent* AbilitySystemComp);
+
+	/** 이전 ASC에 등록한 이동 차단 상태 변경 구독을 해제합니다 */
+	void UninitializeMovementBlocking();
+
+	/** 행동 또는 이동 차단 상태가 시작되면 진행 중인 Navigation 이동을 중단합니다 */
+	void HandleMovementBlockingTagChanged(FGameplayTag GameplayTag, int32 NewCount);
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
@@ -60,6 +78,15 @@ protected:
 private:
 	/** 마지막으로 커서 위치 갱신을 시도한 월드 시간입니다 */
 	double LastMoveToUpdateTime = -TNumericLimits<double>::Max();
+
+	/** 이동 차단 상태 변경을 구독한 ASC입니다 */
+	TWeakObjectPtr<UAbilitySystemComponent> MovementStateAbilitySystemComp;
+
+	/** 행동 차단 상태 변경 델리게이트를 정확히 해제하기 위한 핸들입니다 */
+	FDelegateHandle ActionLockedTagDelegateHandle;
+
+	/** 이동 차단 상태 변경 델리게이트를 정확히 해제하기 위한 핸들입니다 */
+	FDelegateHandle MovementBlockedTagDelegateHandle;
 #pragma endregion
 
 #pragma region GAS

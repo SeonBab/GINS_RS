@@ -32,5 +32,6 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Evading);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Invulnerable);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_KnockbackImmune);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Blocked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Dashing);
 }

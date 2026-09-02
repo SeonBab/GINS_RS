@@ -31,5 +31,6 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Evading, "State.Defense.Evading", "대미지와 경직에는 면역이지만 넉백은 허용하는 회피 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Invulnerable, "State.Defense.Invulnerable", "대미지와 모든 적대적 상태이상에 면역인 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_KnockbackImmune, "State.Defense.KnockbackImmune", "넉백에만 면역인 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Blocked, "State.Movement.Blocked", "Navigation 이동 요청과 진행 중인 경로 추종을 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Dashing, "State.Movement.Dashing", "대시 이동이 실행되는 동안 적용합니다");
 }
