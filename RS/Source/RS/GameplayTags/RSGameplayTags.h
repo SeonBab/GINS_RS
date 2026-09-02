@@ -17,8 +17,10 @@ namespace RSGameplayTags
 
 	// State
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_Locked);
-	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combat_Invulnerable);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Evading);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_KnockbackImmune);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Invulnerable);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Dashing);
 
 	// Cooldown

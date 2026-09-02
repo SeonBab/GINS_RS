@@ -2,19 +2,15 @@
 
 #include "RSGameplayAbility_Dash.h"
 
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
-#include "Curves/CurveFloat.h"
+#include "Animation/AnimMontage.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/RootMotionSource.h"
+#include "RSAbilitySystemComponent.h"
+#include "Tasks/RSAbilityTask_DashMovement.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerController.h"
-
-namespace
-{
-	const FName DashRootMotionSourceName(TEXT("Dash"));
-	constexpr uint16 DashRootMotionPriority = 1000;
-}
 
 URSGameplayAbility_Dash::URSGameplayAbility_Dash()
 {
@@ -62,7 +58,15 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 
 	UCharacterMovementComponent* MovementComponent = Character->GetCharacterMovement();
 	const FRichCurve* ProgressCurve = DistanceProgressCurve.GetRichCurveConst();
-	if (!MovementComponent || !ProgressCurve || ProgressCurve->GetNumKeys() < 2 || DashDistance <= 0.0f || DashDuration <= 0.0f)
+	if (!MovementComponent || !ProgressCurve || ProgressCurve->GetNumKeys() < 2 || DashDistance <= 0.0f || DashDuration <= 0.0f || DashMontagePlayRate <= 0.0f)
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
+	const float ActiveDashDuration = DashMontage ? DashMontage->GetPlayLength() / DashMontagePlayRate : DashDuration;
+	if (ActiveDashDuration <= 0.0f)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 
@@ -85,59 +89,52 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 		return;
 	}
 
-	// Navigation 이동이 Root Motion Source와 동시에 캐릭터를 제어하지 않게 현재 경로를 중지합니다
+	// Navigation 이동이 대시의 커브 이동과 동시에 캐릭터를 제어하지 않게 현재 경로를 중지합니다
 	if (AController* Controller = Character->GetController())
 	{
 		Controller->StopMovement();
 	}
+	MovementComponent->StopMovementImmediately();
 
-	const FVector StartLocation = Character->GetActorLocation();
-	const FVector TargetLocation = StartLocation + DashDirection * DashDistance;
-	ActiveDistanceProgressCurve = NewObject<UCurveFloat>(this);
-	ActiveDistanceProgressCurve->FloatCurve = *ProgressCurve;
+	const FRotator DashRotation = DashDirection.Rotation();
+	Character->SetActorRotation(FRotator(0.0, DashRotation.Yaw, 0.0));
 
-	TSharedPtr<FRootMotionSource_MoveToDynamicForce> DashRootMotionSource = MakeShared<FRootMotionSource_MoveToDynamicForce>();
-	DashRootMotionSource->InstanceName = DashRootMotionSourceName;
-	DashRootMotionSource->Priority = DashRootMotionPriority;
-	DashRootMotionSource->AccumulateMode = ERootMotionAccumulateMode::Override;
-	DashRootMotionSource->Duration = DashDuration;
-	DashRootMotionSource->StartLocation = StartLocation;
-	DashRootMotionSource->InitialTargetLocation = TargetLocation;
-	DashRootMotionSource->TargetLocation = TargetLocation;
-	DashRootMotionSource->TimeMappingCurve = ActiveDistanceProgressCurve;
-	DashRootMotionSource->bRestrictSpeedToExpected = true;
-	DashRootMotionSource->FinishVelocityParams.Mode = ERootMotionFinishVelocityMode::SetVelocity;
-	DashRootMotionSource->FinishVelocityParams.SetVelocity = FVector::ZeroVector;
+	ActiveDashMovementTask = URSAbilityTask_DashMovement::CreateDashMovement(this, MovementComponent, DashDirection, DashDistance, ActiveDashDuration, *ProgressCurve);
+	ActiveDashMovementTask->ReadyForActivation();
 
-	CachedMovementComponent = MovementComponent;
-	ActiveRootMotionSourceID = MovementComponent->ApplyRootMotionSource(DashRootMotionSource);
-
-	if (ActiveRootMotionSourceID == static_cast<uint16>(ERootMotionSourceID::Invalid))
+	if (DashMontage)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, DashMontage, DashMontagePlayRate);
+		MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleDashFinished);
+		MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleDashCancelled);
+		MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleDashCancelled);
+		MontageTask->ReadyForActivation();
 
 		return;
 	}
 
-	UAbilityTask_WaitDelay* DashDurationTask = UAbilityTask_WaitDelay::WaitDelay(this, DashDuration);
+	UAbilityTask_WaitDelay* DashDurationTask = UAbilityTask_WaitDelay::WaitDelay(this, ActiveDashDuration);
 	DashDurationTask->OnFinish.AddDynamic(this, &ThisClass::HandleDashFinished);
 	DashDurationTask->ReadyForActivation();
 }
 
 void URSGameplayAbility_Dash::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (ActiveRootMotionSourceID != static_cast<uint16>(ERootMotionSourceID::Invalid))
+	if (DashMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if (UCharacterMovementComponent* MovementComponent = CachedMovementComponent.Get())
+		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
 		{
-			// 다른 이동 효과를 건드리지 않고 현재 대시가 적용한 Source만 제거합니다
-			MovementComponent->RemoveRootMotionSourceByID(ActiveRootMotionSourceID);
+			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 안전하게 정리합니다
+			AbilitySystemComponent->EndAnimationGameplayStates(DashMontage);
 		}
 	}
 
-	ActiveRootMotionSourceID = static_cast<uint16>(ERootMotionSourceID::Invalid);
-	CachedMovementComponent.Reset();
-	ActiveDistanceProgressCurve = nullptr;
+	if (ActiveDashMovementTask && !ActiveDashMovementTask->IsFinished())
+	{
+		ActiveDashMovementTask->EndTask();
+	}
+
+	ActiveDashMovementTask = nullptr;
 
 	// Commit에서 적용한 쿨다운은 대시가 취소되어도 원래 만료 시점까지 유지합니다
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
@@ -180,4 +177,9 @@ FVector URSGameplayAbility_Dash::GetDashDirection(const ACharacter* Character, c
 void URSGameplayAbility_Dash::HandleDashFinished()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void URSGameplayAbility_Dash::HandleDashCancelled()
+{
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }

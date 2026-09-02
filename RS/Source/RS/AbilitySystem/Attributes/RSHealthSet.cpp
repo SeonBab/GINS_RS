@@ -3,7 +3,9 @@
 
 #include "RSHealthSet.h"
 
+#include "AbilitySystemComponent.h"
 #include "GameplayEffectExtension.h"
+#include "RSGameplayTags.h"
 
 URSHealthSet::URSHealthSet()
 	: Health(100.0f)
@@ -41,6 +43,12 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 
 		// Damage는 일회성 전달 값이므로 처리 전에 초기화합니다
 		SetDamage(0.0f);
+
+		// 회피는 대미지와 경직을 막고 무적은 모든 적대적 효과를 막으므로 두 상태 모두 대미지를 차단합니다
+		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Defense_Evading) || Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Defense_Invulnerable))
+		{
+			return;
+		}
 
 		if (LocalDamage > 0.0f)
 		{
