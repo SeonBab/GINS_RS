@@ -8,6 +8,8 @@ namespace RSGameplayTags
 	// Ability
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Movement_Dash, "Ability.Movement.Dash", "대시 이동 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Normal, "Ability.Recovery.GetUp.Normal", "자동 조건으로 실행되는 일반 기상 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Quick, "Ability.Recovery.GetUp.Quick", "플레이어 입력으로 실행되는 빠른 기상 Ability를 식별합니다");
 
 	// Cooldown
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Dash, "Cooldown.Ability.Dash", "쿨다운이 끝날 때까지 대시 재활성화를 차단합니다");
@@ -30,10 +32,14 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready, "State.Combo.BasicAttack.Ready", "기본 공격 콤보 준비 단계 태그의 상위 태그이며 직접 부여하지 않습니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready_Step02, "State.Combo.BasicAttack.Ready.Step02", "다음 기본 공격 입력으로 2타를 시작할 수 있는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready_Step03, "State.Combo.BasicAttack.Ready.Step03", "다음 기본 공격 입력으로 3타를 시작할 수 있는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_CrowdControl_Downed, "State.CrowdControl.Downed", "넉다운이 끝나고 바닥에 누워 기상을 기다리는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_CrowdControl_HitReact, "State.CrowdControl.HitReact", "피격 경직 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_CrowdControl_Knockdown, "State.CrowdControl.Knockdown", "다운 공격을 받고 바닥으로 넘어지는 중인 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_CrowdControl_GettingUp, "State.CrowdControl.GettingUp", "누운 상태에서 일반 또는 빠른 기상으로 일어나는 중인 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "캐릭터가 사망한 상태이며 Ability 활성화와 입력 처리를 차단합니다");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Evading, "State.Defense.Evading", "대미지와 경직에는 면역이지만 넉백은 허용하는 회피 상태입니다");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Invulnerable, "State.Defense.Invulnerable", "대미지와 모든 적대적 상태이상에 면역인 상태입니다");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_KnockbackImmune, "State.Defense.KnockbackImmune", "넉백에만 면역인 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_Damage, "State.Immunity.Damage", "현재 대상에게 대미지를 적용할 수 없는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_HitReact, "State.Immunity.HitReact", "현재 대상에게 피격 경직을 적용할 수 없는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_Knockback, "State.Immunity.Knockback", "현재 대상에게 넉백을 적용할 수 없는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Blocked, "State.Movement.Blocked", "Navigation 이동 요청과 진행 중인 경로 추종을 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Dashing, "State.Movement.Dashing", "대시 이동이 실행되는 동안 적용합니다");
 }
