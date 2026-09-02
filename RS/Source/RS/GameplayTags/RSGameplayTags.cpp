@@ -15,6 +15,9 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Dash, "Cooldown.Ability.Dash", "쿨다운이 끝날 때까지 대시 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Active, "Cooldown.Active", "하나 이상의 Ability 쿨다운이 활성화된 상태를 나타냅니다");
 
+	// GameplayEvent
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_HitCheck, "GameplayEvent.Combat.HitCheck", "Montage의 타격 시점에 공격 판정을 실행하도록 Ability에 알립니다");
+
 	// Input
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_BasicAttack, "InputTag.Ability.BasicAttack", "기본 공격 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_Dash, "InputTag.Ability.Dash", "대시 Ability 입력을 식별합니다");
@@ -26,6 +29,7 @@ namespace RSGameplayTags
 	// SetByCaller
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Combo_Duration, "SetByCaller.Combo.Duration", "콤보의 다음 공격 준비 상태가 유지될 시간입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Cooldown_Duration, "SetByCaller.Cooldown.Duration", "Ability마다 다른 쿨다운 시간을 공용 쿨다운 GameplayEffect에 전달합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Damage, "SetByCaller.Damage", "타격마다 다른 피해량을 공용 대미지 GameplayEffect에 전달합니다");
 
 	// State
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Action_Locked, "State.Action.Locked", "Montage의 행동 잠금 구간처럼 다른 Ability의 활성화를 차단하는 상태입니다");

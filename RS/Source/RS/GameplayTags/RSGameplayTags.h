@@ -16,6 +16,9 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Dash);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Active);
 
+	// GameplayEvent
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_HitCheck);
+
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Dash);
@@ -27,6 +30,7 @@ namespace RSGameplayTags
 	// SetByCaller
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Combo_Duration);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Cooldown_Duration);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 
 	// State
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_Locked);

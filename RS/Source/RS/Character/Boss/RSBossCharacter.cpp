@@ -1,10 +1,12 @@
 #include "RSBossCharacter.h"
 
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSAbilitySet.h"
 #include "RSBossController.h"
 #include "RSBossEncounter.h"
+#include "RSHealthComponent.h"
 #include "RSHealthSet.h"
 
 ARSBossCharacter::ARSBossCharacter()
@@ -13,6 +15,10 @@ ARSBossCharacter::ARSBossCharacter()
 
 	AbilitySystemComp = CreateDefaultSubobject<URSAbilitySystemComponent>(TEXT("RSAbilitySystemComponent"));
 	HealthSet = CreateDefaultSubobject<URSHealthSet>(TEXT("RSHealthSet"));
+	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+
+	// 공격 판정이 진영을 콜리전 채널로 구분하므로 Blueprint 설정 누락을 막기 위해 캡슐 프로파일을 코드에서 고정합니다
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("RSEnemyBody"));
 
 	// 레벨 배치와 런타임 생성 방식이 달라도 동일한 Controller 초기화 흐름을 사용합니다
 	AIControllerClass = ARSBossController::StaticClass();
@@ -49,6 +55,9 @@ void ARSBossCharacter::InitializeAbilitySystem()
 	}
 
 	AbilitySystemComp->InitAbilityActorInfo(this, this);
+
+	// ActorInfo 초기화가 끝난 ASC와 HealthSet을 HealthComponent에 연결합니다
+	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
 
 	if (AbilitySystemComp->IsOwnerActorAuthoritative() && !bDefaultAbilitiesGranted && DefaultAbilitySet)
 	{

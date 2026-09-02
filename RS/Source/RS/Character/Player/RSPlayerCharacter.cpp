@@ -5,6 +5,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Components/CapsuleComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -29,6 +30,9 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	CameraComp->SetupAttachment(SpringArmComp);
 
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+
+	// 공격 판정이 진영을 콜리전 채널로 구분하므로 Blueprint 설정 누락을 막기 위해 캡슐 프로파일을 코드에서 고정합니다
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("RSPlayerBody"));
 
 	// 클릭 경로가 꺾일 때 CharacterMovement가 현재 진행 방향을 기준으로 캐릭터를 회전시킵니다
 	bUseControllerRotationYaw = false;

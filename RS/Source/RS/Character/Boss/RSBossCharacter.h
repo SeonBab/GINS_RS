@@ -8,6 +8,7 @@
 
 class ARSBossEncounter;
 class URSAbilitySystemComponent;
+class URSHealthComponent;
 class URSHealthSet;
 
 /** 보스 전용 설정과 Controller 연결의 기반이 되는 캐릭터입니다 */
@@ -36,6 +37,9 @@ public:
 	/** 보스 Character가 직접 소유한 HealthSet을 반환합니다 */
 	const URSHealthSet* GetHealthSet() const { return HealthSet; }
 
+	/** 보스의 체력 변경과 사망 시작을 전달하는 HealthComponent를 반환합니다 */
+	URSHealthComponent* GetHealthComponent() const { return HealthComp; }
+
 private:
 	/** ASC의 Owner와 Avatar를 보스 Character로 초기화하고 기본 AbilitySet을 한 번 부여합니다 */
 	void InitializeAbilitySystem();
@@ -53,6 +57,10 @@ private:
 	/** 보스의 체력 Attribute를 ASC와 같은 생명주기로 유지합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSHealthSet> HealthSet;
+
+	/** HealthSet의 체력 변경을 외부 시스템에 전달하고 사망 상태 태그를 관리합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Health", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSHealthComponent> HealthComp;
 
 	/** DefaultAbilitySet이 부여한 Ability를 정확히 식별하기 위한 핸들입니다 */
 	UPROPERTY(Transient)
