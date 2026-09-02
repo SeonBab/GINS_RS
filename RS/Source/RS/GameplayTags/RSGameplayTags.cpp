@@ -19,10 +19,14 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_MoveTo, "InputTag.MoveTo", "Move to the clicked world location");
 
 	// SetByCaller
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Combo_Duration, "SetByCaller.Combo.Duration", "콤보의 다음 공격 준비 상태가 유지될 시간입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Cooldown_Duration, "SetByCaller.Cooldown.Duration", "");
 
 	// State
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Action_Locked, "State.Action.Locked", "");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready, "State.Combo.BasicAttack.Ready", "");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready_Step02, "State.Combo.BasicAttack.Ready.Step02", "다음 기본 공격 입력으로 2타를 시작할 수 있는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready_Step03, "State.Combo.BasicAttack.Ready.Step03", "다음 기본 공격 입력으로 3타를 시작할 수 있는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Character is dead");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Evading, "State.Defense.Evading", "대미지와 경직에는 면역이지만 넉백은 허용하는 회피 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Defense_Invulnerable, "State.Defense.Invulnerable", "대미지와 모든 적대적 상태이상에 면역인 상태입니다");

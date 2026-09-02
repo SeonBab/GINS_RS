@@ -20,10 +20,14 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_MoveTo);
 
 	// SetByCaller
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Combo_Duration);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Cooldown_Duration);
 
 	// State
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_Locked);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready_Step02);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready_Step03);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Evading);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Defense_Invulnerable);
