@@ -16,6 +16,9 @@ namespace RSGameplayTags
 	// Input
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_BasicAttack, "InputTag.Ability.BasicAttack", "기본 공격 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_Dash, "InputTag.Ability.Dash", "대시 Ability 입력을 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot01, "InputTag.Ability.SkillSlot01", "1번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot02, "InputTag.Ability.SkillSlot02", "2번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot03, "InputTag.Ability.SkillSlot03", "3번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_MoveTo, "InputTag.MoveTo", "클릭한 월드 위치로 이동하는 입력을 식별합니다");
 
 	// SetByCaller

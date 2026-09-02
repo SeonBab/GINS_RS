@@ -17,6 +17,9 @@ namespace RSGameplayTags
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Dash);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot01);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot02);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot03);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_MoveTo);
 
 	// SetByCaller
