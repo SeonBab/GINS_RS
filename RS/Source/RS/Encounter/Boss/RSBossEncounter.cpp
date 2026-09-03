@@ -51,6 +51,16 @@ void ARSBossEncounter::BeginPlay()
 	RegisterOverlappingPlayers();
 }
 
+void ARSBossEncounter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
+	{
+		UnregisterParticipantBossSource(ParticipantReference.Get());
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 void ARSBossEncounter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -94,6 +104,7 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 
 	// 카메라 전환 기준은 전투 시작 순간이 아니라 이 플레이어가 참가자가 되었는지 여부입니다
 	RequestParticipantCameraActivation(Participant);
+	RegisterParticipantBossSource(Participant);
 }
 
 void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
@@ -115,6 +126,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 
 	OnParticipantRemoved.Broadcast(this, Participant);
 	RequestParticipantCameraDeactivation(Participant);
+	UnregisterParticipantBossSource(Participant);
 
 	if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
 	{
@@ -130,6 +142,12 @@ void ARSBossEncounter::CompleteEncounter()
 	}
 
 	NotifyControllerEncounterEnded();
+
+	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
+	{
+		UnregisterParticipantBossSource(ParticipantReference.Get());
+	}
+
 	SetEncounterState(ERSBossEncounterState::Completed);
 }
 
@@ -154,6 +172,7 @@ void ARSBossEncounter::ResetEncounter()
 		{
 			OnParticipantRemoved.Broadcast(this, Participant);
 			RequestParticipantCameraDeactivation(Participant);
+			UnregisterParticipantBossSource(Participant);
 		}
 	}
 
@@ -305,6 +324,26 @@ void ARSBossEncounter::RequestParticipantCameraDeactivation(ARSPlayerState* Part
 	if (URSPlayerCameraComponent* PlayerCameraComp = GetParticipantCameraComponent(Participant))
 	{
 		PlayerCameraComp->DeactivateBossCamera();
+	}
+}
+
+void ARSBossEncounter::RegisterParticipantBossSource(ARSPlayerState* Participant) const
+{
+	ARSPlayerController* PlayerController = IsValid(Participant) ? Cast<ARSPlayerController>(Participant->GetPlayerController()) : nullptr;
+
+	if (PlayerController && BossCharacter)
+	{
+		PlayerController->RegisterViewModelSource(BossCharacter);
+	}
+}
+
+void ARSBossEncounter::UnregisterParticipantBossSource(ARSPlayerState* Participant) const
+{
+	ARSPlayerController* PlayerController = IsValid(Participant) ? Cast<ARSPlayerController>(Participant->GetPlayerController()) : nullptr;
+
+	if (PlayerController)
+	{
+		PlayerController->UnregisterViewModelSource(BossCharacter);
 	}
 }
 

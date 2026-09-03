@@ -1,32 +1,32 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "RSPlayerStatusViewModel.h"
+#include "RSBossStatusViewModel.h"
 
+#include "RSBossCharacter.h"
 #include "RSHealthComponent.h"
-#include "RSPlayerCharacter.h"
 
-void URSPlayerStatusViewModel::BeginDestroy()
+void URSBossStatusViewModel::BeginDestroy()
 {
 	DisconnectHealthComponent();
 
 	Super::BeginDestroy();
 }
 
-void URSPlayerStatusViewModel::HandleSourceRegistered(UObject* Source)
+void URSBossStatusViewModel::HandleSourceRegistered(UObject* Source)
 {
-	ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(Source);
-	if (!IsValid(PlayerCharacter))
+	ARSBossCharacter* BossCharacter = Cast<ARSBossCharacter>(Source);
+	if (!IsValid(BossCharacter))
 	{
 		return;
 	}
 
-	InitializeViewModel(PlayerCharacter->GetHealthComponent());
+	InitializeViewModel(BossCharacter->GetHealthComponent());
 }
 
-void URSPlayerStatusViewModel::HandleSourceUnregistered(UObject* Source)
+void URSBossStatusViewModel::HandleSourceUnregistered(UObject* Source)
 {
-	const ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(Source);
-	if (!PlayerCharacter || HealthComponent.Get() != PlayerCharacter->GetHealthComponent())
+	const ARSBossCharacter* BossCharacter = Cast<ARSBossCharacter>(Source);
+	if (!BossCharacter || HealthComponent.Get() != BossCharacter->GetHealthComponent())
 	{
 		return;
 	}
@@ -34,11 +34,12 @@ void URSPlayerStatusViewModel::HandleSourceUnregistered(UObject* Source)
 	UninitializeViewModel();
 }
 
-void URSPlayerStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthComponent)
+void URSBossStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthComponent)
 {
 	if (IsValid(InHealthComponent) && HealthComponent.Get() == InHealthComponent)
 	{
 		UpdateHealthValues();
+		UE_MVVM_SET_PROPERTY_VALUE(bIsVisible, true);
 		return;
 	}
 
@@ -56,15 +57,16 @@ void URSPlayerStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthC
 
 	// 이벤트를 구독하기 전에 변경된 값도 반영할 수 있도록 현재 상태를 즉시 동기화합니다
 	UpdateHealthValues();
+	UE_MVVM_SET_PROPERTY_VALUE(bIsVisible, true);
 }
 
-void URSPlayerStatusViewModel::UninitializeViewModel()
+void URSBossStatusViewModel::UninitializeViewModel()
 {
 	DisconnectHealthComponent();
 	ResetHealthValues();
 }
 
-void URSPlayerStatusViewModel::HandleHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
+void URSBossStatusViewModel::HandleHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
 {
 	if (HealthComponent.Get() != InHealthComponent)
 	{
@@ -76,7 +78,7 @@ void URSPlayerStatusViewModel::HandleHealthChanged(URSHealthComponent* InHealthC
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, InHealthComponent->GetHealthNormalized());
 }
 
-void URSPlayerStatusViewModel::HandleMaxHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
+void URSBossStatusViewModel::HandleMaxHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
 {
 	if (HealthComponent.Get() != InHealthComponent)
 	{
@@ -88,7 +90,7 @@ void URSPlayerStatusViewModel::HandleMaxHealthChanged(URSHealthComponent* InHeal
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, InHealthComponent->GetHealthNormalized());
 }
 
-void URSPlayerStatusViewModel::UpdateHealthValues()
+void URSBossStatusViewModel::UpdateHealthValues()
 {
 	URSHealthComponent* CurrentHealthComponent = HealthComponent.Get();
 	if (!IsValid(CurrentHealthComponent))
@@ -102,14 +104,15 @@ void URSPlayerStatusViewModel::UpdateHealthValues()
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, CurrentHealthComponent->GetHealthNormalized());
 }
 
-void URSPlayerStatusViewModel::ResetHealthValues()
+void URSBossStatusViewModel::ResetHealthValues()
 {
 	UE_MVVM_SET_PROPERTY_VALUE(Health, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, 0.0f);
+	UE_MVVM_SET_PROPERTY_VALUE(bIsVisible, false);
 }
 
-void URSPlayerStatusViewModel::DisconnectHealthComponent()
+void URSBossStatusViewModel::DisconnectHealthComponent()
 {
 	if (URSHealthComponent* CurrentHealthComponent = HealthComponent.Get())
 	{

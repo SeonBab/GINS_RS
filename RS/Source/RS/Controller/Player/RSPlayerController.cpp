@@ -7,9 +7,7 @@
 #include "RSAbilitySystemComponent.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
-#include "RSPlayerCharacter.h"
 #include "RSPlayerState.h"
-#include "RSPlayerStatusViewModel.h"
 
 ARSPlayerController::ARSPlayerController()
 {
@@ -22,34 +20,24 @@ void ARSPlayerController::BeginPlay()
 
 	ConfigureMouseInput();
 
-	URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem();
-	if (!ViewModelSubsystem)
-	{
-		return;
-	}
-
-	ViewModelSubsystem->GetOrCreateViewModel<URSPlayerStatusViewModel>();
-	UpdatePlayerStatusViewModelSource();
+	RegisterViewModelSource(GetPawn());
 }
 
 void ARSPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem())
-	{
-		if (URSPlayerStatusViewModel* PlayerStatusViewModel = ViewModelSubsystem->GetViewModel<URSPlayerStatusViewModel>())
-		{
-			PlayerStatusViewModel->UninitializeViewModel();
-		}
-	}
+	UnregisterViewModelSource(GetPawn());
 
 	Super::EndPlay(EndPlayReason);
 }
 
 void ARSPlayerController::SetPawn(APawn* InPawn)
 {
+	APawn* PreviousPawn = GetPawn();
+	UnregisterViewModelSource(PreviousPawn);
+
 	Super::SetPawn(InPawn);
 
-	UpdatePlayerStatusViewModelSource();
+	RegisterViewModelSource(InPawn);
 }
 
 void ARSPlayerController::PostProcessInput(float DeltaTime, bool bGamePaused)
@@ -92,6 +80,32 @@ URSPlayerCameraComponent* ARSPlayerController::GetPlayerCameraComponent() const
 	return PlayerCameraComp;
 }
 
+void ARSPlayerController::RegisterViewModelSource(UObject* Source)
+{
+	if (!IsLocalController() || !IsValid(Source))
+	{
+		return;
+	}
+
+	if (URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem())
+	{
+		ViewModelSubsystem->RegisterSource(Source);
+	}
+}
+
+void ARSPlayerController::UnregisterViewModelSource(UObject* Source)
+{
+	if (!IsLocalController() || !Source)
+	{
+		return;
+	}
+
+	if (URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem())
+	{
+		ViewModelSubsystem->UnregisterSource(Source);
+	}
+}
+
 void ARSPlayerController::ConfigureMouseInput()
 {
 	if (!IsLocalController())
@@ -118,28 +132,4 @@ URSLocalPlayerViewModelSubsystem* ARSPlayerController::GetViewModelSubsystem() c
 	}
 
 	return LocalPlayer->GetSubsystem<URSLocalPlayerViewModelSubsystem>();
-}
-
-void ARSPlayerController::UpdatePlayerStatusViewModelSource()
-{
-	URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = GetViewModelSubsystem();
-	if (!ViewModelSubsystem)
-	{
-		return;
-	}
-
-	URSPlayerStatusViewModel* PlayerStatusViewModel = ViewModelSubsystem->GetViewModel<URSPlayerStatusViewModel>();
-	if (!PlayerStatusViewModel)
-	{
-		return;
-	}
-
-	ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(GetPawn());
-	if (!IsValid(PlayerCharacter))
-	{
-		PlayerStatusViewModel->UninitializeViewModel();
-		return;
-	}
-
-	PlayerStatusViewModel->InitializeViewModel(PlayerCharacter->GetHealthComponent());
 }

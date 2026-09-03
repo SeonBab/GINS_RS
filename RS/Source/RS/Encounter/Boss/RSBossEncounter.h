@@ -49,6 +49,9 @@ protected:
 	/** 서버에서 보스와 Encounter를 연결하고 이미 영역 안에 있는 플레이어를 등록합니다 */
 	virtual void BeginPlay() override;
 
+	/** Encounter가 제거되기 전에 참가자의 보스 데이터 원본 연결을 해제합니다 */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	/** 클라이언트가 전투 시작과 종료를 알 수 있도록 EncounterState를 복제합니다 */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -146,6 +149,12 @@ private:
 	 * 보스 처치 후에도 전투 구도를 유지하므로 참가자가 목록에서 빠질 때만 호출합니다
 	 */
 	void RequestParticipantCameraDeactivation(ARSPlayerState* Participant) const;
+
+	/** 참가자의 로컬 ViewModel 저장소에 현재 보스를 데이터 원본으로 등록합니다 */
+	void RegisterParticipantBossSource(ARSPlayerState* Participant) const;
+
+	/** 참가자의 로컬 ViewModel 저장소에서 현재 보스 데이터 원본을 해제합니다 */
+	void UnregisterParticipantBossSource(ARSPlayerState* Participant) const;
 
 	/** 영역에 진입한 플레이어를 참가자로 등록합니다 */
 	UFUNCTION()
