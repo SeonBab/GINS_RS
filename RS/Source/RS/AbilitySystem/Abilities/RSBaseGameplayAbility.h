@@ -33,6 +33,13 @@ public:
 	ERSAbilityActivationPolicy GetActivationPolicy() const;
 
 protected:
+	/**
+	 * ASC에 부여된 어빌리티 하나를 클래스로 찾아 활성화합니다
+	 * 상태 흐름의 다음 단계로 넘길 때 사용하며, 실패하면 호출자가 잠긴 상태를 남기지 않고 정리해야 합니다
+	 * EndAbility 이후에도 호출할 수 있도록 어빌리티의 현재 ActorInfo가 아니라 ASC를 직접 받습니다
+	 */
+	static bool TryActivateAbilityByClass(UAbilitySystemComponent* AbilitySystemComponent, TSubclassOf<UGameplayAbility> AbilityClass);
+
 	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
 	virtual const FGameplayTagContainer* GetCooldownTags() const override;
 

@@ -3,9 +3,66 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "ScalableFloat.h"
 #include "RSCombatFunctionLibrary.generated.h"
+
+/** 타격이 대상에게 요청하는 피격 반응의 종류입니다 */
+UENUM(BlueprintType)
+enum class ERSHitReactionType : uint8
+{
+	None		UMETA(DisplayName = "None",			ToolTip = "피해만 적용하고 반응을 요청하지 않습니다."),
+	HitReact	UMETA(DisplayName = "Hit React",	ToolTip = "짧은 피격 경직을 요청합니다."),
+	Knockdown	UMETA(DisplayName = "Knockdown",	ToolTip = "밀려나 넘어지는 넉다운을 요청합니다.")
+};
+
+/**
+ * 넉다운 요청이 대상에게 전달할 밀려나는 거리, 뜨는 높이와 시간입니다
+ * FGameplayEventData에는 float이 하나뿐이라 세 값을 TargetData로 전달합니다
+ */
+USTRUCT()
+struct FRSKnockbackTargetData : public FGameplayAbilityTargetData
+{
+	GENERATED_BODY()
+
+	/** 수평으로 밀려날 거리입니다 */
+	UPROPERTY()
+	float Distance = 0.0f;
+
+	/** 뜨는 것처럼 보이게 할 정점 높이이며 0이면 뜨지 않습니다 */
+	UPROPERTY()
+	float Height = 0.0f;
+
+	/** 밀려나고 뜨는 데 걸릴 시간입니다 */
+	UPROPERTY()
+	float Duration = 0.0f;
+
+	virtual UScriptStruct* GetScriptStruct() const override
+	{
+		return FRSKnockbackTargetData::StaticStruct();
+	}
+
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+	{
+		Ar << Distance;
+		Ar << Height;
+		Ar << Duration;
+
+		bOutSuccess = true;
+
+		return true;
+	}
+};
+
+template<>
+struct TStructOpsTypeTraits<FRSKnockbackTargetData> : public TStructOpsTypeTraitsBase2<FRSKnockbackTargetData>
+{
+	enum
+	{
+		WithNetSerializer = true
+	};
+};
 
 /**
  * 한 번의 공격 판정이 사용할 범위와 피해량입니다
@@ -27,6 +84,22 @@ struct FRSHitCheckDefinition
 	/** 이 타격이 대상에게 가할 피해량입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat")
 	FScalableFloat Damage = 10.0f;
+
+	/** 이 타격이 대상에게 요청할 피격 반응입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction")
+	ERSHitReactionType Reaction = ERSHitReactionType::None;
+
+	/** 넉다운이 대상을 수평으로 밀어낼 거리입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
+	float KnockbackDistance = 400.0f;
+
+	/** 넉다운이 대상을 뜨는 것처럼 보이게 할 정점 높이이며 0이면 뜨지 않습니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
+	float KnockbackHeight = 80.0f;
+
+	/** 넉다운의 밀려남과 뜸이 진행될 시간이며 거리·높이와 함께 속도를 결정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
+	float KnockbackDuration = 0.5f;
 };
 
 /** 여러 Ability가 상속 없이 공유하는 전투 판정 조회 기능을 제공합니다 */

@@ -8,16 +8,21 @@ namespace RSGameplayTags
 {
 	// Ability
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_BasicAttack);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Downed);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Dash);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Normal);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Quick);
 
 	// Cooldown
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Dash);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_GetUp_Quick);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Active);
 
 	// GameplayEvent
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_HitCheck);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_HitReact);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_Knockdown);
 
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_BasicAttack);

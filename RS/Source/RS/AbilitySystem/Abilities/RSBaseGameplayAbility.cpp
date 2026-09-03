@@ -2,6 +2,7 @@
 
 #include "RSBaseGameplayAbility.h"
 
+#include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
 #include "RSGameplayTags.h"
 
@@ -13,6 +14,23 @@ URSBaseGameplayAbility::URSBaseGameplayAbility()
 ERSAbilityActivationPolicy URSBaseGameplayAbility::GetActivationPolicy() const
 {
 	return ActivationPolicy;
+}
+
+bool URSBaseGameplayAbility::TryActivateAbilityByClass(UAbilitySystemComponent* AbilitySystemComponent, TSubclassOf<UGameplayAbility> AbilityClass)
+{
+	if (!AbilitySystemComponent || !AbilityClass)
+	{
+		return false;
+	}
+
+	// 분류 Tag가 아니라 클래스로 찾아 한 번의 전이가 여러 어빌리티를 켜지 않게 합니다
+	const FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+	if (!AbilitySpec)
+	{
+		return false;
+	}
+
+	return AbilitySystemComponent->TryActivateAbility(AbilitySpec->Handle);
 }
 
 const FGameplayTagContainer* URSBaseGameplayAbility::GetCooldownTags() const

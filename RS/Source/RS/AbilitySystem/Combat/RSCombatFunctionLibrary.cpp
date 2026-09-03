@@ -15,9 +15,7 @@ namespace
 	// 판정은 한 프레임만 실행되어 화면에 남는 것이 없으므로 확인용 출력을 콘솔에서 켜고 끕니다
 	bool bRSHitCheckDebugEnabled = false;
 
-	FAutoConsoleCommand RSToggleHitCheckDebugCommand(
-		TEXT("RS.Combat.ToggleHitCheckDebug"),
-		TEXT("Toggles hit check debug boxes and hit result logs."),
+	FAutoConsoleCommand RSToggleHitCheckDebugCommand(TEXT("RS.Combat.ToggleHitCheckDebug"), TEXT("Toggles hit check debug boxes and hit result logs."),
 		FConsoleCommandDelegate::CreateLambda([]()
 			{
 				bRSHitCheckDebugEnabled = !bRSHitCheckDebugEnabled;

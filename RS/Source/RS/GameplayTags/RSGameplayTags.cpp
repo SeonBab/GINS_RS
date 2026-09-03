@@ -7,16 +7,21 @@ namespace RSGameplayTags
 {
 	// Ability
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Downed, "Ability.CrowdControl.Downed", "누워 기상을 기다리는 Ability를 식별하며 기상과 넉다운이 이 Ability를 취소합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_HitReact, "Ability.CrowdControl.HitReact", "피격 경직 Ability를 식별하며 넉다운이 진행 중인 경직을 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Movement_Dash, "Ability.Movement.Dash", "대시 이동 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Normal, "Ability.Recovery.GetUp.Normal", "자동 조건으로 실행되는 일반 기상 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Quick, "Ability.Recovery.GetUp.Quick", "플레이어 입력으로 실행되는 빠른 기상 Ability를 식별합니다");
 
 	// Cooldown
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Dash, "Cooldown.Ability.Dash", "쿨다운이 끝날 때까지 대시 재활성화를 차단합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_GetUp_Quick, "Cooldown.Ability.GetUp.Quick", "쿨다운이 끝날 때까지 빠른 기상 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Active, "Cooldown.Active", "하나 이상의 Ability 쿨다운이 활성화된 상태를 나타냅니다");
 
 	// GameplayEvent
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_HitCheck, "GameplayEvent.Combat.HitCheck", "Montage의 타격 시점에 공격 판정을 실행하도록 Ability에 알립니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_HitReact, "GameplayEvent.CrowdControl.HitReact", "공격이 대상에게 피격 경직을 요청하며 대상의 경직 Ability를 활성화합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_Knockdown, "GameplayEvent.CrowdControl.Knockdown", "공격이 대상에게 넉다운을 요청하며 대상의 넉다운 Ability를 활성화합니다");
 
 	// Input
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_BasicAttack, "InputTag.Ability.BasicAttack", "기본 공격 Ability 입력을 식별합니다");
