@@ -8,7 +8,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RSAbilitySystemComponent.h"
-#include "Tasks/RSAbilityTask_DashMovement.h"
+#include "Tasks/RSAbilityTask_CurveMovement.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerController.h"
 
@@ -99,7 +99,7 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 	const FRotator DashRotation = DashDirection.Rotation();
 	Character->SetActorRotation(FRotator(0.0, DashRotation.Yaw, 0.0));
 
-	ActiveDashMovementTask = URSAbilityTask_DashMovement::CreateDashMovement(this, MovementComponent, DashDirection, DashDistance, ActiveDashDuration, *ProgressCurve);
+	ActiveDashMovementTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, DashDirection, DashDistance, ActiveDashDuration, *ProgressCurve);
 	ActiveDashMovementTask->ReadyForActivation();
 
 	if (DashMontage)

@@ -9,7 +9,7 @@
 
 class ACharacter;
 class UAnimMontage;
-class URSAbilityTask_DashMovement;
+class URSAbilityTask_CurveMovement;
 
 /** 마우스 커서 방향으로 거리 진행률 커브를 따라 이동하는 대시 어빌리티입니다 */
 UCLASS(Abstract, Blueprintable)
@@ -62,5 +62,5 @@ private:
 
 	/** 현재 실행에서 누적 거리 진행률 커브 이동을 담당하는 AbilityTask입니다 */
 	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_DashMovement> ActiveDashMovementTask;
+	TObjectPtr<URSAbilityTask_CurveMovement> ActiveDashMovementTask;
 };
