@@ -147,8 +147,15 @@ void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Paylo
 		return;
 	}
 
+	// 배치 규칙을 데이터로 분리하기 전까지 이 어빌리티는 공격자 전방 배치 하나만 사용합니다
+	FRSCombatShape HitCheckShape;
+	HitCheckShape.BoxExtent = HitCheck.BoxExtent;
+
+	const FVector HitCheckLocation = AvatarActor->GetActorLocation() + AvatarActor->GetActorForwardVector() * HitCheck.ForwardOffset;
+	const FTransform HitCheckTransform(AvatarActor->GetActorQuat(), HitCheckLocation);
+
 	TArray<AActor*> HitTargets;
-	URSCombatFunctionLibrary::FindTargetsInBox(AvatarActor, TargetChannel, HitCheck.BoxExtent, HitCheck.ForwardOffset, HitTargets);
+	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, HitCheckShape, HitCheckTransform, HitTargets);
 
 	if (HitTargets.IsEmpty())
 	{

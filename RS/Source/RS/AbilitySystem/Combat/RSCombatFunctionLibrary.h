@@ -8,6 +8,40 @@
 #include "ScalableFloat.h"
 #include "RSCombatFunctionLibrary.generated.h"
 
+/** 판정 범위의 형상 종류입니다 */
+UENUM(BlueprintType)
+enum class ERSCombatShapeType : uint8
+{
+	Box		UMETA(DisplayName = "Box",		ToolTip = "배치 회전을 따르는 직육면체입니다."),
+	Sphere	UMETA(DisplayName = "Sphere",	ToolTip = "수평 거리로 판정하며 InnerRadius를 주면 도넛이 됩니다.")
+};
+
+/**
+ * 판정 범위의 형상과 크기이며 위치와 회전은 담지 않습니다
+ * 위치를 분리해야 같은 형상을 공격자 기준과 월드 고정처럼 다른 방식으로 배치할 수 있습니다
+ */
+USTRUCT(BlueprintType)
+struct FRSCombatShape
+{
+	GENERATED_BODY()
+
+	/** 이 판정이 사용할 형상입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape")
+	ERSCombatShapeType Type = ERSCombatShapeType::Box;
+
+	/** 판정 박스의 각 축 반크기입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (EditCondition = "Type == ERSCombatShapeType::Box"))
+	FVector BoxExtent = FVector(60.0f, 60.0f, 90.0f);
+
+	/** 판정에 포함할 바깥 반지름입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Sphere"))
+	float Radius = 100.0f;
+
+	/** 판정에서 제외할 안쪽 반지름이며 0보다 크면 가운데가 비어 있는 도넛이 됩니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Sphere"))
+	float InnerRadius = 0.0f;
+};
+
 /** 타격이 대상에게 요청하는 피격 반응의 종류입니다 */
 UENUM(BlueprintType)
 enum class ERSHitReactionType : uint8
@@ -110,12 +144,13 @@ class RS_API URSCombatFunctionLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * 공격자 전방의 회전된 박스와 겹치는 유효한 판정 대상을 수집합니다
+	 * 주어진 월드 위치에 놓인 형상과 겹치는 유효한 판정 대상을 수집합니다
 	 * 진영은 TargetChannel이 구분하므로 아군과 공격자 자신은 쿼리 단계에서 제외됩니다
+	 * 크기는 Shape가 소유하므로 ShapeTransform의 Scale은 사용하지 않고, Sphere는 회전도 사용하지 않습니다
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
-	static void FindTargetsInBox(const AActor* Attacker, ECollisionChannel TargetChannel, const FVector& BoxExtent, float ForwardOffset, TArray<AActor*>& OutTargets);
+	static void FindTargetsInShape(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
 
-	/** 판정 박스 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
+	/** 판정 형상 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
 	static bool IsHitCheckDebugEnabled();
 };
