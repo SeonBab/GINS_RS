@@ -7,6 +7,7 @@ namespace RSGameplayTags
 {
 	// Ability
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Downed, "Ability.CrowdControl.Downed", "누워 기상을 기다리는 Ability를 식별하며 기상과 넉다운이 이 Ability를 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_HitReact, "Ability.CrowdControl.HitReact", "피격 경직 Ability를 식별하며 넉다운이 진행 중인 경직을 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Movement_Dash, "Ability.Movement.Dash", "대시 이동 Ability를 식별합니다");

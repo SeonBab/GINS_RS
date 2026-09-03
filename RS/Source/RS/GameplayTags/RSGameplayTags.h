@@ -8,6 +8,7 @@ namespace RSGameplayTags
 {
 	// Ability
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_BasicAttack);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ConcentricRings);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Downed);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Dash);
