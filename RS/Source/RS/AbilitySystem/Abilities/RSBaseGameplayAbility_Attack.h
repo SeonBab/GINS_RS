@@ -60,15 +60,6 @@ protected:
 	UFUNCTION()
 	void HandleHitCheckEvent(FGameplayEventData Payload);
 
-	/** 판정에 걸린 대상 하나에게 공용 대미지 GameplayEffect를 적용합니다 */
-	void ApplyDamageToTarget(AActor* TargetActor, float DamageAmount);
-
-	/**
-	 * 판정에 걸린 대상 하나에게 이번 타격이 요청하는 피격 반응을 전달합니다
-	 * 요청을 실제로 적용할지는 대상의 면역 태그와 반응 Ability가 결정합니다
-	 */
-	void SendHitReactionToTarget(AActor* TargetActor, const FRSHitCheckDefinition& HitCheck) const;
-
 protected:
 	/** 이 공격이 재생할 Montage입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Attack")

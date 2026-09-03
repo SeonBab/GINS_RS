@@ -99,6 +99,32 @@ struct TStructOpsTypeTraits<FRSKnockbackTargetData> : public TStructOpsTypeTrait
 };
 
 /**
+ * 타격이 대상에게 요청할 반응의 종류와 세기입니다
+ * 공격마다 이 값을 따로 선언하지 않도록 한 곳에서만 정의하고 소비자가 하나씩 소유합니다
+ */
+USTRUCT(BlueprintType)
+struct FRSHitReactionDefinition
+{
+	GENERATED_BODY()
+
+	/** 대상에게 요청할 피격 반응입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction")
+	ERSHitReactionType Type = ERSHitReactionType::None;
+
+	/** 넉다운이 대상을 수평으로 밀어낼 거리입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSHitReactionType::Knockdown"))
+	float KnockbackDistance = 400.0f;
+
+	/** 넉다운이 대상을 뜨는 것처럼 보이게 할 정점 높이이며 0이면 뜨지 않습니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSHitReactionType::Knockdown"))
+	float KnockbackHeight = 80.0f;
+
+	/** 넉다운의 밀려남과 뜸이 진행될 시간이며 거리·높이와 함께 속도를 결정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s", EditCondition = "Type == ERSHitReactionType::Knockdown"))
+	float KnockbackDuration = 0.5f;
+};
+
+/**
  * 한 번의 공격 판정이 사용할 범위와 피해량입니다
  * 하나의 공격이 여러 타격을 가질 수 있으므로 Ability는 이 정의를 배열로 소유하고 타격 순서대로 소비합니다
  */
@@ -121,19 +147,7 @@ struct FRSHitCheckDefinition
 
 	/** 이 타격이 대상에게 요청할 피격 반응입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction")
-	ERSHitReactionType Reaction = ERSHitReactionType::None;
-
-	/** 넉다운이 대상을 수평으로 밀어낼 거리입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
-	float KnockbackDistance = 400.0f;
-
-	/** 넉다운이 대상을 뜨는 것처럼 보이게 할 정점 높이이며 0이면 뜨지 않습니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
-	float KnockbackHeight = 80.0f;
-
-	/** 넉다운의 밀려남과 뜸이 진행될 시간이며 거리·높이와 함께 속도를 결정합니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s", EditCondition = "Reaction == ERSHitReactionType::Knockdown"))
-	float KnockbackDuration = 0.5f;
+	FRSHitReactionDefinition Reaction;
 };
 
 /** 여러 Ability가 상속 없이 공유하는 전투 판정 조회 기능을 제공합니다 */
@@ -151,6 +165,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void FindTargetsInShape(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
 
+	/**
+	 * 대상 하나에게 이번 타격이 요청하는 피격 반응을 전달합니다
+	 * 요청을 실제로 적용할지는 대상의 면역 태그와 반응 Ability가 결정합니다
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
+	static void SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition);
+
 	/** 판정 형상 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
 	static bool IsHitCheckDebugEnabled();
+
+	/**
+	 * 판정 형상을 디버그로 그립니다
+	 * 판정이 없는 예고 단계도 같은 형상 데이터로 같은 그림을 그리도록 그리기 코드를 한곳에 둡니다
+	 */
+	static void DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime);
 };

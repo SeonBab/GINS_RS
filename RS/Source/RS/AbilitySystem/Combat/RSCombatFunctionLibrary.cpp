@@ -2,6 +2,7 @@
 
 #include "RSCombatFunctionLibrary.h"
 
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "DrawDebugHelpers.h"
@@ -11,9 +12,12 @@
 
 namespace
 {
-	// Sphere는 수평 거리로 판정하므로 후보 수집도 높이에 좌우되지 않아야 합니다
-	// 캡슐은 양 끝이 반구라 반지름이 그대로 유지되는 구간이 이 값의 위아래로만 보장됩니다
-	constexpr float RSSphereQueryVerticalExtent = 300.0f;
+	// 형상과 무관하게 같은 층으로 취급할 높이입니다
+	// 판정은 수평 거리만 보므로 이 값은 규칙이 아니라 후보를 놓치지 않을 만큼의 여유입니다
+	constexpr float RSCombatQueryVerticalExtent = 300.0f;
+
+	// 판정은 한 프레임만 실행되므로 결과를 눈으로 확인할 수 있을 만큼만 남깁니다
+	constexpr float RSCombatDebugLifeTime = 1.0f;
 }
 
 #if !UE_BUILD_SHIPPING
@@ -29,36 +33,6 @@ namespace
 
 				UE_LOG(LogTemp, Log, TEXT("Hit check debug %s"), bRSHitCheckDebugEnabled ? TEXT("enabled") : TEXT("disabled"));
 			}));
-}
-#endif
-
-#if ENABLE_DRAW_DEBUG
-namespace
-{
-	void DrawRSCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color)
-	{
-		constexpr float DebugLifeTime = 1.0f;
-		constexpr int32 DebugCircleSegments = 48;
-
-		const FVector ShapeLocation = ShapeTransform.GetLocation();
-
-		switch (Shape.Type)
-		{
-		case ERSCombatShapeType::Box:
-			DrawDebugBox(World, ShapeLocation, Shape.BoxExtent, ShapeTransform.GetRotation(), Color, false, DebugLifeTime);
-			break;
-
-		case ERSCombatShapeType::Sphere:
-			// 판정이 수평 거리 기준이므로 구가 아니라 바닥 평면의 원으로 그려야 실제 범위와 일치합니다
-			DrawDebugCircle(World, ShapeLocation, Shape.Radius, DebugCircleSegments, Color, false, DebugLifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
-
-			if (Shape.InnerRadius > 0.0f)
-			{
-				DrawDebugCircle(World, ShapeLocation, Shape.InnerRadius, DebugCircleSegments, Color, false, DebugLifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
-			}
-			break;
-		}
-	}
 }
 #endif
 
@@ -81,12 +55,14 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 	const FVector ShapeLocation = ShapeTransform.GetLocation();
 
 	// 축 정렬 박스를 사용하면 공격자가 대각선을 바라볼 때 판정이 어긋나므로 배치 회전을 함께 넘깁니다
-	// Sphere는 회전이 의미가 없고 캡슐이 반드시 세로로 서 있어야 하므로 회전을 사용하지 않습니다
+	// Sphere는 회전이 의미가 없고 후보 박스가 세로로 서 있어야 하므로 회전을 사용하지 않습니다
 	const FQuat QueryRotation = bIsSphere ? FQuat::Identity : ShapeTransform.GetRotation();
 
-	// 구를 쓰면 반지름이 작을 때 서 있는 높이 차이만으로 대상을 놓치므로 세로 캡슐로 후보를 모읍니다
+	// 오버랩 형상은 판정 형상을 나타내지 않습니다. 판정 영역을 감싸기만 하면 되고 실제 판정은 아래 필터가 합니다
+	// 그래서 형상마다 근사를 고르지 않고 항상 감싸는 박스로 모읍니다
+	// 구나 캡슐은 높이에 따라 수평 도달 거리가 줄어들어 대상을 놓칠 수 있는데 박스는 어느 높이에서든 일정합니다
 	const FCollisionShape QueryShape = bIsSphere
-		? FCollisionShape::MakeCapsule(Shape.Radius, Shape.Radius + RSSphereQueryVerticalExtent)
+		? FCollisionShape::MakeBox(FVector(Shape.Radius, Shape.Radius, RSCombatQueryVerticalExtent))
 		: FCollisionShape::MakeBox(Shape.BoxExtent);
 
 	FCollisionQueryParams QueryParams;
@@ -117,6 +93,7 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 
 		if (bIsSphere)
 		{
+			// 후보 박스가 원보다 넓으므로 여기서 실제 형상으로 잘라냅니다
 			// 경계는 액터 중심점으로 판정합니다. 표면 기준으로 바꾸면 안쪽과 바깥쪽 경계의 관대함이 달라집니다
 			// InnerRadius가 0이면 안쪽 조건이 항상 참이 되어 구멍 없는 원이 됩니다
 			const float DistanceSquared = FVector::DistSquared2D(ShapeLocation, OverlappedActor->GetActorLocation());
@@ -129,12 +106,81 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 		OutTargets.Add(OverlappedActor);
 	}
 
-#if ENABLE_DRAW_DEBUG
 	if (IsHitCheckDebugEnabled())
 	{
-		DrawRSCombatShape(World, Shape, ShapeTransform, OutTargets.IsEmpty() ? FColor::Silver : FColor::Red);
+		DrawDebugCombatShape(World, Shape, ShapeTransform, OutTargets.IsEmpty() ? FColor::Silver : FColor::Red, RSCombatDebugLifeTime);
+	}
+}
+
+void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime)
+{
+#if ENABLE_DRAW_DEBUG
+	if (!World)
+	{
+		return;
+	}
+
+	constexpr int32 DebugCircleSegments = 48;
+
+	const FVector ShapeLocation = ShapeTransform.GetLocation();
+
+	switch (Shape.Type)
+	{
+	case ERSCombatShapeType::Box:
+		DrawDebugBox(World, ShapeLocation, Shape.BoxExtent, ShapeTransform.GetRotation(), Color, false, LifeTime);
+		break;
+
+	case ERSCombatShapeType::Sphere:
+		// 판정이 수평 거리 기준이므로 구가 아니라 바닥 평면의 원으로 그려야 실제 범위와 일치합니다
+		DrawDebugCircle(World, ShapeLocation, Shape.Radius, DebugCircleSegments, Color, false, LifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
+
+		if (Shape.InnerRadius > 0.0f)
+		{
+			DrawDebugCircle(World, ShapeLocation, Shape.InnerRadius, DebugCircleSegments, Color, false, LifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
+		}
+		break;
 	}
 #endif
+}
+
+void URSCombatFunctionLibrary::SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition)
+{
+	if (!TargetActor || ReactionDefinition.Type == ERSHitReactionType::None)
+	{
+		return;
+	}
+
+	FGameplayEventData ReactionPayload;
+	ReactionPayload.Instigator = Instigator;
+	ReactionPayload.Target = TargetActor;
+
+	switch (ReactionDefinition.Type)
+	{
+	case ERSHitReactionType::HitReact:
+		ReactionPayload.EventTag = RSGameplayTags::GameplayEvent_CrowdControl_HitReact;
+
+		break;
+
+	case ERSHitReactionType::Knockdown:
+	{
+		ReactionPayload.EventTag = RSGameplayTags::GameplayEvent_CrowdControl_Knockdown;
+
+		// 넉다운은 거리와 높이, 시간이 타격마다 다르므로 float 하나인 EventMagnitude 대신 TargetData로 전달합니다
+		FRSKnockbackTargetData* KnockbackData = new FRSKnockbackTargetData();
+		KnockbackData->Distance = ReactionDefinition.KnockbackDistance;
+		KnockbackData->Height = ReactionDefinition.KnockbackHeight;
+		KnockbackData->Duration = ReactionDefinition.KnockbackDuration;
+		ReactionPayload.TargetData.Add(KnockbackData);
+
+		break;
+	}
+
+	default:
+		return;
+	}
+
+	// 면역 판정은 대상의 반응 Ability가 하므로 여기서는 요청만 보냅니다
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(TargetActor, ReactionPayload.EventTag, ReactionPayload);
 }
 
 bool URSCombatFunctionLibrary::IsHitCheckDebugEnabled()

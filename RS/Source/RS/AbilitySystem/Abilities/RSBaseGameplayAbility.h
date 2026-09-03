@@ -7,6 +7,8 @@
 #include "ScalableFloat.h"
 #include "RSBaseGameplayAbility.generated.h"
 
+class UGameplayEffect;
+
 /**
  * RS 프레임워크가 어빌리티 활성화를 시도하는 시점을 정의합니다
  * [참고] https://dev.epicgames.com/documentation/unreal-engine/abilities-in-lyra-in-unreal-engine#%ED%99%9C%EC%84%B1%ED%99%94%EC%A0%95%EC%B1%85
@@ -39,6 +41,12 @@ protected:
 	 * EndAbility 이후에도 호출할 수 있도록 어빌리티의 현재 ActorInfo가 아니라 ASC를 직접 받습니다
 	 */
 	static bool TryActivateAbilityByClass(UAbilitySystemComponent* AbilitySystemComponent, TSubclassOf<UGameplayAbility> AbilityClass);
+
+	/**
+	 * 판정에 걸린 대상 하나에게 공용 대미지 GameplayEffect를 적용합니다
+	 * `MakeOutgoingGameplayEffectSpec`이 UGameplayAbility의 protected 멤버라 함수 라이브러리로는 옮길 수 없습니다
+	 */
+	void ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount);
 
 	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
 	virtual const FGameplayTagContainer* GetCooldownTags() const override;

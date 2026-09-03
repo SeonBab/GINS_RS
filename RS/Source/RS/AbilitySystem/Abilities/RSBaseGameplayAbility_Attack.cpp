@@ -4,14 +4,10 @@
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemGlobals.h"
 #include "Animation/AnimMontage.h"
 #include "Combat/RSCombatFunctionLibrary.h"
-#include "GameplayEffect.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
-#include "RSHealthSet.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -170,80 +166,7 @@ void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Paylo
 	const float DamageAmount = HitCheck.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{
-		ApplyDamageToTarget(HitTarget, DamageAmount);
-		SendHitReactionToTarget(HitTarget, HitCheck);
+		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
+		URSCombatFunctionLibrary::SendHitReaction(AvatarActor, HitTarget, HitCheck.Reaction);
 	}
-}
-
-void URSBaseGameplayAbility_Attack::ApplyDamageToTarget(AActor* TargetActor, float DamageAmount)
-{
-	if (!TargetActor || !DamageEffectClass || !CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid())
-	{
-		return;
-	}
-
-	UAbilitySystemComponent* TargetAbilitySystemComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(TargetActor);
-	if (!TargetAbilitySystemComp)
-	{
-		return;
-	}
-
-	const float AbilityLevel = GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo);
-	FGameplayEffectSpecHandle DamageSpecHandle = MakeOutgoingGameplayEffectSpec(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, DamageEffectClass, AbilityLevel);
-	if (!DamageSpecHandle.IsValid())
-	{
-		return;
-	}
-
-	// 공용 대미지 GameplayEffect에 피해량을 고정하지 않고 이번 타격의 값을 실행별로 설정합니다
-	DamageSpecHandle.Data->SetSetByCallerMagnitude(RSGameplayTags::SetByCaller_Damage, DamageAmount);
-	CurrentActorInfo->AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetAbilitySystemComp);
-
-	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
-	{
-		const URSHealthSet* TargetHealthSet = TargetAbilitySystemComp->GetSet<URSHealthSet>();
-		UE_LOG(LogTemp, Log, TEXT("%s applied %.1f damage to %s, remaining health %.1f"), *GetName(), DamageAmount, *GetNameSafe(TargetActor), TargetHealthSet ? TargetHealthSet->GetHealth() : -1.0f);
-	}
-}
-
-void URSBaseGameplayAbility_Attack::SendHitReactionToTarget(AActor* TargetActor, const FRSHitCheckDefinition& HitCheck) const
-{
-	if (!TargetActor || HitCheck.Reaction == ERSHitReactionType::None)
-	{
-		return;
-	}
-
-	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-
-	FGameplayEventData ReactionPayload;
-	ReactionPayload.Instigator = AvatarActor;
-	ReactionPayload.Target = TargetActor;
-
-	switch (HitCheck.Reaction)
-	{
-	case ERSHitReactionType::HitReact:
-		ReactionPayload.EventTag = RSGameplayTags::GameplayEvent_CrowdControl_HitReact;
-
-		break;
-
-	case ERSHitReactionType::Knockdown:
-	{
-		ReactionPayload.EventTag = RSGameplayTags::GameplayEvent_CrowdControl_Knockdown;
-
-		// 넉다운은 거리와 높이, 시간이 타격마다 다르므로 float 하나인 EventMagnitude 대신 TargetData로 전달합니다
-		FRSKnockbackTargetData* KnockbackData = new FRSKnockbackTargetData();
-		KnockbackData->Distance = HitCheck.KnockbackDistance;
-		KnockbackData->Height = HitCheck.KnockbackHeight;
-		KnockbackData->Duration = HitCheck.KnockbackDuration;
-		ReactionPayload.TargetData.Add(KnockbackData);
-
-		break;
-	}
-
-	default:
-		return;
-	}
-
-	// 면역 판정은 대상의 반응 Ability가 하므로 여기서는 요청만 보냅니다
-	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(TargetActor, ReactionPayload.EventTag, ReactionPayload);
 }
