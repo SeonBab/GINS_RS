@@ -35,6 +35,13 @@ ARSBossCharacter::ARSBossCharacter()
 	CharacterMovementComp->RotationRate = FRotator(0.0f, 240.0f, 0.0f);
 }
 
+void ARSBossCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+}
+
 void ARSBossCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -65,6 +72,27 @@ void ARSBossCharacter::InitializeAbilitySystem()
 
 		bDefaultAbilitiesGranted = true;
 	}
+}
+
+void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
+{
+	if (InHealthComponent != HealthComp)
+	{
+		return;
+	}
+
+	// State.Dead는 새 Ability의 활성화만 막으므로 실행 중인 Ability는 직접 취소합니다
+	if (AbilitySystemComp)
+	{
+		AbilitySystemComp->CancelAbilities();
+	}
+
+	if (ARSBossController* BossController = Cast<ARSBossController>(GetController()))
+	{
+		BossController->StopBossBehavior();
+	}
+
+	GetCharacterMovement()->DisableMovement();
 }
 
 void ARSBossCharacter::SetBossEncounter(ARSBossEncounter* InBossEncounter)

@@ -2,6 +2,7 @@
 
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BrainComponent.h"
 #include "GameFramework/Pawn.h"
 #include "RSBossCharacter.h"
 #include "RSBossEncounter.h"
@@ -75,6 +76,20 @@ void ARSBossController::EndEncounter()
 
 	SetTargetActor(nullptr);
 	BossEncounter = nullptr;
+}
+
+void ARSBossController::StopBossBehavior()
+{
+	// 중단되는 Task가 이동과 Focus를 다시 설정하지 않도록 Behavior Tree를 먼저 중지합니다
+	if (BrainComponent)
+	{
+		BrainComponent->StopLogic(TEXT("Boss death"));
+	}
+
+	StopMovement();
+	ClearFocus(EAIFocusPriority::Gameplay);
+
+	EndEncounter();
 }
 
 void ARSBossController::RefreshTargetActor()

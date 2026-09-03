@@ -22,6 +22,9 @@ public:
 	ARSBossCharacter();
 
 protected:
+	/** HealthComponent의 사망 시작 이벤트에 보스 전용 처리를 연결합니다 */
+	virtual void PostInitializeComponents() override;
+
 	/** 보스가 직접 소유한 ASC를 초기화하고 기본 AbilitySet을 부여합니다 */
 	virtual void BeginPlay() override;
 
@@ -43,6 +46,10 @@ public:
 private:
 	/** ASC의 Owner와 Avatar를 보스 Character로 초기화하고 기본 AbilitySet을 한 번 부여합니다 */
 	void InitializeAbilitySystem();
+
+	/** 사망이 시작되면 실행 중인 Ability와 보스 AI의 행동을 중지합니다 */
+	UFUNCTION()
+	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
 
 protected:
 	/** 이 보스가 초기화될 때 기본으로 부여할 AbilitySet입니다 */
