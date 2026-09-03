@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.IO;
 using UnrealBuildTool;
@@ -14,6 +14,8 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Attributes"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Components"),
+			Path.Combine(ModuleDirectory, "AI"),
+			Path.Combine(ModuleDirectory, "AI", "Tasks"),
 			Path.Combine(ModuleDirectory, "AnimInstance"),
 			Path.Combine(ModuleDirectory, "Animation"),
 			Path.Combine(ModuleDirectory, "Animation", "Notifies"),
