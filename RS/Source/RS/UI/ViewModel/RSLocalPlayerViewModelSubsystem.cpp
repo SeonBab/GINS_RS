@@ -90,12 +90,12 @@ void URSLocalPlayerViewModelSubsystem::RegisterSource(UObject* Source)
 		return !SourceReference.IsValid();
 	});
 
-	if (Sources.Contains(Source))
+	// 이미 등록한 원본이라도 다시 알립니다
+	// Pawn을 소유하는 시점에는 아직 준비되지 않은 구성 요소가 있을 수 있어, 준비를 마친 게임 객체가 같은 경로로 다시 알릴 수 있어야 합니다
+	if (!Sources.Contains(Source))
 	{
-		return;
+		Sources.Add(Source);
 	}
-
-	Sources.Add(Source);
 
 	for (const TPair<TSubclassOf<UMVVMViewModelBase>, TObjectPtr<UMVVMViewModelBase>>& ViewModelPair : ViewModels)
 	{

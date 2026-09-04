@@ -279,6 +279,12 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 
 		bDefaultAbilitiesGranted = true;
 	}
+
+	// Pawn 소유는 ASC 초기화보다 먼저 일어나므로, 관찰할 준비가 끝난 지금 다시 알려 사용자 인터페이스가 초기화 순서에 의존하지 않게 합니다
+	if (ARSPlayerController* RSPlayerController = GetController<ARSPlayerController>())
+	{
+		RSPlayerController->RegisterViewModelSource(this);
+	}
 }
 
 void ARSPlayerCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)

@@ -41,7 +41,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "UI", "Widget"),
 		});
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "FieldNotification", "ModelViewViewModel" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "SlateCore", "FieldNotification", "ModelViewViewModel" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

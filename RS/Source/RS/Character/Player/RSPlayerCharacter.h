@@ -38,6 +38,9 @@ public:
 	/** 플레이어 입력 컴포넌트에 입력 액션을 바인딩합니다 */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	/** 입력 태그와 InputAction의 연결을 정의한 설정을 반환합니다 */
+	const URSInputConfig* GetInputConfig() const { return InputConfig; }
+
 protected:
 	/** PlayerController가 반환한 마우스 위치까지 Navigation 이동을 요청합니다 */
 	void Input_MoveTo(const FInputActionValue& InputActionValue);
