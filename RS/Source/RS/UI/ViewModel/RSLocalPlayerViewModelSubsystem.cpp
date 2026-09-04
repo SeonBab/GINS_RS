@@ -90,12 +90,7 @@ void URSLocalPlayerViewModelSubsystem::RegisterSource(UObject* Source)
 		return !SourceReference.IsValid();
 	});
 
-	const bool bIsAlreadyRegistered = Sources.ContainsByPredicate([Source](const TWeakObjectPtr<UObject>& SourceReference)
-	{
-		return SourceReference.Get() == Source;
-	});
-
-	if (bIsAlreadyRegistered)
+	if (Sources.Contains(Source))
 	{
 		return;
 	}
@@ -118,10 +113,7 @@ void URSLocalPlayerViewModelSubsystem::UnregisterSource(UObject* Source)
 		return;
 	}
 
-	const bool bWasRegistered = Sources.ContainsByPredicate([Source](const TWeakObjectPtr<UObject>& SourceReference)
-	{
-		return SourceReference.Get() == Source;
-	});
+	const bool bWasRegistered = Sources.Contains(Source);
 
 	Sources.RemoveAll([Source](const TWeakObjectPtr<UObject>& SourceReference)
 	{
