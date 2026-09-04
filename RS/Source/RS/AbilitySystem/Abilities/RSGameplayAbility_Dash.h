@@ -9,7 +9,6 @@
 
 class ACharacter;
 class UAnimMontage;
-class URSAbilityTask_CurveMovement;
 
 /** 마우스 커서 방향으로 거리 진행률 커브를 따라 이동하는 대시 어빌리티입니다 */
 UCLASS(Abstract, Blueprintable)
@@ -56,8 +55,4 @@ private:
 	/** 정규화 시간 0~1을 전체 대시 거리의 누적 진행률 0~1로 변환합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Dash", meta = (AllowPrivateAccess = "true"))
 	FRuntimeFloatCurve DistanceProgressCurve;
-
-	/** 현재 실행에서 누적 거리 진행률 커브 이동을 담당하는 AbilityTask입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_CurveMovement> ActiveDashMovementTask;
 };

@@ -8,7 +8,6 @@
 #include "RSGameplayAbility_Knockdown.generated.h"
 
 class UAnimMontage;
-class URSAbilityTask_CurveMovement;
 
 /**
  * 공격이 요청한 넉다운을 수행하며 밀려나 넘어지는 구간을 소유하는 어빌리티입니다
@@ -51,10 +50,6 @@ protected:
 	FRuntimeFloatCurve DistanceProgressCurve;
 
 private:
-	/** 현재 실행에서 넉백 이동을 담당하는 AbilityTask입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_CurveMovement> ActiveKnockbackTask;
-
 	/** 넘어짐이 정상 완료되어 종료 시 누움으로 넘겨야 하는지 나타냅니다 */
 	bool bTransitionToDowned = false;
 };

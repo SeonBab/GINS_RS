@@ -99,9 +99,10 @@ void URSGameplayAbility_Knockdown::ActivateAbility(const FGameplayAbilitySpecHan
 
 	if (KnockbackData && !KnockbackDirection.IsNearlyZero() && KnockbackData->Distance > 0.0f && KnockbackData->Duration > 0.0f)
 	{
-		ActiveKnockbackTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, KnockbackDirection, KnockbackData->Distance, KnockbackData->Duration, *ProgressCurve);
-		ActiveKnockbackTask->SetMeshArc(Character->GetMesh(), KnockbackData->Height);
-		ActiveKnockbackTask->ReadyForActivation();
+		// Task의 정리는 UGameplayAbility::EndAbility가 담당하므로 어빌리티가 핸들을 보관하지 않습니다
+		URSAbilityTask_CurveMovement* KnockbackTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, KnockbackDirection, KnockbackData->Distance, KnockbackData->Duration, *ProgressCurve);
+		KnockbackTask->SetMeshArc(Character->GetMesh(), KnockbackData->Height);
+		KnockbackTask->ReadyForActivation();
 	}
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, KnockdownMontage);
@@ -114,13 +115,6 @@ void URSGameplayAbility_Knockdown::ActivateAbility(const FGameplayAbilitySpecHan
 void URSGameplayAbility_Knockdown::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	EndAnimationGameplayStatesForMontage(ActorInfo, KnockdownMontage);
-
-	if (ActiveKnockbackTask && !ActiveKnockbackTask->IsFinished())
-	{
-		ActiveKnockbackTask->EndTask();
-	}
-
-	ActiveKnockbackTask = nullptr;
 
 	const bool bShouldEnterDowned = bTransitionToDowned && !bWasCancelled;
 	bTransitionToDowned = false;

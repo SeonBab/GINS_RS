@@ -97,8 +97,9 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 	const FRotator DashRotation = DashDirection.Rotation();
 	Character->SetActorRotation(FRotator(0.0, DashRotation.Yaw, 0.0));
 
-	ActiveDashMovementTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, DashDirection, DashDistance, ActiveDashDuration, *ProgressCurve);
-	ActiveDashMovementTask->ReadyForActivation();
+	// Task의 정리는 UGameplayAbility::EndAbility가 담당하므로 어빌리티가 핸들을 보관하지 않습니다
+	URSAbilityTask_CurveMovement* DashMovementTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, DashDirection, DashDistance, ActiveDashDuration, *ProgressCurve);
+	DashMovementTask->ReadyForActivation();
 
 	if (DashMontage)
 	{
@@ -119,13 +120,6 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 void URSGameplayAbility_Dash::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	EndAnimationGameplayStatesForMontage(ActorInfo, DashMontage);
-
-	if (ActiveDashMovementTask && !ActiveDashMovementTask->IsFinished())
-	{
-		ActiveDashMovementTask->EndTask();
-	}
-
-	ActiveDashMovementTask = nullptr;
 
 	// Commit에서 적용한 쿨다운은 대시가 취소되어도 원래 만료 시점까지 유지합니다
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);

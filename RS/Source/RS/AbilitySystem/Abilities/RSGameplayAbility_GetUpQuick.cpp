@@ -44,18 +44,7 @@ void URSGameplayAbility_GetUpQuick::StartGetUpMovement(ACharacter& Character)
 	const FRotator RollRotation = RollDirection.Rotation();
 	Character.SetActorRotation(FRotator(0.0, RollRotation.Yaw, 0.0));
 
-	ActiveRollTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, RollDirection, RollDistance, RollDuration, *ProgressCurve);
-	ActiveRollTask->ReadyForActivation();
-}
-
-void URSGameplayAbility_GetUpQuick::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
-{
-	if (ActiveRollTask && !ActiveRollTask->IsFinished())
-	{
-		ActiveRollTask->EndTask();
-	}
-
-	ActiveRollTask = nullptr;
-
-	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// Task의 정리는 UGameplayAbility::EndAbility가 담당하므로 어빌리티가 핸들을 보관하지 않습니다
+	URSAbilityTask_CurveMovement* RollTask = URSAbilityTask_CurveMovement::CreateCurveMovement(this, MovementComponent, RollDirection, RollDistance, RollDuration, *ProgressCurve);
+	RollTask->ReadyForActivation();
 }
