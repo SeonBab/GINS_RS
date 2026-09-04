@@ -2,8 +2,9 @@
 
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "RSAbilitySystemComponent.h"
 #include "RSAbilitySet.h"
+#include "RSAbilitySystemComponent.h"
+#include "RSAttackTelegraphComponent.h"
 #include "RSBossController.h"
 #include "RSBossEncounter.h"
 #include "RSHealthComponent.h"
@@ -16,9 +17,13 @@ ARSBossCharacter::ARSBossCharacter()
 	AbilitySystemComp = CreateDefaultSubobject<URSAbilitySystemComponent>(TEXT("RSAbilitySystemComponent"));
 	HealthSet = CreateDefaultSubobject<URSHealthSet>(TEXT("RSHealthSet"));
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+	AttackTelegraphComp = CreateDefaultSubobject<URSAttackTelegraphComponent>(TEXT("AttackTelegraphComponent"));
 
 	// 공격 판정이 진영을 콜리전 채널로 구분하므로 Blueprint 설정 누락을 막기 위해 캡슐 프로파일을 코드에서 고정합니다
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("RSEnemyBody"));
+
+	// 바닥 예고 데칼의 투영 볼륨이 캐릭터에도 닿으므로 메시가 데칼을 받지 않게 합니다
+	GetMesh()->SetReceivesDecals(false);
 
 	// 레벨 배치와 런타임 생성 방식이 달라도 동일한 Controller 초기화 흐름을 사용합니다
 	AIControllerClass = ARSBossController::StaticClass();

@@ -4,6 +4,7 @@
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Engine/World.h"
+#include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
 
 #if WITH_EDITOR
@@ -87,6 +88,22 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	RingCenterTransform = FTransform(RingCenterLocation);
 
 	RunCurrentStep();
+}
+
+void URSGameplayAbility_ConcentricRings::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+	// 표시는 어빌리티가 아니라 소유자의 컴포넌트에 있으므로 어빌리티가 끝나도 스스로 사라지지 않습니다
+	// Super는 재진입 경로에서 아무 일도 하지 않을 수 있으므로 정리를 먼저 합니다
+	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	if (AvatarActor)
+	{
+		if (URSAttackTelegraphComponent* TelegraphComp = AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>())
+		{
+			TelegraphComp->HideAllShapes();
+		}
+	}
+
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void URSGameplayAbility_ConcentricRings::RunCurrentStep()
@@ -176,10 +193,19 @@ void URSGameplayAbility_ConcentricRings::PreviewRing(const AActor& AvatarActor, 
 		return;
 	}
 
-	// 표시 컴포넌트를 도입할 때까지 예고는 판정과 같은 형상 데이터를 읽는 디버그 드로우가 대신합니다
-	// 예고는 플레이어가 반드시 봐야 하는 게임플레이 정보라 판정 디버그 토글을 따르지 않습니다
-	// 반대로 실행 단계의 드로우는 검증 보조 수단이므로 토글을 따릅니다
-	URSCombatFunctionLibrary::DrawDebugCombatShape(AvatarActor.GetWorld(), *RingShape, RingCenterTransform, FColor::Yellow, PreviewShowDuration);
+	// 예고는 표시 컴포넌트에 맡기고 어빌리티는 무엇을 어디에 얼마나 보여줄지만 지시합니다
+	// 컴포넌트가 없으면 예고가 보이지 않을 뿐 판정과 진행은 그대로 동작합니다
+	if (URSAttackTelegraphComponent* TelegraphComp = AvatarActor.FindComponentByClass<URSAttackTelegraphComponent>())
+	{
+		FRSTelegraphPresentation Presentation;
+		Presentation.HoldDuration = PreviewShowDuration;
+
+		TelegraphComp->ShowShape(*RingShape, RingCenterTransform, Presentation);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s has no attack telegraph component, so the preview is invisible"), *GetName());
+	}
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{

@@ -42,6 +42,9 @@ protected:
 	/** 이번 실행의 시퀀스와 링 중심을 확정하고 첫 예고 스텝을 시작합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
+	/** 어빌리티가 어떤 경로로 끝나도 남아 있는 예고 표시를 회수합니다 */
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
+
 #if WITH_EDITOR
 	/** 링 레이아웃과 시퀀스가 패턴이 성립하는 범위를 벗어나지 않았는지 검사합니다 */
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;

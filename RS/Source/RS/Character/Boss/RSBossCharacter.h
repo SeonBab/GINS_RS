@@ -8,6 +8,7 @@
 
 class ARSBossEncounter;
 class URSAbilitySystemComponent;
+class URSAttackTelegraphComponent;
 class URSHealthComponent;
 class URSHealthSet;
 
@@ -43,6 +44,9 @@ public:
 	/** 보스의 체력 변경과 사망 시작을 전달하는 HealthComponent를 반환합니다 */
 	URSHealthComponent* GetHealthComponent() const { return HealthComp; }
 
+	/** 보스 공격의 바닥 예고를 그리는 표시 컴포넌트를 반환합니다 */
+	URSAttackTelegraphComponent* GetAttackTelegraphComponent() const { return AttackTelegraphComp; }
+
 private:
 	/** ASC의 Owner와 Avatar를 보스 Character로 초기화하고 기본 AbilitySet을 한 번 부여합니다 */
 	void InitializeAbilitySystem();
@@ -68,6 +72,10 @@ private:
 	/** HealthSet의 체력 변경을 외부 시스템에 전달하고 사망 상태 태그를 관리합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSHealthComponent> HealthComp;
+
+	/** 공격 범위를 바닥에 미리 그리는 표시 컴포넌트입니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Telegraph", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSAttackTelegraphComponent> AttackTelegraphComp;
 
 	/** DefaultAbilitySet이 부여한 Ability를 정확히 식별하기 위한 핸들입니다 */
 	UPROPERTY(Transient)
