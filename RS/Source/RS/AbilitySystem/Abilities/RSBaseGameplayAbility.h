@@ -9,6 +9,7 @@
 
 class UAnimMontage;
 class UGameplayEffect;
+class URSAbilityDefinition;
 
 /**
  * RS 프레임워크가 어빌리티 활성화를 시도하는 시점을 정의합니다
@@ -34,6 +35,26 @@ public:
 
 	/** 이 어빌리티의 자동 활성화 정책을 반환합니다 */
 	ERSAbilityActivationPolicy GetActivationPolicy() const;
+
+	/**
+	 * 사용자 인터페이스에 표시할 정적 데이터를 반환하며 표시할 필요가 없는 어빌리티는 nullptr을 반환합니다
+	 * 호출자가 저장 방식을 알지 않도록 멤버를 직접 노출하지 않습니다
+	 */
+	const URSAbilityDefinition* GetAbilityDefinition() const;
+
+	/**
+	 * 현재 소유 태그에서 이 어빌리티가 입력 슬롯을 대표할 수 있는지 판정합니다
+	 * 활성화 조건 전체가 아니라 DisplayContextTags에 등록된 태그에 대한 조건만 봅니다
+	 * 전체를 보면 대시가 자신이 부여한 행동 잠금 때문에 대시 도중 자기 슬롯에서 사라집니다
+	 * UGameplayAbility의 활성화 조건이 protected이므로 판정을 어빌리티 자신이 담당합니다
+	 */
+	bool SatisfiesDisplayContext(const FGameplayTagContainer& OwnedTags, const FGameplayTagContainer& DisplayContextTags) const;
+
+	/**
+	 * 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다
+	 * UGameplayAbility의 공개 계약이며 사용자 인터페이스가 쿨다운 변화를 구독할 때도 사용합니다
+	 */
+	virtual const FGameplayTagContainer* GetCooldownTags() const override;
 
 protected:
 	/**
@@ -62,9 +83,6 @@ protected:
 	 */
 	static FVector GetCursorDirectionOrForward(const FGameplayAbilityActorInfo* ActorInfo, const AActor& Actor);
 
-	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
-	virtual const FGameplayTagContainer* GetCooldownTags() const override;
-
 	/** 공용 GameplayEffect에 실행별 쿨다운 시간과 Tag를 설정하여 적용합니다 */
 	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
@@ -72,6 +90,13 @@ protected:
 	/** RS 프레임워크가 사용할 자동 활성화 정책입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Activation")
 	ERSAbilityActivationPolicy ActivationPolicy = ERSAbilityActivationPolicy::None;
+
+	/**
+	 * 사용자 인터페이스에 표시할 이름과 아이콘을 제공하는 선택적 애셋입니다
+	 * 화면에 표시하지 않는 어빌리티는 비워 두며, 비어 있는 것 자체는 오류가 아닙니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Presentation")
+	TObjectPtr<const URSAbilityDefinition> AbilityDefinition;
 
 	/** 어빌리티 레벨에 따라 적용할 쿨다운 시간입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Cooldown")

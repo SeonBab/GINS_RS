@@ -406,3 +406,116 @@ void URSAbilitySystemComponent::AbilitySpecInputReleased(FGameplayAbilitySpec& S
 
 	InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, AbilityInstance->GetCurrentActivationInfo().GetActivationPredictionKey());
 }
+
+void URSAbilitySystemComponent::OnGiveAbility(FGameplayAbilitySpec& AbilitySpec)
+{
+	Super::OnGiveAbility(AbilitySpec);
+
+	OnGrantedAbilitiesChanged.Broadcast(this);
+}
+
+void URSAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& AbilitySpec)
+{
+	Super::OnRemoveAbility(AbilitySpec);
+
+	OnGrantedAbilitiesChanged.Broadcast(this);
+}
+
+const FGameplayTagContainer& URSAbilitySystemComponent::GetDisplayContextTags()
+{
+	// 슬롯이 대표하는 어빌리티 자체를 교체하는 상태만 등록합니다
+	// State.Action.Locked처럼 실행만 잠시 막는 상태는 슬롯의 의미를 바꾸지 않으므로 넣지 않습니다
+	static const FGameplayTagContainer DisplayContextTags(RSGameplayTags::State_CrowdControl_Downed);
+
+	return DisplayContextTags;
+}
+
+FRSAbilityDisplayResolveResult URSAbilitySystemComponent::ResolveDisplayAbilityForInputTag(const FGameplayTag& InputTag) const
+{
+	FRSAbilityDisplayResolveResult Result;
+
+	if (!InputTag.IsValid())
+	{
+		return Result;
+	}
+
+	const FGameplayTagContainer& OwnedTags = GetOwnedGameplayTags();
+	const FGameplayTagContainer& DisplayContextTags = GetDisplayContextTags();
+
+	bool bHasCandidate = false;
+
+	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	{
+		if (!AbilitySpec.Ability)
+		{
+			continue;
+		}
+
+		if (!AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		{
+			continue;
+		}
+
+		// 후보 수집 기준은 입력 라우팅과 같게 유지하여 표시한 어빌리티와 실제 발동할 어빌리티가 어긋나지 않게 합니다
+		const URSBaseGameplayAbility* RSAbility = Cast<URSBaseGameplayAbility>(AbilitySpec.Ability);
+		if (!RSAbility || RSAbility->GetActivationPolicy() != ERSAbilityActivationPolicy::OnInputTriggered)
+		{
+			continue;
+		}
+
+		bHasCandidate = true;
+
+		if (!RSAbility->SatisfiesDisplayContext(OwnedTags, DisplayContextTags))
+		{
+			continue;
+		}
+
+		// 배열 순서를 조용한 우선순위로 쓰지 않도록, 동시에 유효한 후보가 생기면 어느 쪽도 고르지 않습니다
+		if (Result.Status == ERSAbilityDisplayResolveStatus::Resolved)
+		{
+			Result.Status = ERSAbilityDisplayResolveStatus::Ambiguous;
+			Result.AbilityHandle = FGameplayAbilitySpecHandle();
+
+			return Result;
+		}
+
+		Result.Status = ERSAbilityDisplayResolveStatus::Resolved;
+		Result.AbilityHandle = AbilitySpec.Handle;
+	}
+
+	if (Result.Status != ERSAbilityDisplayResolveStatus::Resolved)
+	{
+		// 어빌리티 부여 전에는 후보 자체가 없으므로, 설정 오류인 NoMatch와 구분해야 진단이 오탐하지 않습니다
+		Result.Status = bHasCandidate ? ERSAbilityDisplayResolveStatus::NoMatch : ERSAbilityDisplayResolveStatus::NoCandidates;
+	}
+
+	return Result;
+}
+
+bool URSAbilitySystemComponent::GetCooldownInfoForAbility(FGameplayAbilitySpecHandle Handle, float& OutRemaining, float& OutDuration) const
+{
+	OutRemaining = 0.0f;
+	OutDuration = 0.0f;
+
+	const FGameplayAbilityActorInfo* ActorInfo = AbilityActorInfo.Get();
+	if (!Handle.IsValid() || !ActorInfo)
+	{
+		return false;
+	}
+
+	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	{
+		if (AbilitySpec.Handle != Handle || !AbilitySpec.Ability)
+		{
+			continue;
+		}
+
+		// 쿨다운 Tag로 Effect를 직접 조회하면 같은 Tag를 가진 Effect가 여럿일 때 표시 대상이 정해지지 않으므로
+		// 현재 표시 중인 어빌리티 자신에게 남은 시간을 묻습니다
+		AbilitySpec.Ability->GetCooldownTimeRemainingAndDuration(Handle, ActorInfo, OutRemaining, OutDuration);
+
+		return OutRemaining > 0.0f;
+	}
+
+	return false;
+}

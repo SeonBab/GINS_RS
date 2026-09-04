@@ -22,6 +22,10 @@ URSGameplayAbility_Dash::URSGameplayAbility_Dash()
 
 	// Montage의 행동 잠금 구간에서는 활성화를 막고 잠금이 끝난 뒤 새 대시가 진행 중인 기본 공격을 교체하게 합니다
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
+
+	// 누운 상태에서는 빠른 기상이 같은 입력을 담당하므로, 행동 잠금을 통한 간접 차단에 의존하지 않고 직접 명시합니다
+	ActivationBlockedTags.AddTag(RSGameplayTags::State_CrowdControl_Downed);
+
 	CancelAbilitiesWithTag.AddTag(RSGameplayTags::Ability_Combat_BasicAttack);
 
 	ActivationOwnedTags.AddTag(RSGameplayTags::State_Movement_Dashing);

@@ -41,6 +41,36 @@ enum class ERSInputActivationResult : uint8
 	FailedToActivate
 };
 
+/**
+ * 입력 슬롯을 대표하는 어빌리티를 찾은 결과입니다
+ * 실패 원인을 구분해야 진단 경로가 정상적인 초기화 중 상태와 실제 설정 오류를 나눌 수 있습니다
+ */
+enum class ERSAbilityDisplayResolveStatus : uint8
+{
+	/** 해당 입력 태그를 가진 어빌리티가 아직 부여되지 않았으며 초기화 중에는 정상입니다 */
+	NoCandidates,
+
+	/** 표시 문맥 조건을 만족하는 후보가 정확히 하나입니다 */
+	Resolved,
+
+	/** 후보는 있으나 현재 문맥에서 표시 조건을 만족하는 어빌리티가 없습니다 */
+	NoMatch,
+
+	/** 표시 조건을 동시에 만족하는 후보가 둘 이상이라 슬롯이 무엇을 뜻하는지 정할 수 없습니다 */
+	Ambiguous
+};
+
+/** 슬롯을 대표하는 어빌리티 조회 결과와 그 어빌리티의 Spec Handle입니다 */
+struct FRSAbilityDisplayResolveResult
+{
+	ERSAbilityDisplayResolveStatus Status = ERSAbilityDisplayResolveStatus::NoCandidates;
+	FGameplayAbilitySpecHandle AbilityHandle;
+};
+
+class URSAbilitySystemComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRSGrantedAbilitiesChangedSignature, URSAbilitySystemComponent*, AbilitySystemComponent);
+
 /** RS의 어빌리티 부여와 활성화, 입력 처리를 담당하는 ASC입니다 */
 UCLASS()
 class RS_API URSAbilitySystemComponent : public UAbilitySystemComponent
@@ -78,12 +108,50 @@ public:
 	 */
 	void ClearAbilityInput();
 
+#pragma region Display
+
+public:
+	/**
+	 * 현재 게임플레이 문맥에서 해당 입력 슬롯을 대표하는 어빌리티를 반환합니다
+	 * 실행 가능 여부가 아니라 슬롯의 의미만 판정하므로 쿨다운, 코스트, 실행 중 여부와 행동 잠금은 보지 않습니다
+	 * 상태를 남기지 않는 조회이므로 실패해도 로그나 ensure 같은 부수 효과를 만들지 않습니다
+	 */
+	FRSAbilityDisplayResolveResult ResolveDisplayAbilityForInputTag(const FGameplayTag& InputTag) const;
+
+	/**
+	 * 슬롯이 대표하는 어빌리티 자체를 바꾸는 게임플레이 상태 태그를 반환합니다
+	 * 새 활성화 조건 태그가 생겨도 여기에 넣지 않는 한 사용자 인터페이스의 슬롯 선택에 영향을 주지 않습니다
+	 */
+	static const FGameplayTagContainer& GetDisplayContextTags();
+
+	/**
+	 * 해당 어빌리티에 적용 중인 쿨다운의 남은 시간과 전체 시간을 반환합니다
+	 * 사용자 인터페이스가 FGameplayAbilityActorInfo 같은 GAS 세부사항을 다루지 않도록 감쌉니다
+	 */
+	bool GetCooldownInfoForAbility(FGameplayAbilitySpecHandle Handle, float& OutRemaining, float& OutDuration) const;
+
+public:
+	/**
+	 * 부여된 어빌리티 목록이 바뀌었음을 알립니다
+	 * Pawn 소유 시점보다 어빌리티 부여가 늦으므로 사용자 인터페이스가 초기화 순서에 의존하지 않게 합니다
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RS|Ability")
+	FRSGrantedAbilitiesChangedSignature OnGrantedAbilitiesChanged;
+
+#pragma endregion
+
 protected:
 	/** 실행 중인 어빌리티에 입력 누름 이벤트를 전달합니다 */
 	virtual void AbilitySpecInputPressed(FGameplayAbilitySpec& Spec) override;
 
 	/** 실행 중인 어빌리티에 입력 해제 이벤트를 전달합니다 */
 	virtual void AbilitySpecInputReleased(FGameplayAbilitySpec& Spec) override;
+
+	/** 어빌리티가 부여되면 목록 변경을 알립니다 */
+	virtual void OnGiveAbility(FGameplayAbilitySpec& AbilitySpec) override;
+
+	/** 어빌리티가 제거되면 목록 변경을 알립니다 */
+	virtual void OnRemoveAbility(FGameplayAbilitySpec& AbilitySpec) override;
 
 private:
 	/**

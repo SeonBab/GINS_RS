@@ -18,6 +18,9 @@ namespace RSGameplayTags
 	// Cooldown
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Dash);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_GetUp_Quick);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Skill01);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Skill02);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Skill03);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Active);
 
 	// GameplayEvent

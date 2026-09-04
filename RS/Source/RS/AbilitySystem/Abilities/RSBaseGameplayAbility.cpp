@@ -6,6 +6,7 @@
 #include "AbilitySystemGlobals.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "GameplayEffect.h"
+#include "RSAbilityDefinition.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerController.h"
@@ -19,6 +20,25 @@ URSBaseGameplayAbility::URSBaseGameplayAbility()
 ERSAbilityActivationPolicy URSBaseGameplayAbility::GetActivationPolicy() const
 {
 	return ActivationPolicy;
+}
+
+const URSAbilityDefinition* URSBaseGameplayAbility::GetAbilityDefinition() const
+{
+	return AbilityDefinition;
+}
+
+bool URSBaseGameplayAbility::SatisfiesDisplayContext(const FGameplayTagContainer& OwnedTags, const FGameplayTagContainer& DisplayContextTags) const
+{
+	// 계층 일치를 허용하면 부모 태그를 조건으로 쓴 어빌리티가 의도치 않게 걸리므로 정확히 일치하는 태그만 남깁니다
+	const FGameplayTagContainer RequiredContextTags = ActivationRequiredTags.FilterExact(DisplayContextTags);
+	if (!OwnedTags.HasAll(RequiredContextTags))
+	{
+		return false;
+	}
+
+	const FGameplayTagContainer BlockedContextTags = ActivationBlockedTags.FilterExact(DisplayContextTags);
+
+	return !OwnedTags.HasAny(BlockedContextTags);
 }
 
 bool URSBaseGameplayAbility::TryActivateAbilityByClass(UAbilitySystemComponent* AbilitySystemComponent, TSubclassOf<UGameplayAbility> AbilityClass)

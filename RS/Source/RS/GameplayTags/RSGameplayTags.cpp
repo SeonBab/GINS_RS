@@ -17,6 +17,9 @@ namespace RSGameplayTags
 	// Cooldown
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Dash, "Cooldown.Ability.Dash", "쿨다운이 끝날 때까지 대시 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_GetUp_Quick, "Cooldown.Ability.GetUp.Quick", "쿨다운이 끝날 때까지 빠른 기상 재활성화를 차단합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Skill01, "Cooldown.Ability.Skill01", "쿨다운이 끝날 때까지 1번 스킬 슬롯 Ability의 재활성화를 차단합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Skill02, "Cooldown.Ability.Skill02", "쿨다운이 끝날 때까지 2번 스킬 슬롯 Ability의 재활성화를 차단합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Skill03, "Cooldown.Ability.Skill03", "쿨다운이 끝날 때까지 3번 스킬 슬롯 Ability의 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Active, "Cooldown.Active", "하나 이상의 Ability 쿨다운이 활성화된 상태를 나타냅니다");
 
 	// GameplayEvent
