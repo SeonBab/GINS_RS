@@ -7,7 +7,6 @@
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 
 URSGameplayAbility_Downed::URSGameplayAbility_Downed()
@@ -60,14 +59,7 @@ void URSGameplayAbility_Downed::ActivateAbility(const FGameplayAbilitySpecHandle
 
 void URSGameplayAbility_Downed::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (DownedMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
-		{
-			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 정리합니다
-			AbilitySystemComponent->EndAnimationGameplayStates(DownedMontage);
-		}
-	}
+	EndAnimationGameplayStatesForMontage(ActorInfo, DownedMontage);
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

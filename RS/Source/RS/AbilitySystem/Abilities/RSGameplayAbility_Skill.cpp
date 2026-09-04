@@ -4,7 +4,6 @@
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimMontage.h"
-#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 
 URSGameplayAbility_Skill::URSGameplayAbility_Skill()
@@ -43,14 +42,7 @@ void URSGameplayAbility_Skill::ActivateAbility(const FGameplayAbilitySpecHandle 
 
 void URSGameplayAbility_Skill::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (SkillMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
-		{
-			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 정리합니다
-			AbilitySystemComponent->EndAnimationGameplayStates(SkillMontage);
-		}
-	}
+	EndAnimationGameplayStatesForMontage(ActorInfo, SkillMontage);
 
 	// Commit에서 적용한 쿨다운은 스킬이 취소되어도 원래 만료 시점까지 유지합니다
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);

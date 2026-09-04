@@ -7,7 +7,6 @@
 #include "Animation/AnimMontage.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "RSAbilitySystemComponent.h"
 #include "Tasks/RSAbilityTask_CurveMovement.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerController.h"
@@ -120,14 +119,7 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 
 void URSGameplayAbility_Dash::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (DashMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
-		{
-			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 안전하게 정리합니다
-			AbilitySystemComponent->EndAnimationGameplayStates(DashMontage);
-		}
-	}
+	EndAnimationGameplayStatesForMontage(ActorInfo, DashMontage);
 
 	if (ActiveDashMovementTask && !ActiveDashMovementTask->IsFinished())
 	{

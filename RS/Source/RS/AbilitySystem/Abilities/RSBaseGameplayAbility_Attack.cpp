@@ -6,7 +6,6 @@
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Animation/AnimMontage.h"
 #include "Combat/RSCombatFunctionLibrary.h"
-#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 
 #if WITH_EDITOR
@@ -46,14 +45,7 @@ void URSBaseGameplayAbility_Attack::ActivateAbility(const FGameplayAbilitySpecHa
 
 void URSBaseGameplayAbility_Attack::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (AttackMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
-		{
-			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 정리합니다
-			AbilitySystemComponent->EndAnimationGameplayStates(AttackMontage);
-		}
-	}
+	EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

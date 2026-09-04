@@ -7,6 +7,7 @@
 #include "ScalableFloat.h"
 #include "RSBaseGameplayAbility.generated.h"
 
+class UAnimMontage;
 class UGameplayEffect;
 
 /**
@@ -47,6 +48,13 @@ protected:
 	 * `MakeOutgoingGameplayEffectSpec`이 UGameplayAbility의 protected 멤버라 함수 라이브러리로는 옮길 수 없습니다
 	 */
 	void ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount);
+
+	/**
+	 * 이 어빌리티가 재생한 Montage가 남긴 공용 게임플레이 상태를 회수합니다
+	 * Montage가 중단되면 Notify State의 End가 오지 않아 상태 태그가 남으므로 EndAbility에서 호출합니다
+	 * 어빌리티의 수명은 정하지 않으므로 Montage로 수명을 결정하지 않는 어빌리티도 그대로 사용합니다
+	 */
+	static void EndAnimationGameplayStatesForMontage(const FGameplayAbilityActorInfo* ActorInfo, UAnimMontage* Montage);
 
 	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
 	virtual const FGameplayTagContainer* GetCooldownTags() const override;

@@ -5,7 +5,6 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 
 URSGameplayAbility_HitReact::URSGameplayAbility_HitReact()
@@ -76,14 +75,7 @@ void URSGameplayAbility_HitReact::ActivateAbility(const FGameplayAbilitySpecHand
 
 void URSGameplayAbility_HitReact::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	if (HitReactMontage && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get()))
-		{
-			// Montage 중단으로 Notify End를 받지 못한 경우에만 남아 있는 상태를 출처별로 정리합니다
-			AbilitySystemComponent->EndAnimationGameplayStates(HitReactMontage);
-		}
-	}
+	EndAnimationGameplayStatesForMontage(ActorInfo, HitReactMontage);
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

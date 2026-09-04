@@ -6,6 +6,7 @@
 #include "AbilitySystemGlobals.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "GameplayEffect.h"
+#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 #include "RSHealthSet.h"
 
@@ -114,4 +115,20 @@ void URSBaseGameplayAbility::ApplyDamageToTarget(AActor* TargetActor, TSubclassO
 		const URSHealthSet* TargetHealthSet = TargetAbilitySystemComp->GetSet<URSHealthSet>();
 		UE_LOG(LogTemp, Log, TEXT("%s applied %.1f damage to %s, remaining health %.1f"), *GetName(), DamageAmount, *GetNameSafe(TargetActor), TargetHealthSet ? TargetHealthSet->GetHealth() : -1.0f);
 	}
+}
+
+void URSBaseGameplayAbility::EndAnimationGameplayStatesForMontage(const FGameplayAbilityActorInfo* ActorInfo, UAnimMontage* Montage)
+{
+	if (!Montage || !ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		return;
+	}
+
+	URSAbilitySystemComponent* AbilitySystemComponent = Cast<URSAbilitySystemComponent>(ActorInfo->AbilitySystemComponent.Get());
+	if (!AbilitySystemComponent)
+	{
+		return;
+	}
+
+	AbilitySystemComponent->EndAnimationGameplayStates(Montage);
 }
