@@ -5,6 +5,7 @@
 
 #include "Engine/LocalPlayer.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSCheatManager.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
 #include "RSPlayerState.h"
@@ -12,6 +13,9 @@
 ARSPlayerController::ARSPlayerController()
 {
 	PlayerCameraComp = CreateDefaultSubobject<URSPlayerCameraComponent>(TEXT("PlayerCameraComponent"));
+
+	// 개발용 콘솔 명령은 CheatManager가 소유하며 Shipping 빌드에서는 이 객체가 생성되지 않습니다
+	CheatClass = URSCheatManager::StaticClass();
 }
 
 void ARSPlayerController::BeginPlay()
