@@ -45,17 +45,8 @@ void URSGameplayAbility_BasicAttack::ActivateAbility(const FGameplayAbilitySpecH
 		return;
 	}
 
-	FVector CursorWorldLocation;
-	if (!PlayerController->GetCursorWorldLocation(CursorWorldLocation))
-	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-
-		return;
-	}
-
-	FVector AttackDirection = CursorWorldLocation - Character->GetActorLocation();
-	AttackDirection.Z = 0.0f;
-	if (!AttackDirection.Normalize())
+	const FVector AttackDirection = GetCursorDirectionOrForward(ActorInfo, *Character);
+	if (AttackDirection.IsNearlyZero())
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 

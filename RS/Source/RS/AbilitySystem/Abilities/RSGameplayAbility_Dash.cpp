@@ -9,7 +9,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tasks/RSAbilityTask_CurveMovement.h"
 #include "RSGameplayTags.h"
-#include "RSPlayerController.h"
 
 URSGameplayAbility_Dash::URSGameplayAbility_Dash()
 {
@@ -72,7 +71,7 @@ void URSGameplayAbility_Dash::ActivateAbility(const FGameplayAbilitySpecHandle H
 		return;
 	}
 
-	const FVector DashDirection = GetDashDirection(Character, ActorInfo);
+	const FVector DashDirection = GetCursorDirectionOrForward(ActorInfo, *Character);
 	if (DashDirection.IsNearlyZero())
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -130,40 +129,6 @@ void URSGameplayAbility_Dash::EndAbility(const FGameplayAbilitySpecHandle Handle
 
 	// Commit에서 적용한 쿨다운은 대시가 취소되어도 원래 만료 시점까지 유지합니다
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
-}
-
-FVector URSGameplayAbility_Dash::GetDashDirection(const ACharacter* Character, const FGameplayAbilityActorInfo* ActorInfo) const
-{
-	if (!Character)
-	{
-		return FVector::ZeroVector;
-	}
-
-	if (ActorInfo)
-	{
-		const ARSPlayerController* PlayerController = Cast<ARSPlayerController>(ActorInfo->PlayerController.Get());
-		if (PlayerController)
-		{
-			FVector CursorWorldLocation;
-			if (PlayerController->GetCursorWorldLocation(CursorWorldLocation))
-			{
-				FVector CursorDirection = CursorWorldLocation - Character->GetActorLocation();
-				CursorDirection.Z = 0.0f;
-
-				if (CursorDirection.Normalize())
-				{
-					return CursorDirection;
-				}
-			}
-		}
-	}
-
-	// 커서 Hit을 얻지 못하거나 캐릭터와 같은 위치를 가리키면 현재 전방을 안전한 대체 방향으로 사용합니다
-	FVector ForwardDirection = Character->GetActorForwardVector();
-	ForwardDirection.Z = 0.0f;
-	ForwardDirection.Normalize();
-
-	return ForwardDirection;
 }
 
 void URSGameplayAbility_Dash::HandleDashFinished()

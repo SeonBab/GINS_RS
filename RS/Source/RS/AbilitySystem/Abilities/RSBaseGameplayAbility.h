@@ -56,6 +56,12 @@ protected:
 	 */
 	static void EndAnimationGameplayStatesForMontage(const FGameplayAbilityActorInfo* ActorInfo, UAnimMontage* Montage);
 
+	/**
+	 * 마우스 커서가 가리키는 수평 방향을 반환합니다
+	 * 커서 Hit을 얻지 못하거나 Actor와 같은 위치를 가리키면 Actor의 현재 전방을 대체 방향으로 사용합니다
+	 */
+	static FVector GetCursorDirectionOrForward(const FGameplayAbilityActorInfo* ActorInfo, const AActor& Actor);
+
 	/** 이 어빌리티의 재활성화를 차단하는 쿨다운 Tag를 반환합니다 */
 	virtual const FGameplayTagContainer* GetCooldownTags() const override;
 

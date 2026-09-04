@@ -5,7 +5,6 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RSGameplayTags.h"
-#include "RSPlayerController.h"
 #include "Tasks/RSAbilityTask_CurveMovement.h"
 
 URSGameplayAbility_GetUpQuick::URSGameplayAbility_GetUpQuick()
@@ -36,27 +35,8 @@ void URSGameplayAbility_GetUpQuick::StartGetUpMovement(ACharacter& Character)
 		return;
 	}
 
-	// 커서 Hit을 얻지 못하거나 캐릭터와 같은 위치를 가리키면 현재 전방을 안전한 대체 방향으로 사용합니다
-	FVector RollDirection = Character.GetActorForwardVector();
-	RollDirection.Z = 0.0f;
-
-	const ARSPlayerController* PlayerController = CurrentActorInfo ? Cast<ARSPlayerController>(CurrentActorInfo->PlayerController.Get()) : nullptr;
-	if (PlayerController)
-	{
-		FVector CursorWorldLocation;
-		if (PlayerController->GetCursorWorldLocation(CursorWorldLocation))
-		{
-			FVector CursorDirection = CursorWorldLocation - Character.GetActorLocation();
-			CursorDirection.Z = 0.0f;
-
-			if (CursorDirection.Normalize())
-			{
-				RollDirection = CursorDirection;
-			}
-		}
-	}
-
-	if (!RollDirection.Normalize())
+	const FVector RollDirection = GetCursorDirectionOrForward(CurrentActorInfo, Character);
+	if (RollDirection.IsNearlyZero())
 	{
 		return;
 	}

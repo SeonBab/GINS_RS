@@ -28,9 +28,6 @@ protected:
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 private:
-	/** 마우스 커서의 월드 위치를 우선하여 이번 실행에서 고정할 대시 방향을 반환합니다 */
-	FVector GetDashDirection(const ACharacter* Character, const FGameplayAbilityActorInfo* ActorInfo) const;
-
 	/** 대시 Montage 또는 fallback 지속 시간이 끝나면 현재 어빌리티를 정상 종료합니다 */
 	UFUNCTION()
 	void HandleDashFinished();

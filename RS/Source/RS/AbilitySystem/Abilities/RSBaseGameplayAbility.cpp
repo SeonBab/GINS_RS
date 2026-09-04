@@ -8,6 +8,7 @@
 #include "GameplayEffect.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
+#include "RSPlayerController.h"
 #include "RSHealthSet.h"
 
 URSBaseGameplayAbility::URSBaseGameplayAbility()
@@ -131,4 +132,29 @@ void URSBaseGameplayAbility::EndAnimationGameplayStatesForMontage(const FGamepla
 	}
 
 	AbilitySystemComponent->EndAnimationGameplayStates(Montage);
+}
+
+FVector URSBaseGameplayAbility::GetCursorDirectionOrForward(const FGameplayAbilityActorInfo* ActorInfo, const AActor& Actor)
+{
+	const ARSPlayerController* PlayerController = ActorInfo ? Cast<ARSPlayerController>(ActorInfo->PlayerController.Get()) : nullptr;
+	if (PlayerController)
+	{
+		FVector CursorWorldLocation;
+		if (PlayerController->GetCursorWorldLocation(CursorWorldLocation))
+		{
+			FVector CursorDirection = CursorWorldLocation - Actor.GetActorLocation();
+			CursorDirection.Z = 0.0f;
+
+			if (CursorDirection.Normalize())
+			{
+				return CursorDirection;
+			}
+		}
+	}
+
+	FVector ForwardDirection = Actor.GetActorForwardVector();
+	ForwardDirection.Z = 0.0f;
+	ForwardDirection.Normalize();
+
+	return ForwardDirection;
 }
