@@ -75,12 +75,7 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 		return;
 	}
 
-	const bool bIsAlreadyRegistered = Participants.ContainsByPredicate([Participant](const TWeakObjectPtr<ARSPlayerState>& ParticipantReference)
-	{
-		return ParticipantReference.Get() == Participant;
-	});
-
-	if (bIsAlreadyRegistered)
+	if (Participants.Contains(Participant))
 	{
 		return;
 	}
@@ -97,7 +92,7 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 		NotifyControllerEncounterStarted();
 		BroadcastEncounterStateChanged(OldState);
 	}
-	else if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
+	else if (ARSBossController* BossController = GetBossController())
 	{
 		BossController->StartEncounter(this);
 	}
@@ -114,12 +109,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 		return;
 	}
 
-	const int32 RemovedCount = Participants.RemoveAll([Participant](const TWeakObjectPtr<ARSPlayerState>& ParticipantReference)
-	{
-		return ParticipantReference.Get() == Participant;
-	});
-
-	if (RemovedCount == 0)
+	if (Participants.Remove(Participant) == 0)
 	{
 		return;
 	}
@@ -128,7 +118,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 	RequestParticipantCameraDeactivation(Participant);
 	UnregisterParticipantBossSource(Participant);
 
-	if (ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr))
+	if (ARSBossController* BossController = GetBossController())
 	{
 		BossController->RefreshTargetActor();
 	}
@@ -208,12 +198,7 @@ bool ARSBossEncounter::IsParticipantPawnActive(const APawn* ParticipantPawn) con
 	}
 
 	const ARSPlayerState* Participant = ParticipantPawn->GetPlayerState<ARSPlayerState>();
-	const bool bIsRegistered = Participant && Participants.ContainsByPredicate([Participant](const TWeakObjectPtr<ARSPlayerState>& ParticipantReference)
-	{
-		return ParticipantReference.Get() == Participant;
-	});
-
-	if (!bIsRegistered)
+	if (!Participant || !Participants.Contains(Participant))
 	{
 		return false;
 	}
@@ -236,6 +221,11 @@ void ARSBossEncounter::RegisterOverlappingPlayers()
 
 		RegisterParticipant(Participant);
 	}
+}
+
+ARSBossController* ARSBossEncounter::GetBossController() const
+{
+	return Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr);
 }
 
 void ARSBossEncounter::SetEncounterState(ERSBossEncounterState NewState, bool bBroadcastEvent)
@@ -286,7 +276,7 @@ void ARSBossEncounter::NotifyControllerEncounterStarted()
 
 void ARSBossEncounter::NotifyControllerEncounterEnded()
 {
-	ARSBossController* BossController = Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr);
+	ARSBossController* BossController = GetBossController();
 
 	if (BossController)
 	{

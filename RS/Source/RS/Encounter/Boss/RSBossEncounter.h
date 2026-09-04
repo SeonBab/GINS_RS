@@ -6,6 +6,7 @@
 
 class APawn;
 class ARSBossCharacter;
+class ARSBossController;
 class ARSBossEncounter;
 class ARSPlayerState;
 class UBoxComponent;
@@ -122,6 +123,9 @@ protected:
 private:
 	/** 보스 방에 이미 존재하는 플레이어도 참가자로 등록합니다 */
 	void RegisterOverlappingPlayers();
+
+	/** BossCharacter를 빙의한 BossController를 반환하며 없으면 nullptr입니다 */
+	ARSBossController* GetBossController() const;
 
 	/** 전투 상태를 변경하고 필요한 경우 서버의 대응 이벤트를 즉시 전달합니다 */
 	void SetEncounterState(ERSBossEncounterState NewState, bool bBroadcastEvent = true);
