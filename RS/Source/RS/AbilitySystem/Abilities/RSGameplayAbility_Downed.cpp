@@ -40,8 +40,14 @@ void URSGameplayAbility_Downed::ActivateAbility(const FGameplayAbilitySpecHandle
 	}
 
 	// 넉백으로 남은 속도가 누운 채 미끄러지게 만들지 않도록 정지시킵니다
+	// 현재 진입 경로인 Knockdown이 이미 경로 추종을 끊었지만, 다른 경로로 진입해도 누운 채 이동하지 않도록 여기서도 중단합니다
 	if (const ACharacter* Character = Cast<ACharacter>(ActorInfo->AvatarActor.Get()))
 	{
+		if (AController* Controller = Character->GetController())
+		{
+			Controller->StopMovement();
+		}
+
 		if (UCharacterMovementComponent* MovementComponent = Character->GetCharacterMovement())
 		{
 			MovementComponent->StopMovementImmediately();
