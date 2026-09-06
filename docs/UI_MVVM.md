@@ -58,6 +58,7 @@
 
 ```text
 ARSPlayerCharacter -> URSPlayerStatusViewModel -> Player Health Widget
+                                              -> Overhead Health Widget
 ARSBossCharacter   -> URSBossStatusViewModel   -> Boss Health Widget
 ```
 
@@ -114,6 +115,30 @@ ARSPlayerCharacter -> URSPlayerAbilityViewModel -> URSAbilitySlotViewModel -> Ab
 
 - Subsystem이 보관하는 ViewModel은 `URS{대상}{도메인}ViewModel`로 작성한다.
 - 부모가 소유하는 항목 ViewModel은 대상 접두어 없이 작성하여 둘을 이름으로 구분한다.
+
+## HUD 루트 밖의 위젯
+
+`ARSPlayerHeadUpDisplay`는 `URSPrimaryLayout`의 Source만 주입하므로, 그 트리 밖에서
+만들어지는 위젯은 스스로 ViewModel을 얻는다.
+
+```text
+UWidgetComponent
+  -> 위젯 생성
+       -> NativeOnInitialized
+            -> GetOwningLocalPlayer
+            -> URSLocalPlayerViewModelSubsystem
+            -> 필요한 ViewModel을 조회한 뒤 SetViewModel
+```
+
+- 위젯은 이 경우에도 게임 객체를 탐색하지 않는다. Subsystem에서 ViewModel만 얻는다.
+- 위젯 컴포넌트는 에디터 월드에서도 위젯을 만들고 그곳에는 로컬 플레이어가 없다. 게임 월드가 아니면 연결을 시도하지 않는다.
+- `ARSPlayerHeadUpDisplay`가 주입하는 경로와 달리 위젯 생성 시 1회만 시도하므로 실패를 로그로 남긴다.
+
+현재 플레이어 오버헤드 체력 바가 이 구성을 사용한다.
+
+```text
+ARSPlayerCharacter -> URSPlayerStatusViewModel -> Overhead Health Widget
+```
 
 ## 생명주기
 
