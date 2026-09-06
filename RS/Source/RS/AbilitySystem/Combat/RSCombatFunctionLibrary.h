@@ -150,6 +150,18 @@ struct FRSHitCheckDefinition
 	FRSHitReactionDefinition Reaction;
 };
 
+#if !UE_BUILD_SHIPPING
+/**
+ * 전투 판정 확인용 콘솔 명령의 등록과 해제이며 RS 모듈이 시작하고 끝날 때 한 번씩 호출합니다
+ * 전역 객체가 아니라 모듈 수명에 맞춰야 핫 리로드로 모듈을 다시 올려도 이전 등록이 남지 않습니다
+ */
+namespace RSCombatDebug
+{
+	void RegisterConsoleCommands();
+	void UnregisterConsoleCommands();
+}
+#endif
+
 /** 여러 Ability가 상속 없이 공유하는 전투 판정 조회 기능을 제공합니다 */
 UCLASS()
 class RS_API URSCombatFunctionLibrary : public UBlueprintFunctionLibrary

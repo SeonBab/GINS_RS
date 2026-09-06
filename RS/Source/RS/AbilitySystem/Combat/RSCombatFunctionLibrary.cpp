@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "RSGameplayTags.h"
 
 namespace
@@ -26,13 +27,29 @@ namespace
 	// 판정은 한 프레임만 실행되어 화면에 남는 것이 없으므로 확인용 출력을 콘솔에서 켜고 끕니다
 	bool bRSHitCheckDebugEnabled = false;
 
-	FAutoConsoleCommand RSToggleHitCheckDebugCommand(TEXT("RS.Combat.ToggleHitCheckDebug"), TEXT("Toggles hit check debug shapes and hit result logs."),
-		FConsoleCommandDelegate::CreateLambda([]()
-			{
-				bRSHitCheckDebugEnabled = !bRSHitCheckDebugEnabled;
+	const TCHAR* RSToggleHitCheckDebugCommandName = TEXT("RS.Combat.ToggleHitCheckDebug");
+}
 
-				UE_LOG(LogTemp, Log, TEXT("Hit check debug %s"), bRSHitCheckDebugEnabled ? TEXT("enabled") : TEXT("disabled"));
-			}));
+namespace RSCombatDebug
+{
+	// FAutoConsoleCommand를 전역 객체로 두면 핫 리로드가 같은 이름을 다시 등록할 때 엔진이 이전 콘솔 객체를 삭제하는데
+	// 이전 DLL에 남은 전역 객체는 삭제된 주소를 계속 들고 있다가 에디터 종료 시 소멸자에서 그 주소를 읽어 크래시가 납니다
+	// 그래서 등록과 해제를 모듈 수명에 맡기고, 해제는 포인터가 아니라 이름으로 요청해 삭제된 주소를 건드리지 않습니다
+	void RegisterConsoleCommands()
+	{
+		IConsoleManager::Get().RegisterConsoleCommand(RSToggleHitCheckDebugCommandName, TEXT("Toggles hit check debug shapes and hit result logs."),
+			FConsoleCommandDelegate::CreateLambda([]()
+				{
+					bRSHitCheckDebugEnabled = !bRSHitCheckDebugEnabled;
+
+					UE_LOG(LogTemp, Log, TEXT("Hit check debug %s"), bRSHitCheckDebugEnabled ? TEXT("enabled") : TEXT("disabled"));
+				}));
+	}
+
+	void UnregisterConsoleCommands()
+	{
+		IConsoleManager::Get().UnregisterConsoleObject(RSToggleHitCheckDebugCommandName);
+	}
 }
 #endif
 
