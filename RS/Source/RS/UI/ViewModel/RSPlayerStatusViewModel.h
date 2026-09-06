@@ -46,6 +46,12 @@ private:
 	/** 연결된 데이터 원본이 없을 때 공개 체력 값을 초기 상태로 되돌립니다 */
 	void ResetHealthValues();
 
+	/** 공개 체력 값을 한 번에 반영하여 표시 문자열이 다른 값과 어긋나지 않게 합니다 */
+	void ApplyHealthValues(float InHealth, float InMaxHealth, float InHealthNormalized);
+
+	/** 현재 체력과 최대 체력을 사용자 인터페이스에 표시할 문자열로 만듭니다 */
+	static FText MakeHealthText(float InHealth, float InMaxHealth);
+
 	/** HealthComponent의 생명주기를 유지하지 않고 등록한 이벤트만 해제합니다 */
 	void DisconnectHealthComponent();
 
@@ -65,4 +71,8 @@ private:
 	/** ProgressBar 등에 사용할 0부터 1까지 범위의 체력 비율입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Player Status", meta = (AllowPrivateAccess = "true"))
 	float HealthNormalized = 0.0f;
+
+	/** 현재 체력과 최대 체력을 "97 / 100" 형식으로 표시하는 문자열입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Player Status", meta = (AllowPrivateAccess = "true"))
+	FText HealthText;
 };

@@ -71,9 +71,7 @@ void URSPlayerStatusViewModel::HandleHealthChanged(URSHealthComponent* InHealthC
 		return;
 	}
 
-	UE_MVVM_SET_PROPERTY_VALUE(Health, NewValue);
-	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, InHealthComponent->GetMaxHealth());
-	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, InHealthComponent->GetHealthNormalized());
+	ApplyHealthValues(NewValue, InHealthComponent->GetMaxHealth(), InHealthComponent->GetHealthNormalized());
 }
 
 void URSPlayerStatusViewModel::HandleMaxHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
@@ -83,9 +81,7 @@ void URSPlayerStatusViewModel::HandleMaxHealthChanged(URSHealthComponent* InHeal
 		return;
 	}
 
-	UE_MVVM_SET_PROPERTY_VALUE(Health, InHealthComponent->GetHealth());
-	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, NewValue);
-	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, InHealthComponent->GetHealthNormalized());
+	ApplyHealthValues(InHealthComponent->GetHealth(), NewValue, InHealthComponent->GetHealthNormalized());
 }
 
 void URSPlayerStatusViewModel::UpdateHealthValues()
@@ -97,9 +93,7 @@ void URSPlayerStatusViewModel::UpdateHealthValues()
 		return;
 	}
 
-	UE_MVVM_SET_PROPERTY_VALUE(Health, CurrentHealthComponent->GetHealth());
-	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, CurrentHealthComponent->GetMaxHealth());
-	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, CurrentHealthComponent->GetHealthNormalized());
+	ApplyHealthValues(CurrentHealthComponent->GetHealth(), CurrentHealthComponent->GetMaxHealth(), CurrentHealthComponent->GetHealthNormalized());
 }
 
 void URSPlayerStatusViewModel::ResetHealthValues()
@@ -107,6 +101,26 @@ void URSPlayerStatusViewModel::ResetHealthValues()
 	UE_MVVM_SET_PROPERTY_VALUE(Health, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, 0.0f);
+
+	// 데이터 원본이 없는 상태를 0 / 0으로 표시하면 사망과 구분되지 않으므로 숫자를 감춥니다
+	UE_MVVM_SET_PROPERTY_VALUE(HealthText, FText::GetEmpty());
+}
+
+void URSPlayerStatusViewModel::ApplyHealthValues(float InHealth, float InMaxHealth, float InHealthNormalized)
+{
+	UE_MVVM_SET_PROPERTY_VALUE(Health, InHealth);
+	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, InMaxHealth);
+	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, InHealthNormalized);
+	UE_MVVM_SET_PROPERTY_VALUE(HealthText, MakeHealthText(InHealth, InMaxHealth));
+}
+
+FText URSPlayerStatusViewModel::MakeHealthText(float InHealth, float InMaxHealth)
+{
+	// 체력이 1보다 적게 남은 상태가 0으로 보여 사망으로 오해되지 않도록 올림으로 표시합니다
+	const int32 DisplayHealth = FMath::CeilToInt(FMath::Max(InHealth, 0.0f));
+	const int32 DisplayMaxHealth = FMath::CeilToInt(FMath::Max(InMaxHealth, 0.0f));
+
+	return FText::AsCultureInvariant(FString::Printf(TEXT("%d / %d"), DisplayHealth, DisplayMaxHealth));
 }
 
 void URSPlayerStatusViewModel::DisconnectHealthComponent()

@@ -13,6 +13,9 @@
 - Widget Blueprint는 필요한 ViewModel을 Manual Source로 선언하고 표시 값만 바인딩한다.
 - `ARSPlayerHeadUpDisplay`는 루트 Widget의 Source 클래스를 읽어 `URSLocalPlayerViewModelSubsystem`에서 같은 클래스의 ViewModel을 생성하거나 조회한 뒤 Widget에 설정한다.
 - Widget은 게임 객체의 탐색과 이벤트 구독을 담당하지 않는다.
+- 화면에 표시할 문자열은 ViewModel이 `FText` FieldNotify로 제공하고 Widget은 변환 없이 바인딩한다.
+
+표시 문자열을 ViewModel이 만들면 표시 형식이 C++에 고정된다. 현재는 같은 값을 표시하는 뷰가 값마다 하나뿐이라 이 제약을 받아들이고, 형식 규칙과 반올림 정책을 한곳에 모으는 쪽을 택한다. 같은 값에 서로 다른 형식이 필요해지면 `UBlueprintFunctionLibrary`에 포맷 함수를 두고 Widget Blueprint의 MVVM 변환 함수로 지정해, 형식 규칙은 C++에 남기고 형식 선택은 에셋이 하도록 옮긴다.
 
 ### LocalPlayer ViewModel Subsystem
 
