@@ -20,7 +20,7 @@ void URSBossStatusViewModel::HandleSourceRegistered(UObject* Source)
 		return;
 	}
 
-	InitializeViewModel(BossCharacter->GetHealthComponent());
+	InitializeViewModel(BossCharacter->GetHealthComponent(), BossCharacter->GetBossName());
 }
 
 void URSBossStatusViewModel::HandleSourceUnregistered(UObject* Source)
@@ -34,10 +34,11 @@ void URSBossStatusViewModel::HandleSourceUnregistered(UObject* Source)
 	UninitializeViewModel();
 }
 
-void URSBossStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthComponent)
+void URSBossStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthComponent, const FText& InBossName)
 {
 	if (IsValid(InHealthComponent) && HealthComponent.Get() == InHealthComponent)
 	{
+		UE_MVVM_SET_PROPERTY_VALUE(BossName, InBossName);
 		UpdateHealthValues();
 		UE_MVVM_SET_PROPERTY_VALUE(bIsVisible, true);
 		return;
@@ -47,11 +48,12 @@ void URSBossStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthCom
 
 	if (!IsValid(InHealthComponent))
 	{
-		ResetHealthValues();
+		ResetStatusValues();
 		return;
 	}
 
 	HealthComponent = InHealthComponent;
+	UE_MVVM_SET_PROPERTY_VALUE(BossName, InBossName);
 	InHealthComponent->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
 	InHealthComponent->OnMaxHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleMaxHealthChanged);
 
@@ -63,7 +65,7 @@ void URSBossStatusViewModel::InitializeViewModel(URSHealthComponent* InHealthCom
 void URSBossStatusViewModel::UninitializeViewModel()
 {
 	DisconnectHealthComponent();
-	ResetHealthValues();
+	ResetStatusValues();
 }
 
 void URSBossStatusViewModel::HandleHealthChanged(URSHealthComponent* InHealthComponent, float, float NewValue)
@@ -95,7 +97,7 @@ void URSBossStatusViewModel::UpdateHealthValues()
 	URSHealthComponent* CurrentHealthComponent = HealthComponent.Get();
 	if (!IsValid(CurrentHealthComponent))
 	{
-		ResetHealthValues();
+		ResetStatusValues();
 		return;
 	}
 
@@ -104,8 +106,9 @@ void URSBossStatusViewModel::UpdateHealthValues()
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, CurrentHealthComponent->GetHealthNormalized());
 }
 
-void URSBossStatusViewModel::ResetHealthValues()
+void URSBossStatusViewModel::ResetStatusValues()
 {
+	UE_MVVM_SET_PROPERTY_VALUE(BossName, FText::GetEmpty());
 	UE_MVVM_SET_PROPERTY_VALUE(Health, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(MaxHealth, 0.0f);
 	UE_MVVM_SET_PROPERTY_VALUE(HealthNormalized, 0.0f);

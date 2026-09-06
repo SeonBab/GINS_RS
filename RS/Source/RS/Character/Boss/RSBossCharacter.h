@@ -87,6 +87,9 @@ private:
 #pragma endregion
 
 public:
+	/** 보스 Blueprint에 설정된 이름을 반환합니다 */
+	const FText& GetBossName() const { return BossName; }
+
 	/** 이 캐릭터의 전투 참가자와 생명주기를 관리할 Encounter를 설정합니다 */
 	void SetBossEncounter(ARSBossEncounter* InBossEncounter);
 
@@ -94,6 +97,10 @@ public:
 	ARSBossEncounter* GetBossEncounter() const { return BossEncounter; }
 
 private:
+	/** 보스의 이름을 클래스 기본값으로 설정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
+	FText BossName;
+
 	/** 보스전 상태와 참가자 목록을 소유하는 Encounter입니다 */
 	UPROPERTY(Transient)
 	TObjectPtr<ARSBossEncounter> BossEncounter;

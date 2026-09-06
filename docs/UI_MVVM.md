@@ -65,6 +65,14 @@ ARSBossCharacter   -> URSBossStatusViewModel   -> Boss Health Widget
 
 두 ViewModel의 체력 관찰 구현은 현재 독립적으로 유지한다. 실제 공통 요구가 체력 외에도 확인되기 전에는 공통 체력 ViewModel을 만들지 않는다.
 
+### 보스 이름
+
+- `ARSBossCharacter`는 `FText BossName`을 소유하며 보스 Blueprint의 클래스 기본값에서 설정한다. 이름의 사용처와 무관한 보스 자체의 데이터이므로 `DisplayName` 대신 `BossName`으로 명명한다.
+- `URSBossStatusViewModel`은 Source 등록·재등록·교체 시 `GetBossName()`으로 읽은 이름을 `BossName` FieldNotify에 반영한다. 체력 원본이 유효하지 않거나 연결이 해제되면 이름도 빈 텍스트로 초기화한다.
+- 이름은 고정 설정값으로 취급하며 전투 중 이름 변경 이벤트는 제공하지 않는다.
+- `WBP_PlayerHUD`는 `BossStatusViewModel`을 Manual Source로 제공하고, `WBP_BossHealthBar`는 같은 이름의 Context Source로 전달받는다. 자식 Source의 클래스와 이름이 부모 Source와 모두 일치해야 한다.
+- `WBP_BossHealthBar`는 `BossName`을 이름 TextBlock에, `HealthNormalized`를 ProgressBar에, `bIsVisible`을 전체 Visibility에 바인딩한다. PIE에서 부모 Source 탐색은 확인했지만 현재 보스 Blueprint의 이름 입력과 피해에 따른 화면 갱신은 아직 확인하지 않았다.
+
 ## ViewModel 추가 기준
 
 1. `URSLocalPlayerViewModelBase`를 상속한 ViewModel을 만든다.

@@ -18,17 +18,17 @@ public:
 	/** 제거되기 전에 HealthComponent의 이벤트 연결을 해제합니다 */
 	virtual void BeginDestroy() override;
 
-	/** BossCharacter가 데이터 원본으로 등록되면 체력 상태를 연결합니다 */
+	/** BossCharacter가 데이터 원본으로 등록되면 이름과 체력 상태를 연결합니다 */
 	virtual void HandleSourceRegistered(UObject* Source) override;
 
-	/** 현재 BossCharacter가 데이터 원본에서 해제되면 체력 상태를 정리합니다 */
+	/** 현재 BossCharacter가 데이터 원본에서 해제되면 이름과 체력 상태를 정리합니다 */
 	virtual void HandleSourceUnregistered(UObject* Source) override;
 
 public:
-	/** 보스의 HealthComponent를 데이터 원본으로 연결하고 표시할 체력 값을 동기화합니다 */
-	void InitializeViewModel(URSHealthComponent* InHealthComponent);
+	/** 보스의 HealthComponent를 연결하고 이름과 체력 값을 동기화합니다 */
+	void InitializeViewModel(URSHealthComponent* InHealthComponent, const FText& InBossName);
 
-	/** HealthComponent의 이벤트 연결을 해제하고 표시할 체력 값을 초기화합니다 */
+	/** HealthComponent의 이벤트 연결을 해제하고 이름과 체력 값을 초기화합니다 */
 	void UninitializeViewModel();
 
 private:
@@ -43,8 +43,8 @@ private:
 	/** 연결된 HealthComponent의 현재 상태를 모든 공개 체력 값에 동기화합니다 */
 	void UpdateHealthValues();
 
-	/** 연결된 데이터 원본이 없을 때 공개 체력 값을 초기 상태로 되돌립니다 */
-	void ResetHealthValues();
+	/** 연결된 데이터 원본이 없을 때 이름과 체력 및 표시 여부를 초기화합니다 */
+	void ResetStatusValues();
 
 	/** HealthComponent의 생명주기를 유지하지 않고 등록한 이벤트만 해제합니다 */
 	void DisconnectHealthComponent();
@@ -53,6 +53,10 @@ private:
 	/** 현재 보스 상태 값을 관찰하는 데이터 원본입니다 */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<URSHealthComponent> HealthComponent;
+
+	/** 사용자 인터페이스에 제공하는 현재 보스의 이름입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Boss Status", meta = (AllowPrivateAccess = "true"))
+	FText BossName;
 
 	/** 사용자 인터페이스에 제공하는 현재 체력입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Boss Status", meta = (AllowPrivateAccess = "true"))
