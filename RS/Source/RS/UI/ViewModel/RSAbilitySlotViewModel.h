@@ -13,6 +13,28 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URSAbilityDefinition;
 
+/** 슬롯 위젯이 지정하고 슬롯 ViewModel이 사용하는 표시 설정입니다 */
+USTRUCT(BlueprintType)
+struct FRSAbilitySlotPresentationConfig
+{
+	GENERATED_BODY()
+
+	/**
+	 * 아이콘을 그릴 때 사용할 머티리얼입니다
+	 * 쿨다운 중 채도를 낮추거나 준비 완료 연출을 하려면 필요하며, 비워 두면 텍스처를 그대로 그립니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Ability Slot")
+	TObjectPtr<UMaterialInterface> IconMaterial;
+
+	/** 쿨다운이 끝났을 때 아이콘이 하얗게 밝아지기까지 걸리는 시간입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Ability Slot", meta = (ClampMin = "0.0", Units = "s"))
+	float ReadyFlashInDuration = 0.15f;
+
+	/** 하얗게 밝아진 아이콘이 원래 색으로 돌아오기까지 걸리는 시간입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Ability Slot", meta = (ClampMin = "0.0", Units = "s"))
+	float ReadyFlashOutDuration = 0.15f;
+};
+
 /**
  * 어빌리티 슬롯 하나가 표시할 값을 제공합니다
  * 게임 객체를 관찰하지 않고 URSPlayerAbilityViewModel이 밀어 넣은 값만 보관하므로 LocalPlayer 저장소에 등록하지 않습니다
@@ -46,11 +68,8 @@ public:
 	/** 이 슬롯이 담당할 입력 자리를 설정합니다 */
 	void SetInputTag(const FGameplayTag& InInputTag);
 
-	/**
-	 * 아이콘을 그릴 때 사용할 머티리얼을 지정합니다
-	 * 쿨다운 중 채도를 낮추려면 필요하며, 지정하지 않으면 텍스처를 그대로 사용합니다
-	 */
-	void SetIconMaterial(UMaterialInterface* InIconMaterial);
+	/** 슬롯 위젯이 지정한 표시 설정을 반영합니다 */
+	void SetPresentationConfig(const FRSAbilitySlotPresentationConfig& InPresentationConfig);
 
 	/** 슬롯에 표시할 키 텍스트를 설정합니다 */
 	void SetInputKeyText(const FText& InInputKeyText);
@@ -61,7 +80,13 @@ public:
 	/** 쿨다운 시작을 반영하고 갱신을 시작합니다 */
 	void SetCooldown(float InCooldownEndTime, float InCooldownDuration);
 
-	/** 쿨다운 종료를 반영하고 갱신을 멈춥니다 */
+	/**
+	 * 쿨다운이 만료되었음을 반영하고 준비 완료 연출을 시작합니다
+	 * 슬롯이 다른 어빌리티로 교체되거나 해제되는 경우에는 만료가 아니므로 ClearCooldown을 사용합니다
+	 */
+	void FinishCooldown();
+
+	/** 연출 없이 쿨다운 표시를 지우고 갱신을 멈춥니다 */
 	void ClearCooldown();
 
 private:
@@ -71,13 +96,22 @@ private:
 	/** 쿨다운 여부에 따라 아이콘의 채도를 갱신합니다 */
 	void UpdateIconDesaturation();
 
+	/** 준비 완료 연출을 시작합니다 */
+	void StartReadyFlash();
+
+	/** 진행 중인 준비 완료 연출을 즉시 중단합니다 */
+	void StopReadyFlash();
+
+	/** 현재 월드 시간을 기준으로 준비 완료 연출의 밝기를 다시 계산합니다 */
+	void UpdateReadyFlash();
+
 private:
 	/** 슬롯이 담당하는 입력 자리이며 표시 값이 아니므로 변경을 통지하지 않습니다 */
 	FGameplayTag InputTag;
 
-	/** 아이콘을 그릴 머티리얼이며 슬롯 위젯이 지정합니다 */
+	/** 슬롯 위젯이 지정한 표시 설정입니다 */
 	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> IconMaterial;
+	FRSAbilitySlotPresentationConfig PresentationConfig;
 
 	/**
 	 * 어빌리티마다 다른 텍스처와 슬롯마다 다른 채도를 적용하기 위한 실행별 머티리얼입니다
@@ -124,4 +158,10 @@ private:
 	/** 이번 쿨다운의 전체 시간입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Ability Slot", meta = (AllowPrivateAccess = "true"))
 	float CooldownDuration = 0.0f;
+
+	/** 준비 완료 연출이 진행 중인지 나타내며 쿨다운과 함께 Tick 여부를 결정합니다 */
+	bool bIsReadyFlashing = false;
+
+	/** 준비 완료 연출이 시작된 월드 시간이며 밝아지는 구간과 돌아오는 구간을 이 값 기준으로 나눕니다 */
+	float ReadyFlashStartTime = 0.0f;
 };

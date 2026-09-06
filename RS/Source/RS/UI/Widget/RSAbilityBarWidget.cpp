@@ -33,7 +33,7 @@ void URSAbilityBarWidget::InitializeSlotViewModels()
 		return;
 	}
 
-	WidgetTree->ForEachWidget([PlayerAbilityViewModel](UWidget* Widget)
+	WidgetTree->ForEachWidget([PlayerAbilityViewModel, this](UWidget* Widget)
 	{
 		URSAbilitySlotWidget* SlotWidget = Cast<URSAbilitySlotWidget>(Widget);
 		if (!SlotWidget)
@@ -41,7 +41,7 @@ void URSAbilityBarWidget::InitializeSlotViewModels()
 			return;
 		}
 
-		if (URSAbilitySlotViewModel* SlotViewModel = PlayerAbilityViewModel->GetOrCreateSlotViewModel(SlotWidget->GetInputTag(), SlotWidget->GetIconMaterial()))
+		if (URSAbilitySlotViewModel* SlotViewModel = PlayerAbilityViewModel->GetOrCreateSlotViewModel(SlotWidget->GetInputTag(), SlotPresentationConfig))
 		{
 			SlotWidget->SetViewModel(SlotViewModel);
 		}

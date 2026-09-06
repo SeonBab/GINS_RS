@@ -40,7 +40,7 @@ void URSPlayerAbilityViewModel::HandleSourceUnregistered(UObject* Source)
 	UnbindFromSource();
 }
 
-URSAbilitySlotViewModel* URSPlayerAbilityViewModel::GetOrCreateSlotViewModel(FGameplayTag InputTag, UMaterialInterface* IconMaterial)
+URSAbilitySlotViewModel* URSPlayerAbilityViewModel::GetOrCreateSlotViewModel(FGameplayTag InputTag, const FRSAbilitySlotPresentationConfig& PresentationConfig)
 {
 	if (!InputTag.IsValid())
 	{
@@ -49,6 +49,16 @@ URSAbilitySlotViewModel* URSPlayerAbilityViewModel::GetOrCreateSlotViewModel(FGa
 
 	if (FRSAbilitySlotBinding* ExistingBinding = SlotBindings.Find(InputTag))
 	{
+		// 저장소가 ViewModel을 유지하는 동안 위젯이 다시 만들어질 수 있으므로 설정을 지금 값으로 맞춥니다
+		// 반영하지 않으면 위젯에서 바꾼 머티리얼이나 연출 시간이 예전 값에 묶인 채로 남습니다
+		if (URSAbilitySlotViewModel* ExistingViewModel = ExistingBinding->ViewModel)
+		{
+			ExistingViewModel->SetPresentationConfig(PresentationConfig);
+
+			// 머티리얼이 달라졌다면 아이콘 Brush를 다시 만들어야 반영됩니다
+			RefreshSlot(InputTag, *ExistingBinding);
+		}
+
 		return ExistingBinding->ViewModel;
 	}
 
@@ -57,7 +67,7 @@ URSAbilitySlotViewModel* URSPlayerAbilityViewModel::GetOrCreateSlotViewModel(FGa
 	NewBinding.ViewModel->SetInputTag(InputTag);
 
 	// 아래 RefreshSlot이 아이콘 Brush를 만들기 전에 지정해야 머티리얼이 반영됩니다
-	NewBinding.ViewModel->SetIconMaterial(IconMaterial);
+	NewBinding.ViewModel->SetPresentationConfig(PresentationConfig);
 
 	FRSAbilitySlotBinding& AddedBinding = SlotBindings.Add(InputTag, MoveTemp(NewBinding));
 
@@ -219,10 +229,10 @@ void URSPlayerAbilityViewModel::RefreshSlot(const FGameplayTag& InputTag, FRSAbi
 	const FGameplayTagContainer* CooldownTags = ResolvedAbility->GetCooldownTags();
 	UpdateCooldownSubscription(SlotBinding, CooldownTags ? *CooldownTags : FGameplayTagContainer());
 
-	UpdateSlotCooldown(SlotBinding);
+	UpdateSlotCooldown(SlotBinding, false);
 }
 
-void URSPlayerAbilityViewModel::UpdateSlotCooldown(const FRSAbilitySlotBinding& SlotBinding) const
+void URSPlayerAbilityViewModel::UpdateSlotCooldown(const FRSAbilitySlotBinding& SlotBinding, bool bFromCooldownChange) const
 {
 	URSAbilitySlotViewModel* SlotViewModel = SlotBinding.ViewModel;
 	const URSAbilitySystemComponent* CurrentAbilitySystemComp = AbilitySystemComp.Get();
@@ -235,7 +245,14 @@ void URSPlayerAbilityViewModel::UpdateSlotCooldown(const FRSAbilitySlotBinding& 
 	float Duration = 0.0f;
 	if (!CurrentAbilitySystemComp->GetCooldownInfoForAbility(SlotBinding.ResolvedAbilityHandle, Remaining, Duration))
 	{
-		SlotViewModel->ClearCooldown();
+		if (bFromCooldownChange)
+		{
+			SlotViewModel->FinishCooldown();
+		}
+		else
+		{
+			SlotViewModel->ClearCooldown();
+		}
 
 		return;
 	}
@@ -414,7 +431,7 @@ void URSPlayerAbilityViewModel::HandleCooldownTagChanged(const FGameplayTag Chan
 	{
 		if (SlotPair.Value.CooldownTags.Contains(ChangedTag))
 		{
-			UpdateSlotCooldown(SlotPair.Value);
+			UpdateSlotCooldown(SlotPair.Value, true);
 		}
 	}
 }

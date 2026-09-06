@@ -10,7 +10,7 @@
 
 class ARSPlayerCharacter;
 class UEnhancedInputLocalPlayerSubsystem;
-class UMaterialInterface;
+struct FRSAbilitySlotPresentationConfig;
 class URSAbilitySlotViewModel;
 class URSAbilitySystemComponent;
 class URSInputConfig;
@@ -59,7 +59,7 @@ public:
 	 * 슬롯 목록은 위젯이 정적으로 소유하므로 위젯이 자신의 입력 태그로 요청합니다
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Ability Slot")
-	URSAbilitySlotViewModel* GetOrCreateSlotViewModel(FGameplayTag InputTag, UMaterialInterface* IconMaterial);
+	URSAbilitySlotViewModel* GetOrCreateSlotViewModel(FGameplayTag InputTag, const FRSAbilitySlotPresentationConfig& PresentationConfig);
 
 	/** 등록된 모든 슬롯의 표시 값을 현재 상태에 맞게 다시 계산합니다 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Ability Slot")
@@ -75,8 +75,12 @@ private:
 	/** 한 슬롯이 대표하는 어빌리티를 다시 결정하고 표시 값과 쿨다운 구독을 갱신합니다 */
 	void RefreshSlot(const FGameplayTag& InputTag, FRSAbilitySlotBinding& SlotBinding);
 
-	/** 현재 대표 어빌리티의 쿨다운 상태를 슬롯에 반영합니다 */
-	void UpdateSlotCooldown(const FRSAbilitySlotBinding& SlotBinding) const;
+	/**
+	 * 현재 대표 어빌리티의 쿨다운 상태를 슬롯에 반영합니다
+	 * bFromCooldownChange는 쿨다운 태그 변화로 호출되었음을 뜻하며, 이때만 쿨다운이 실제로 만료된 것으로 봅니다
+	 * 슬롯을 다시 해석해서 호출한 경우에는 대표 어빌리티가 교체되었을 수 있어 만료로 취급하지 않습니다
+	 */
+	void UpdateSlotCooldown(const FRSAbilitySlotBinding& SlotBinding, bool bFromCooldownChange) const;
 
 	/** 슬롯이 구독 중인 쿨다운 태그를 대표 어빌리티에 맞게 교체합니다 */
 	void UpdateCooldownSubscription(FRSAbilitySlotBinding& SlotBinding, const FGameplayTagContainer& NewCooldownTags);

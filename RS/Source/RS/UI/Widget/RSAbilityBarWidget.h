@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "RSAbilitySlotViewModel.h"
 #include "RSAbilityBarWidget.generated.h"
 
 /**
@@ -22,4 +23,12 @@ protected:
 private:
 	/** 배치된 슬롯 위젯을 순회하며 각자의 입력 자리에 해당하는 ViewModel을 전달합니다 */
 	void InitializeSlotViewModels();
+
+private:
+	/**
+	 * 아이콘 머티리얼과 준비 완료 연출 시간처럼 슬롯을 그리는 방식을 정하는 설정입니다
+	 * 슬롯마다 달라질 값이 아니므로 배치된 슬롯 위젯이 아니라 바가 소유하여 한 곳에서만 지정합니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Ability Bar", meta = (AllowPrivateAccess = "true"))
+	FRSAbilitySlotPresentationConfig SlotPresentationConfig;
 };
