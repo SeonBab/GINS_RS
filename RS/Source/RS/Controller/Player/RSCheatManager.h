@@ -6,6 +6,8 @@
 #include "GameFramework/CheatManager.h"
 #include "RSCheatManager.generated.h"
 
+class ARSBossEncounter;
+
 /**
  * 개발 중 상태를 직접 만들어 확인하기 위한 콘솔 명령을 모읍니다
  * UCheatManager는 Shipping 빌드에서 생성되지 않으므로 각 명령에 별도의 전처리 조건을 붙이지 않습니다
@@ -23,6 +25,27 @@ public:
 	 */
 	UFUNCTION(Exec)
 	void RS_ToggleDownedTag();
+
+	/**
+	 * 진행 중인 보스전을 완료 상태로 만듭니다
+	 * 보스 사망과 CompleteEncounter의 연결이 아직 없어 완료 이후의 화면과 상태를 확인할 다른 수단이 없습니다
+	 */
+	UFUNCTION(Exec)
+	void RS_CompleteBossEncounter();
+
+	/**
+	 * 진행 중인 보스전의 제한 시간을 즉시 만료시킵니다
+	 * 제한 시간 전체를 기다리지 않고 만료 이후의 표시와 이벤트를 확인할 때 사용합니다
+	 */
+	UFUNCTION(Exec)
+	void RS_ExpireBossTimeLimit();
+
+private:
+	/**
+	 * 명령을 적용할 보스 Encounter를 찾으며 없으면 nullptr입니다
+	 * 진행 중인 전투를 우선하여 아직 시작하지 않은 Encounter를 대상으로 삼지 않습니다
+	 */
+	ARSBossEncounter* FindTargetBossEncounter() const;
 
 private:
 	/** 이 치트가 직접 부여한 상태인지 기록하여 어빌리티가 부여한 태그를 제거하지 않게 합니다 */

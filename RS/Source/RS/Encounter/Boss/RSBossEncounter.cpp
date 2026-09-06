@@ -11,6 +11,12 @@
 #include "RSPlayerController.h"
 #include "RSPlayerState.h"
 
+namespace
+{
+	/** FTimerManager는 0 이하의 시간에 타이머를 예약하지 않으므로 만료가 발생할 수 있는 최소 시간을 보장합니다 */
+	constexpr float MinimumTimeLimitSeconds = 1.0f;
+}
+
 ARSBossEncounter::ARSBossEncounter()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -53,9 +59,12 @@ void ARSBossEncounter::BeginPlay()
 
 void ARSBossEncounter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	StopTimeLimit();
+
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
 	{
 		UnregisterParticipantBossSource(ParticipantReference.Get());
+		UnregisterParticipantEncounterSource(ParticipantReference.Get());
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -89,6 +98,9 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 
 		// 외부 시작 이벤트가 발생하기 전에 Controller와 Blackboard가 새 전투 상태를 사용하게 합니다
 		SetEncounterState(ERSBossEncounterState::Active, false);
+
+		// 전투 시작을 외부에서 관찰할 수 있게 되기 전에 남은 시간이 유효해지도록 먼저 예약합니다
+		StartTimeLimit();
 		NotifyControllerEncounterStarted();
 		BroadcastEncounterStateChanged(OldState);
 	}
@@ -100,6 +112,7 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 	// 카메라 전환 기준은 전투 시작 순간이 아니라 이 플레이어가 참가자가 되었는지 여부입니다
 	RequestParticipantCameraActivation(Participant);
 	RegisterParticipantBossSource(Participant);
+	RegisterParticipantEncounterSource(Participant);
 }
 
 void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
@@ -117,6 +130,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 	OnParticipantRemoved.Broadcast(this, Participant);
 	RequestParticipantCameraDeactivation(Participant);
 	UnregisterParticipantBossSource(Participant);
+	UnregisterParticipantEncounterSource(Participant);
 
 	if (ARSBossController* BossController = GetBossController())
 	{
@@ -131,8 +145,13 @@ void ARSBossEncounter::CompleteEncounter()
 		return;
 	}
 
+	// 상태를 공개하기 전에 남은 시간을 고정하고 예약을 제거하여, 종료 이벤트를 받은 쪽이 확정된 값을 읽게 합니다
+	CompletionRemainingTimeSeconds = GetRemainingTimeSeconds();
+	StopTimeLimit();
+
 	NotifyControllerEncounterEnded();
 
+	// 완료 후에도 처치 순간의 남은 시간을 계속 표시하므로 Encounter 데이터 원본은 해제하지 않습니다
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
 	{
 		UnregisterParticipantBossSource(ParticipantReference.Get());
@@ -147,6 +166,11 @@ void ARSBossEncounter::ResetEncounter()
 	{
 		return;
 	}
+
+	// 초기화된 전투에서 예약된 만료 콜백이 뒤늦게 실행되지 않도록 제한 시간 상태를 먼저 되돌립니다
+	StopTimeLimit();
+	bHasTimeLimitExpired = false;
+	CompletionRemainingTimeSeconds = 0.0f;
 
 	NotifyControllerEncounterEnded();
 
@@ -163,10 +187,26 @@ void ARSBossEncounter::ResetEncounter()
 			OnParticipantRemoved.Broadcast(this, Participant);
 			RequestParticipantCameraDeactivation(Participant);
 			UnregisterParticipantBossSource(Participant);
+			UnregisterParticipantEncounterSource(Participant);
 		}
 	}
 
 	SetEncounterState(ERSBossEncounterState::Inactive);
+}
+
+float ARSBossEncounter::GetRemainingTimeSeconds() const
+{
+	if (EncounterState == ERSBossEncounterState::Completed)
+	{
+		return FMath::Max(CompletionRemainingTimeSeconds, 0.0f);
+	}
+
+	// AActor::GetWorldTimerManager는 월드를 확인하지 않으므로 매 프레임 조회되는 이 경로에서는 사용하지 않습니다
+	const UWorld* World = GetWorld();
+	const float RemainingSeconds = World ? World->GetTimerManager().GetTimerRemaining(TimeLimitTimerHandle) : -1.0f;
+
+	// 예약되지 않았거나 이미 만료된 타이머는 -1을 반환하므로 표시 계층에 그대로 전달하지 않습니다
+	return FMath::Max(RemainingSeconds, 0.0f);
 }
 
 void ARSBossEncounter::GetActiveParticipantPawns(TArray<APawn*>& OutParticipantPawns) const
@@ -207,6 +247,13 @@ bool ARSBossEncounter::IsParticipantPawnActive(const APawn* ParticipantPawn) con
 
 	// 사망한 참가자는 목록에는 유지하지만 Controller의 현재 공격 대상 후보에서는 제외합니다
 	return HealthSet && HealthSet->GetHealth() > 0.0f;
+}
+
+void ARSBossEncounter::ForceExpireTimeLimit()
+{
+	// 예약을 먼저 제거하여 강제 만료와 자연 만료가 겹쳐 두 번 전달되지 않게 합니다
+	StopTimeLimit();
+	HandleTimeLimitExpired();
 }
 
 void ARSBossEncounter::RegisterOverlappingPlayers()
@@ -284,6 +331,53 @@ void ARSBossEncounter::NotifyControllerEncounterEnded()
 	}
 }
 
+void ARSBossEncounter::StartTimeLimit()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// 이전 전투의 결과가 남지 않도록 이 함수 하나로 진행 중인 제한 시간의 상태를 모두 확정합니다
+	bHasTimeLimitExpired = false;
+	CompletionRemainingTimeSeconds = 0.0f;
+
+	if (TimeLimitSeconds < MinimumTimeLimitSeconds)
+	{
+		// 만료가 영원히 오지 않는 상태를 조용히 만들지 않도록 잘못된 설정값을 알립니다
+		UE_LOG(LogTemp, Warning, TEXT("%s has invalid TimeLimitSeconds %.2f"), *GetNameSafe(this), TimeLimitSeconds);
+	}
+
+	const float SafeTimeLimitSeconds = FMath::Max(TimeLimitSeconds, MinimumTimeLimitSeconds);
+	World->GetTimerManager().SetTimer(TimeLimitTimerHandle, this, &ThisClass::HandleTimeLimitExpired, SafeTimeLimitSeconds, false);
+}
+
+void ARSBossEncounter::StopTimeLimit()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimeLimitTimerHandle);
+	}
+
+	TimeLimitTimerHandle.Invalidate();
+}
+
+void ARSBossEncounter::HandleTimeLimitExpired()
+{
+	// 강제 만료로 진행 중이 아닌 전투에 도달할 수 있으므로 상태를 다시 확인합니다
+	if (EncounterState != ERSBossEncounterState::Active || bHasTimeLimitExpired)
+	{
+		return;
+	}
+
+	// 만료를 전달받은 쪽이 확정된 상태를 조회하도록 핸들과 상태를 먼저 정리합니다
+	TimeLimitTimerHandle.Invalidate();
+	bHasTimeLimitExpired = true;
+
+	OnTimeLimitExpired.Broadcast(this);
+}
+
 URSPlayerCameraComponent* ARSBossEncounter::GetParticipantCameraComponent(ARSPlayerState* Participant) const
 {
 	if (!IsValid(Participant))
@@ -317,9 +411,14 @@ void ARSBossEncounter::RequestParticipantCameraDeactivation(ARSPlayerState* Part
 	}
 }
 
+ARSPlayerController* ARSBossEncounter::GetParticipantPlayerController(ARSPlayerState* Participant) const
+{
+	return IsValid(Participant) ? Cast<ARSPlayerController>(Participant->GetPlayerController()) : nullptr;
+}
+
 void ARSBossEncounter::RegisterParticipantBossSource(ARSPlayerState* Participant) const
 {
-	ARSPlayerController* PlayerController = IsValid(Participant) ? Cast<ARSPlayerController>(Participant->GetPlayerController()) : nullptr;
+	ARSPlayerController* PlayerController = GetParticipantPlayerController(Participant);
 
 	if (PlayerController && BossCharacter)
 	{
@@ -329,11 +428,31 @@ void ARSBossEncounter::RegisterParticipantBossSource(ARSPlayerState* Participant
 
 void ARSBossEncounter::UnregisterParticipantBossSource(ARSPlayerState* Participant) const
 {
-	ARSPlayerController* PlayerController = IsValid(Participant) ? Cast<ARSPlayerController>(Participant->GetPlayerController()) : nullptr;
+	ARSPlayerController* PlayerController = GetParticipantPlayerController(Participant);
 
 	if (PlayerController)
 	{
 		PlayerController->UnregisterViewModelSource(BossCharacter);
+	}
+}
+
+void ARSBossEncounter::RegisterParticipantEncounterSource(ARSPlayerState* Participant)
+{
+	ARSPlayerController* PlayerController = GetParticipantPlayerController(Participant);
+
+	if (PlayerController)
+	{
+		PlayerController->RegisterViewModelSource(this);
+	}
+}
+
+void ARSBossEncounter::UnregisterParticipantEncounterSource(ARSPlayerState* Participant)
+{
+	ARSPlayerController* PlayerController = GetParticipantPlayerController(Participant);
+
+	if (PlayerController)
+	{
+		PlayerController->UnregisterViewModelSource(this);
 	}
 }
 

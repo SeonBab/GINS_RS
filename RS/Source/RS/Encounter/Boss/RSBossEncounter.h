@@ -2,12 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TimerManager.h"
 #include "RSBossEncounter.generated.h"
 
 class APawn;
 class ARSBossCharacter;
 class ARSBossController;
 class ARSBossEncounter;
+class ARSPlayerController;
 class ARSPlayerState;
 class UBoxComponent;
 class URSPlayerCameraComponent;
@@ -50,7 +52,7 @@ protected:
 	/** 서버에서 보스와 Encounter를 연결하고 이미 영역 안에 있는 플레이어를 등록합니다 */
 	virtual void BeginPlay() override;
 
-	/** Encounter가 제거되기 전에 참가자의 보스 데이터 원본 연결을 해제합니다 */
+	/** Encounter가 제거되기 전에 예약된 제한 시간과 참가자의 데이터 원본 연결을 정리합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** 클라이언트가 전투 시작과 종료를 알 수 있도록 EncounterState를 복제합니다 */
@@ -81,6 +83,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	ERSBossEncounterState GetEncounterState() const { return EncounterState; }
 
+	/**
+	 * 표시할 수 있는 제한 시간의 남은 초를 반환하며 항상 0 이상입니다
+	 * 완료된 전투는 처치 순간에 고정한 값을, 시작 전이나 만료 이후에는 0을 반환합니다
+	 */
+	UFUNCTION(BlueprintPure, Category = "RS|Boss")
+	float GetRemainingTimeSeconds() const;
+
+	/** 현재 보스전에서 제한 시간이 이미 만료되었는지 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Boss")
+	bool HasTimeLimitExpired() const { return bHasTimeLimitExpired; }
+
 	/** 보스전 카메라가 궤도와 LookAt 계산에 사용할 공간 기준 Component를 반환합니다 */
 	USceneComponent* GetCameraPivot() const;
 
@@ -89,6 +102,12 @@ public:
 
 	/** Pawn이 현재 공격 가능한 참가자인지 확인합니다 */
 	bool IsParticipantPawnActive(const APawn* ParticipantPawn) const;
+
+	/**
+	 * 제한 시간을 즉시 만료 상태로 만듭니다
+	 * 자연 만료와 같은 최종 상태를 만드는 개발용 진입점이며 Blueprint에는 노출하지 않습니다
+	 */
+	void ForceExpireTimeLimit();
 
 public:
 	/** 첫 참가자가 등록되어 보스전이 시작될 때 발생합니다 */
@@ -99,7 +118,17 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
 	FRSBossEncounterSignature OnEncounterEnded;
 
-	/** 새로운 플레이어가 전투 참가자로 등록될 때 발생합니다 */
+	/**
+	 * 제한 시간이 만료될 때 한 번 발생하며 이후에도 보스전은 계속 진행됩니다
+	 * 제한 시간은 복제하지 않으므로 서버에서만 발생합니다
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
+	FRSBossEncounterSignature OnTimeLimitExpired;
+
+	/**
+	 * 새로운 플레이어가 전투 참가자로 등록될 때 발생합니다
+	 * 첫 참가자의 경우 아직 전투가 시작되기 전이므로 이 시점의 남은 시간은 0입니다
+	 */
 	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
 	FRSBossEncounterParticipantSignature OnParticipantAdded;
 
@@ -139,6 +168,15 @@ private:
 	/** BossController가 Blackboard와 현재 공격 대상을 정리하게 합니다 */
 	void NotifyControllerEncounterEnded();
 
+	/** 만료 상태와 고정한 남은 시간을 초기화하고 제한 시간 타이머를 예약합니다 */
+	void StartTimeLimit();
+
+	/** 예약된 제한 시간 타이머만 제거하며 만료 상태와 고정한 남은 시간은 호출자가 관리합니다 */
+	void StopTimeLimit();
+
+	/** 제한 시간 만료를 기록하고 외부 시스템에 한 번만 전달합니다 */
+	void HandleTimeLimitExpired();
+
 	/**
 	 * 참가자를 직접 조종하는 로컬 플레이어의 카메라 컴포넌트를 반환합니다
 	 * 보스전 카메라는 로컬 표현이므로 이 프로세스에서 조종하지 않는 참가자는 대상이 아닙니다
@@ -154,11 +192,26 @@ private:
 	 */
 	void RequestParticipantCameraDeactivation(ARSPlayerState* Participant) const;
 
+	/** 참가자를 조종하는 PlayerController를 반환하며 없으면 nullptr입니다 */
+	ARSPlayerController* GetParticipantPlayerController(ARSPlayerState* Participant) const;
+
 	/** 참가자의 로컬 ViewModel 저장소에 현재 보스를 데이터 원본으로 등록합니다 */
 	void RegisterParticipantBossSource(ARSPlayerState* Participant) const;
 
 	/** 참가자의 로컬 ViewModel 저장소에서 현재 보스 데이터 원본을 해제합니다 */
 	void UnregisterParticipantBossSource(ARSPlayerState* Participant) const;
+
+	/**
+	 * 참가자의 로컬 ViewModel 저장소에 이 Encounter를 데이터 원본으로 등록합니다
+	 * 제한 시간은 서버에서만 진행하므로 권한이 없는 경로에서는 등록하지 않습니다
+	 */
+	void RegisterParticipantEncounterSource(ARSPlayerState* Participant);
+
+	/**
+	 * 참가자의 로컬 ViewModel 저장소에서 이 Encounter 데이터 원본을 해제합니다
+	 * 완료 후에도 처치 순간의 남은 시간을 계속 표시하므로 CompleteEncounter에서는 호출하지 않습니다
+	 */
+	void UnregisterParticipantEncounterSource(ARSPlayerState* Participant);
 
 	/** 영역에 진입한 플레이어를 참가자로 등록합니다 */
 	UFUNCTION()
@@ -176,4 +229,17 @@ private:
 	/** 서버에서 결정하고 클라이언트에 복제하는 보스전 상태입니다 */
 	UPROPERTY(ReplicatedUsing = OnRep_EncounterState, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
 	ERSBossEncounterState EncounterState = ERSBossEncounterState::Inactive;
+
+	/** 보스전이 시작된 뒤 허용하는 제한 시간이며 보스 방마다 다르게 설정합니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0", Units = "s"))
+	float TimeLimitSeconds = 300.0f;
+
+	/** 제한 시간 만료를 예약한 타이머이며 남은 시간 조회의 기준입니다 */
+	FTimerHandle TimeLimitTimerHandle;
+
+	/** 현재 보스전에서 제한 시간이 이미 만료되었는지입니다 */
+	bool bHasTimeLimitExpired = false;
+
+	/** 전투가 완료된 순간에 고정한 남은 시간이며 완료 이후 표시에 사용합니다 */
+	float CompletionRemainingTimeSeconds = 0.0f;
 };

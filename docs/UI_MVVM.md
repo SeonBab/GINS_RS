@@ -40,7 +40,19 @@
 
 - 게임 객체는 ViewModel 클래스를 직접 참조하지 않는다.
 - 로컬 UI에서 관찰할 객체가 활성화되거나 해제될 때 자신을 범용 데이터 원본으로 등록하거나 해제한다.
-- `ARSPlayerController`는 자신의 Pawn을 등록하며, `ARSBossEncounter`는 현재 보스를 참가자의 범용 등록 경로로 전달한다.
+- `ARSPlayerController`는 자신의 Pawn을 등록하며, `ARSBossEncounter`는 현재 보스와 자기 자신을 참가자의 범용 등록 경로로 전달한다.
+
+한 게임 객체가 여러 원본을 등록할 때 각 원본의 수명은 따로 관리한다. `ARSBossEncounter`가 등록하는 두 원본이 그 예다.
+
+| 시점 | 보스 Character | Encounter 자신 |
+| --- | --- | --- |
+| `RegisterParticipant` | 등록 | 등록 |
+| `UnregisterParticipant` | 해제 | 해제 |
+| `CompleteEncounter` | 해제 | **유지** |
+| `ResetEncounter` | 해제 | 해제 |
+| `EndPlay` | 해제 | 해제 |
+
+보스를 처치하면 보스 체력 표시는 정리하지만 제한 시간은 처치 순간의 값을 계속 보여준다. 수명이 다르므로 두 원본의 해제를 하나의 공통 함수로 묶지 않는다.
 
 ## 데이터 흐름
 
@@ -54,13 +66,16 @@
   -> Widget Binding 갱신
 ```
 
-현재 Player와 Boss 체력 흐름은 다음과 같다.
+현재 Player와 Boss 체력, 보스전 제한 시간 흐름은 다음과 같다.
 
 ```text
-ARSPlayerCharacter -> URSPlayerStatusViewModel -> Player Health Widget
-                                              -> Overhead Health Widget
-ARSBossCharacter   -> URSBossStatusViewModel   -> Boss Health Widget
+ARSPlayerCharacter -> URSPlayerStatusViewModel        -> Player Health Widget
+                                                     -> Overhead Health Widget
+ARSBossCharacter   -> URSBossStatusViewModel          -> Boss Health Widget
+ARSBossEncounter   -> URSBossEncounterTimerViewModel  -> Boss Encounter Timer Widget
 ```
+
+`URSBossEncounterTimerViewModel`은 남은 시간이 실제로 줄어드는 동안에만 `FTickableGameObject`로 갱신하며, 표시 정수 초가 바뀔 때만 `FText`를 다시 만든다. `FText`는 내용이 같아도 새로 만들면 다른 값으로 취급되어 매 프레임 FieldNotify가 발생하기 때문이다.
 
 어빌리티 슬롯처럼 같은 종류의 항목이 여럿인 UI는 아래 [목록 ViewModel 구성](#목록-viewmodel-구성)을 따른다.
 
