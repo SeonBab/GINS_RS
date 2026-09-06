@@ -72,7 +72,28 @@ ARSBossCharacter   -> URSBossStatusViewModel   -> Boss Health Widget
 - `URSBossStatusViewModel`은 Source 등록·재등록·교체 시 `GetBossName()`으로 읽은 이름을 `BossName` FieldNotify에 반영한다. 체력 원본이 유효하지 않거나 연결이 해제되면 이름도 빈 텍스트로 초기화한다.
 - 이름은 고정 설정값으로 취급하며 전투 중 이름 변경 이벤트는 제공하지 않는다.
 - `WBP_PlayerHUD`는 `BossStatusViewModel`을 Manual Source로 제공하고, `WBP_BossHealthBar`는 같은 이름의 Context Source로 전달받는다. 자식 Source의 클래스와 이름이 부모 Source와 모두 일치해야 한다.
-- `WBP_BossHealthBar`는 `BossName`을 이름 TextBlock에, `HealthNormalized`를 ProgressBar에, `bIsVisible`을 전체 Visibility에 바인딩한다. PIE에서 부모 Source 탐색은 확인했지만 현재 보스 Blueprint의 이름 입력과 피해에 따른 화면 갱신은 아직 확인하지 않았다.
+- `WBP_BossHealthBar`는 `BossName`을 이름 TextBlock에, `HealthNormalized`를 `ProgressBar_TotalHealth.Percent`에, `bIsVisible`을 전체 Visibility에 바인딩한다.
+
+### 보스 다중 레이어 체력 표시
+
+- `ARSBossCharacter.HealthLayerCount`는 Blueprint 클래스 기본값에서 설정하며 기본값과 최솟값은 1이다. 실제 체력 원본은 기존 Health/MaxHealth이며 레이어별 게임플레이 체력을 저장하지 않는다.
+- `URSBossStatusViewModel`은 등록·동일 원본 재등록·체력 이벤트에서 `CurrentLayerPercent`, `RemainingLayerCount`, `CurrentLayerColorIndex`, `LayerCountText`, `LayerCountVisibility`를 함께 계산하고 FieldNotify로 알린다. 원본 교체·해제 시 기존 구독을 해제하고 표시값을 초기화한다.
+- 남은 레이어 수는 현재 활성 레이어를 포함한다. 최대 체력 5000, 5레이어에서 체력 4000은 x4와 활성 바 100%, 전체 바 80%다. 체력 0은 두 비율과 카운트가 0이다. 카운트가 1 이하이면 텍스트를 비우고 Collapsed로 숨긴다.
+- `CurrentLayerPercent` → `ProgressBar.Percent`, `LayerCountText` → `TextBlock_Count.Text`, `LayerCountVisibility` → `TextBlock_Count.Visibility`를 바인딩한다. 기존 이름·전체 비율·전체 Visibility 바인딩과 Context Source를 유지한다.
+- 메인 `ProgressBar` 하나의 Fill Image는 현재 레이어, Background Image는 다음 레이어를 표시한다. `CurrentLayerColorIndex`는 소진된 레이어 수를 기준으로 빨강·주황·노랑·초록 순번을 반복한다. C++ 부모 위젯이 해당 FieldNotify와 남은 레이어 수를 관찰하여 두 Brush의 Tint를 갱신하며, 마지막 레이어의 Background는 어두운 빈 영역 색으로 바꾼다.
+- 기본 색은 Widget Blueprint 클래스 기본값의 `Layer Colors`에서 각각 조정한다. 색상은 표시 설정이며 ViewModel에는 실제 색 대신 0부터 3까지의 순번만 둔다.
+- `VerticalBox_45` 아래 이름, `SizeBox_MainHealth`(Overlay 안 메인 바와 카운트), `SizeBox_TotalHealth`(Overlay_108 안 전체 바)를 둔다. 두 SizeBox는 Auto Slot·가로 Fill이며 HeightOverride는 각각 32와 8이다. 독립적으로 조정 가능한 디자인 임시값이다.
+- 애니메이션 없이 현재 체력에서 목표 표시값을 즉시 계산한다. 별도 Tick, 매니저, 체력 Attribute를 추가하지 않는다.
+- 자동 검증은 `RS.UI.BossHealthLayers`에서 경계·다중 레이어 피해·단일 레이어·원본 재등록/교체/해제를 다룬다. 앞선 PIE에서 32/8 두께 구분은 확인했으며 새 바인딩 적용 후 피해·xN 전환의 화면 검증은 별도로 남는다.
+
+### 보스 체력바 피격 Shake
+
+- 지속 체력 값은 기존 `HealthComponent Delegate -> ViewModel FieldNotify -> MVVM` 흐름을 유지한다. `URSBossStatusViewModel`은 Health 이벤트에서 `OldValue > NewValue`일 때만 `OnHealthBarShakeRequested(1.0)` 일회성 이벤트를 보낸다.
+- Source 교체·해제와 ViewModel 종료 전에는 `OnHealthBarShakeResetRequested`를 보내 이전 보스의 연출 상태가 다음 Source에 남지 않게 한다. 초기 값 동기화는 현재 값을 직접 읽으므로 Shake 요청을 만들지 않는다.
+- `WBP_BossHealthBar`는 `URSBossHealthBarWidget`을 부모로 사용한다. UE 5.8의 MVVM Event Binding UI는 Widget 이벤트를 ViewModel 함수로 전달하는 방향만 지원하므로, C++ 부모가 Construct에서 Context Source의 `BossStatusViewModel`을 조회해 두 delegate를 직접 구독하고 Destruct에서 해제한다. Widget Blueprint에 별도 바인딩, 상태 변수나 Tick 그래프는 두지 않는다.
+- C++ 위젯은 전체 내용을 감싸는 Widget Tree Root에 RenderTranslation을 적용한다. Strength는 `[0, 1]` 진폭 배율이고 재생 시간에는 관여하지 않으며, 연속 요청은 먼저 Translation을 `(0, 0)`으로 복원한 뒤 처음부터 재생한다.
+- 기본 표현값은 X 최대 진폭 8, Y 최대 진폭 2, 지속 시간 0.15초다. 세 값은 Widget Blueprint 클래스 기본값의 `Shake` 카테고리에서 조정한다.
+- 활성 구간의 정규화 시간 `t`에 대해 감쇠는 `(1-t)^2`, X는 `sin(8πt)`, Y는 `sin(11πt)`를 사용한다. 종료·Reset·Destruct에서는 Translation을 정확히 `(0, 0)`으로 복원한다.
 
 ## ViewModel 추가 기준
 

@@ -90,6 +90,9 @@ public:
 	/** 보스 Blueprint에 설정된 이름을 반환합니다 */
 	const FText& GetBossName() const { return BossName; }
 
+	/** 보스 체력의 표시 레이어 수가 설정 경로와 무관하게 최소 1이 되도록 반환합니다 */
+	int32 GetHealthLayerCount() const { return FMath::Max(HealthLayerCount, 1); }
+
 	/** 이 캐릭터의 전투 참가자와 생명주기를 관리할 Encounter를 설정합니다 */
 	void SetBossEncounter(ARSBossEncounter* InBossEncounter);
 
@@ -100,6 +103,10 @@ private:
 	/** 보스의 이름을 클래스 기본값으로 설정합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
 	FText BossName;
+
+	/** 실제 체력은 나누어 저장하지 않고 사용자 인터페이스에서 균등 분할해 표시합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true", ClampMin = "1", UIMin = "1"))
+	int32 HealthLayerCount = 1;
 
 	/** 보스전 상태와 참가자 목록을 소유하는 Encounter입니다 */
 	UPROPERTY(Transient)
