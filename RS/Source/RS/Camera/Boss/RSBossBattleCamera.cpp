@@ -1,5 +1,6 @@
 #include "RSBossBattleCamera.h"
 
+#include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Pawn.h"
 
@@ -23,6 +24,9 @@ void ARSBossBattleCamera::ActivateCamera(const FRSBossCameraContext& InCameraCon
 	CameraContext = InCameraContext;
 	bHasCurrentOrbitYaw = false;
 
+	// 전환 전에 설정을 맞춰야 Blend 도중에도 캐릭터 카메라와 같은 화면 구성이 유지됩니다
+	ApplyTargetPlayerCameraSettings();
+
 	// Blend가 이전 구도에서 시작되지 않도록 ViewTarget 전환 전에 최종 구도를 배치합니다
 	UpdateCamera(0.0f, true);
 	SetActorTickEnabled(true);
@@ -38,6 +42,9 @@ void ARSBossBattleCamera::DeactivateCamera()
 void ARSBossBattleCamera::SetTargetPlayer(APawn* InTargetPlayer)
 {
 	CameraContext.TargetPlayer = InTargetPlayer;
+
+	// Pawn이 교체되면 카메라 설정도 새 Pawn의 것을 따라야 구도만 다른 상태가 유지됩니다
+	ApplyTargetPlayerCameraSettings();
 }
 
 void ARSBossBattleCamera::UpdateCamera(float DeltaTime, bool bSnapToTarget)
@@ -93,4 +100,31 @@ void ARSBossBattleCamera::UpdateOrbitYaw(const FVector& PivotLocation, const FVe
 	const float DeltaYaw = FMath::FindDeltaAngleDegrees(CurrentOrbitYaw, TargetOrbitYaw);
 	const float MaximumYawStep = MaximumOrbitRotationSpeed * DeltaTime;
 	CurrentOrbitYaw = FMath::UnwindDegrees(CurrentOrbitYaw + FMath::Clamp(DeltaYaw, -MaximumYawStep, MaximumYawStep));
+}
+
+void ARSBossBattleCamera::ApplyTargetPlayerCameraSettings()
+{
+	const APawn* TargetPlayer = CameraContext.TargetPlayer.Get();
+	const UCameraComponent* PlayerCameraComponent = IsValid(TargetPlayer) ? TargetPlayer->FindComponentByClass<UCameraComponent>() : nullptr;
+	UCameraComponent* BattleCameraComponent = GetCameraComponent();
+
+	if (!PlayerCameraComponent || !BattleCameraComponent)
+	{
+		return;
+	}
+
+	// ACameraActor는 연출용 CameraActor를 전제로 자체 기본값을 넣으므로 화면 구성 설정은 캐릭터 카메라 값으로 모두 덮습니다
+	// 이 카메라가 캐릭터 카메라와 다르게 정하는 값은 위치와 회전뿐입니다
+	BattleCameraComponent->FieldOfView = PlayerCameraComponent->FieldOfView;
+	BattleCameraComponent->AspectRatio = PlayerCameraComponent->AspectRatio;
+	BattleCameraComponent->bConstrainAspectRatio = PlayerCameraComponent->bConstrainAspectRatio;
+	BattleCameraComponent->bOverrideAspectRatioAxisConstraint = PlayerCameraComponent->bOverrideAspectRatioAxisConstraint;
+	BattleCameraComponent->AspectRatioAxisConstraint = PlayerCameraComponent->AspectRatioAxisConstraint;
+	BattleCameraComponent->bUseFieldOfViewForLOD = PlayerCameraComponent->bUseFieldOfViewForLOD;
+	BattleCameraComponent->ProjectionMode = PlayerCameraComponent->ProjectionMode;
+	BattleCameraComponent->OrthoWidth = PlayerCameraComponent->OrthoWidth;
+	BattleCameraComponent->OrthoNearClipPlane = PlayerCameraComponent->OrthoNearClipPlane;
+	BattleCameraComponent->OrthoFarClipPlane = PlayerCameraComponent->OrthoFarClipPlane;
+	BattleCameraComponent->PostProcessSettings = PlayerCameraComponent->PostProcessSettings;
+	BattleCameraComponent->PostProcessBlendWeight = PlayerCameraComponent->PostProcessBlendWeight;
 }
