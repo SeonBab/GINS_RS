@@ -8,6 +8,7 @@
 
 class URSLocalPlayerViewModelSubsystem;
 class URSPlayerCameraComponent;
+enum class ERSBossEncounterResult : uint8;
 
 /** 마우스 위치, 로컬 카메라 컴포넌트와 ViewModel 데이터 원본 연결을 관리합니다 */
 UCLASS()
@@ -48,6 +49,15 @@ public:
 	/** 로컬 ViewModel에 등록한 게임 데이터 원본을 해제합니다 */
 	void UnregisterViewModelSource(UObject* Source);
 
+	/** 확정된 Boss 결과를 후속 Local Presentation이 소비할 수 있도록 한 번만 기록합니다 */
+	void BeginBossResultPresentation(ERSBossEncounterResult Result);
+
+	/** Boss Result Presentation 진입 요청을 이미 받았는지 반환합니다 */
+	bool HasBossResultPresentationStarted() const { return BossResultPresentation.IsSet(); }
+
+	/** Local Presentation에 전달된 Boss Encounter 결과를 반환합니다 */
+	ERSBossEncounterResult GetBossResultPresentation() const;
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();
@@ -56,7 +66,12 @@ private:
 	URSLocalPlayerViewModelSubsystem* GetViewModelSubsystem() const;
 
 private:
+	friend class FRSBossEncounterStateTest;
+
 	/** 로컬 플레이어의 카메라 상태와 전투 CameraActor 수명을 관리합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSPlayerCameraComponent> PlayerCameraComp;
+
+	/** 후속 Presentation 정책과 분리해 보존하는 최초 Boss Encounter 결과입니다 */
+	TOptional<ERSBossEncounterResult> BossResultPresentation;
 };

@@ -5,6 +5,7 @@
 
 #include "Engine/LocalPlayer.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSBossEncounter.h"
 #include "RSCheatManager.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
@@ -108,6 +109,23 @@ void ARSPlayerController::UnregisterViewModelSource(UObject* Source)
 	{
 		ViewModelSubsystem->UnregisterSource(Source);
 	}
+}
+
+void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Result)
+{
+	const bool bIsValidResult = Result == ERSBossEncounterResult::Clear || Result == ERSBossEncounterResult::Failed;
+	if (!IsLocalController() || !bIsValidResult || BossResultPresentation.IsSet())
+	{
+		return;
+	}
+
+	// 입력과 UI 정책을 적용하지 않고 후속 Presentation이 사용할 확정 결과만 보존합니다
+	BossResultPresentation.Emplace(Result);
+}
+
+ERSBossEncounterResult ARSPlayerController::GetBossResultPresentation() const
+{
+	return BossResultPresentation.Get(ERSBossEncounterResult::None);
 }
 
 void ARSPlayerController::ConfigureMouseInput()

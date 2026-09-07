@@ -52,7 +52,7 @@ public:
 private:
 	/**
 	 * Encounter의 시작, 종료와 제한 시간 만료를 같은 재평가 경로로 처리합니다
-	 * OnEncounterEnded는 완료와 초기화 양쪽에서 발생하므로 이벤트 종류가 아니라 현재 상태로 판단합니다
+	 * OnEncounterEnded는 Finished와 Active Reset 양쪽에서 발생하므로 이벤트 종류가 아니라 현재 상태로 판단합니다
 	 */
 	UFUNCTION()
 	void HandleEncounterChanged(ARSBossEncounter* InBossEncounter);
@@ -74,6 +74,7 @@ private:
 
 private:
 	friend class FRSBossEncounterTimerTest;
+	friend class FRSBossEncounterStateTest;
 
 	/** 남은 시간이 계속 줄어드는 중인지이며 Tick 활성 조건입니다 */
 	bool bIsTimerRunning = false;

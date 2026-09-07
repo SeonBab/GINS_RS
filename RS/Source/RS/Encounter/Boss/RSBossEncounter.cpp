@@ -2,12 +2,15 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
+#include "CoreGlobals.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
+#include "RSHealthComponent.h"
 #include "RSHealthSet.h"
 #include "RSPlayerCameraComponent.h"
+#include "RSPlayerCharacter.h"
 #include "RSPlayerController.h"
 #include "RSPlayerState.h"
 
@@ -59,6 +62,8 @@ void ARSBossEncounter::BeginPlay()
 
 void ARSBossEncounter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	CleanupOutcomeEvaluation();
+	UnbindAllParticipantDeathObservations();
 	StopTimeLimit();
 
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
@@ -74,12 +79,13 @@ void ARSBossEncounter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+	DOREPLIFETIME(ARSBossEncounter, EncounterResult);
 	DOREPLIFETIME(ARSBossEncounter, EncounterState);
 }
 
 void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 {
-	if (!HasAuthority() || !IsValid(Participant) || EncounterState == ERSBossEncounterState::Completed)
+	if (!HasAuthority() || !IsValid(Participant) || EncounterState == ERSBossEncounterState::Finished)
 	{
 		return;
 	}
@@ -92,21 +98,19 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 	Participants.Add(Participant);
 	OnParticipantAdded.Broadcast(this, Participant);
 
-	if (!IsEncounterActive())
+	if (EncounterState == ERSBossEncounterState::Inactive)
 	{
-		const ERSBossEncounterState OldState = EncounterState;
-
-		// 외부 시작 이벤트가 발생하기 전에 Controller와 Blackboard가 새 전투 상태를 사용하게 합니다
-		SetEncounterState(ERSBossEncounterState::Active, false);
-
-		// 전투 시작을 외부에서 관찰할 수 있게 되기 전에 남은 시간이 유효해지도록 먼저 예약합니다
-		StartTimeLimit();
-		NotifyControllerEncounterStarted();
-		BroadcastEncounterStateChanged(OldState);
+		BeginPreparing();
+		StartEncounter();
 	}
-	else if (ARSBossController* BossController = GetBossController())
+	else if (EncounterState == ERSBossEncounterState::Active)
 	{
-		BossController->StartEncounter(this);
+		BindParticipantDeathObservation(Participant);
+
+		if (ARSBossController* BossController = GetBossController())
+		{
+			BossController->StartEncounter(this);
+		}
 	}
 
 	// 카메라 전환 기준은 전투 시작 순간이 아니라 이 플레이어가 참가자가 되었는지 여부입니다
@@ -122,10 +126,13 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 		return;
 	}
 
-	if (Participants.Remove(Participant) == 0)
+	if (!Participants.Contains(Participant))
 	{
 		return;
 	}
+
+	UnbindParticipantDeathObservation(Participant);
+	Participants.Remove(Participant);
 
 	OnParticipantRemoved.Broadcast(this, Participant);
 	RequestParticipantCameraDeactivation(Participant);
@@ -138,26 +145,75 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 	}
 }
 
-void ARSBossEncounter::CompleteEncounter()
+void ARSBossEncounter::BeginPreparing()
 {
-	if (!HasAuthority() || EncounterState == ERSBossEncounterState::Completed)
+	if (!HasAuthority() || EncounterState != ERSBossEncounterState::Inactive)
 	{
 		return;
 	}
 
-	// 상태를 공개하기 전에 남은 시간을 고정하고 예약을 제거하여, 종료 이벤트를 받은 쪽이 확정된 값을 읽게 합니다
-	CompletionRemainingTimeSeconds = GetRemainingTimeSeconds();
-	StopTimeLimit();
+	EncounterResult = ERSBossEncounterResult::None;
+	CompletionRemainingTimeSeconds = 0.0f;
+	EncounterState = ERSBossEncounterState::Preparing;
+	CleanupOutcomeEvaluation();
+}
 
+void ARSBossEncounter::StartEncounter()
+{
+	if (!HasAuthority() || EncounterState != ERSBossEncounterState::Preparing)
+	{
+		return;
+	}
+
+	const ERSBossEncounterState OldState = EncounterState;
+
+	EncounterResult = ERSBossEncounterResult::None;
+	EncounterState = ERSBossEncounterState::Active;
+
+	// 시작 이벤트에서 유효한 제한 시간과 Boss 전투 상태를 관찰하도록 내부 준비를 먼저 끝냅니다
+	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
+	{
+		BindParticipantDeathObservation(ParticipantReference.Get());
+	}
+
+	StartTimeLimit();
+	NotifyControllerEncounterStarted();
+	BroadcastEncounterTransitionEvents(OldState);
+}
+
+void ARSBossEncounter::RequestClearOutcome()
+{
+	RecordOutcomeCandidate(ERSBossEncounterResult::Clear);
+}
+
+void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
+{
+	const bool bIsValidResult = Result == ERSBossEncounterResult::Clear || Result == ERSBossEncounterResult::Failed;
+	if (!HasAuthority() || EncounterState != ERSBossEncounterState::Active || !bIsValidResult)
+	{
+		return;
+	}
+
+	const ERSBossEncounterState OldState = EncounterState;
+	const float FinishedRemainingTimeSeconds = GetRemainingTimeSeconds();
+
+	// 외부 getter가 중간 조합을 보지 않도록 종료 Snapshot과 Result를 먼저 구성한 뒤 State를 커밋합니다
+	EncounterResult = Result;
+	CompletionRemainingTimeSeconds = FinishedRemainingTimeSeconds;
+	EncounterState = ERSBossEncounterState::Finished;
+
+	CleanupOutcomeEvaluation();
+	UnbindAllParticipantDeathObservations();
+	StopTimeLimit();
 	NotifyControllerEncounterEnded();
 
-	// 완료 후에도 처치 순간의 남은 시간을 계속 표시하므로 Encounter 데이터 원본은 해제하지 않습니다
+	// 종료 후에도 결과 시점의 제한 시간을 표시하므로 Encounter 데이터 원본은 유지합니다
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
 	{
 		UnregisterParticipantBossSource(ParticipantReference.Get());
 	}
 
-	SetEncounterState(ERSBossEncounterState::Completed);
+	BroadcastEncounterTransitionEvents(OldState);
 }
 
 void ARSBossEncounter::ResetEncounter()
@@ -167,14 +223,24 @@ void ARSBossEncounter::ResetEncounter()
 		return;
 	}
 
-	// 초기화된 전투에서 예약된 만료 콜백이 뒤늦게 실행되지 않도록 제한 시간 상태를 먼저 되돌립니다
-	StopTimeLimit();
+	const ERSBossEncounterState OldState = EncounterState;
+
+	// 외부 콜백이 초기화 전의 논리 상태를 관찰하지 않도록 먼저 최종 상태를 커밋합니다
+	EncounterResult = ERSBossEncounterResult::None;
 	bHasTimeLimitExpired = false;
 	CompletionRemainingTimeSeconds = 0.0f;
+	EncounterState = ERSBossEncounterState::Inactive;
 
-	NotifyControllerEncounterEnded();
+	CleanupOutcomeEvaluation();
+	UnbindAllParticipantDeathObservations();
+	StopTimeLimit();
 
-	// 목록을 먼저 비운 뒤 기존 참가자별 제거 이벤트를 전달하여 이벤트 수신자가 초기화된 상태를 조회하게 합니다
+	if (OldState == ERSBossEncounterState::Active)
+	{
+		NotifyControllerEncounterEnded();
+	}
+
+	// 참가자 알림 전에 이 전이에서 수명이 끝나는 Source와 Camera 연결을 모두 정리합니다
 	const TArray<TWeakObjectPtr<ARSPlayerState>> RemovedParticipants = Participants;
 	Participants.Reset();
 
@@ -184,19 +250,26 @@ void ARSBossEncounter::ResetEncounter()
 
 		if (Participant)
 		{
-			OnParticipantRemoved.Broadcast(this, Participant);
 			RequestParticipantCameraDeactivation(Participant);
 			UnregisterParticipantBossSource(Participant);
 			UnregisterParticipantEncounterSource(Participant);
 		}
 	}
 
-	SetEncounterState(ERSBossEncounterState::Inactive);
+	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : RemovedParticipants)
+	{
+		if (ARSPlayerState* Participant = ParticipantReference.Get())
+		{
+			OnParticipantRemoved.Broadcast(this, Participant);
+		}
+	}
+
+	BroadcastEncounterTransitionEvents(OldState);
 }
 
 float ARSBossEncounter::GetRemainingTimeSeconds() const
 {
-	if (EncounterState == ERSBossEncounterState::Completed)
+	if (EncounterState == ERSBossEncounterState::Finished)
 	{
 		return FMath::Max(CompletionRemainingTimeSeconds, 0.0f);
 	}
@@ -275,31 +348,21 @@ ARSBossController* ARSBossEncounter::GetBossController() const
 	return Cast<ARSBossController>(BossCharacter ? BossCharacter->GetController() : nullptr);
 }
 
-void ARSBossEncounter::SetEncounterState(ERSBossEncounterState NewState, bool bBroadcastEvent)
-{
-	if (EncounterState == NewState)
-	{
-		return;
-	}
-
-	const ERSBossEncounterState OldState = EncounterState;
-	EncounterState = NewState;
-
-	if (bBroadcastEvent)
-	{
-		BroadcastEncounterStateChanged(OldState);
-	}
-}
-
-void ARSBossEncounter::BroadcastEncounterStateChanged(ERSBossEncounterState OldState)
+void ARSBossEncounter::BroadcastEncounterTransitionEvents(ERSBossEncounterState OldState)
 {
 	if (OldState != ERSBossEncounterState::Active && EncounterState == ERSBossEncounterState::Active)
 	{
 		OnEncounterStarted.Broadcast(this);
 	}
-	else if (OldState == ERSBossEncounterState::Active && EncounterState != ERSBossEncounterState::Active)
+
+	if (OldState == ERSBossEncounterState::Active && EncounterState != ERSBossEncounterState::Active)
 	{
 		OnEncounterEnded.Broadcast(this);
+	}
+
+	if (EncounterState == ERSBossEncounterState::Finished && EncounterResult != ERSBossEncounterResult::None)
+	{
+		OnEncounterFinished.Broadcast(this, EncounterResult);
 	}
 }
 
@@ -329,6 +392,177 @@ void ARSBossEncounter::NotifyControllerEncounterEnded()
 	{
 		BossController->EndEncounter();
 	}
+}
+
+void ARSBossEncounter::BindParticipantDeathObservation(ARSPlayerState* Participant)
+{
+	if (EncounterState != ERSBossEncounterState::Active || !IsValid(Participant))
+	{
+		return;
+	}
+
+	ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(Participant->GetPawn());
+	URSHealthComponent* HealthComponent = PlayerCharacter ? PlayerCharacter->GetHealthComponent() : nullptr;
+	if (!IsValid(HealthComponent))
+	{
+		return;
+	}
+
+	if (TWeakObjectPtr<URSHealthComponent>* ExistingHealthComponentReference = ParticipantDeathHealthComponents.Find(Participant))
+	{
+		if (ExistingHealthComponentReference->Get() == HealthComponent)
+		{
+			return;
+		}
+
+		if (URSHealthComponent* ExistingHealthComponent = ExistingHealthComponentReference->Get())
+		{
+			ExistingHealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
+		}
+	}
+
+	HealthComponent->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleParticipantDeathStarted);
+	ParticipantDeathHealthComponents.Add(Participant, HealthComponent);
+}
+
+void ARSBossEncounter::UnbindParticipantDeathObservation(ARSPlayerState* Participant)
+{
+	TWeakObjectPtr<URSHealthComponent> HealthComponentReference;
+	if (!ParticipantDeathHealthComponents.RemoveAndCopyValue(Participant, HealthComponentReference))
+	{
+		return;
+	}
+
+	if (URSHealthComponent* HealthComponent = HealthComponentReference.Get())
+	{
+		HealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
+	}
+}
+
+void ARSBossEncounter::UnbindAllParticipantDeathObservations()
+{
+	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantDeathHealthComponents)
+	{
+		if (URSHealthComponent* HealthComponent = Observation.Value.Get())
+		{
+			HealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
+		}
+	}
+
+	ParticipantDeathHealthComponents.Reset();
+}
+
+void ARSBossEncounter::RequestFailedOutcome()
+{
+	RecordOutcomeCandidate(ERSBossEncounterResult::Failed);
+}
+
+void ARSBossEncounter::RecordOutcomeCandidate(ERSBossEncounterResult CandidateResult)
+{
+	if (!HasAuthority() || EncounterState != ERSBossEncounterState::Active)
+	{
+		return;
+	}
+
+	TOptional<uint64>* CandidateFrame = nullptr;
+	if (CandidateResult == ERSBossEncounterResult::Clear)
+	{
+		CandidateFrame = &ClearCandidateFrame;
+	}
+	else if (CandidateResult == ERSBossEncounterResult::Failed)
+	{
+		CandidateFrame = &FailedCandidateFrame;
+	}
+
+	if (!CandidateFrame)
+	{
+		return;
+	}
+
+	if (!CandidateFrame->IsSet())
+	{
+		CandidateFrame->Emplace(GFrameCounter);
+	}
+
+	RequestOutcomeEvaluation();
+}
+
+void ARSBossEncounter::RequestOutcomeEvaluation()
+{
+	if (bIsOutcomeEvaluationPending || EncounterState != ERSBossEncounterState::Active)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	bIsOutcomeEvaluationPending = true;
+	OutcomeEvaluationTimerHandle = World->GetTimerManager().SetTimerForNextTick(this, &ThisClass::EvaluateOutcome);
+}
+
+void ARSBossEncounter::EvaluateOutcome()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(OutcomeEvaluationTimerHandle);
+	}
+
+	bIsOutcomeEvaluationPending = false;
+	OutcomeEvaluationTimerHandle.Invalidate();
+
+	if (!HasAuthority() || EncounterState != ERSBossEncounterState::Active)
+	{
+		ClearCandidateFrame.Reset();
+		FailedCandidateFrame.Reset();
+		return;
+	}
+
+	const uint64 EarliestCandidateFrame = FMath::Min(
+		ClearCandidateFrame.Get(MAX_uint64),
+		FailedCandidateFrame.Get(MAX_uint64));
+
+	// UE 5.8의 SetTimerForNextTick은 TimerManager가 아직 Tick하지 않았다면 같은 Frame에 실행될 수 있습니다
+	// 최초 후보 Frame 전체를 취합한 뒤 판정하도록 엔진 Frame이 실제로 진행될 때까지 평가를 다시 예약합니다
+	if (EarliestCandidateFrame != MAX_uint64 && GFrameCounter <= EarliestCandidateFrame)
+	{
+		RequestOutcomeEvaluation();
+		return;
+	}
+
+	const ERSBossEncounterResult Result = SelectOutcomeResult(ClearCandidateFrame, FailedCandidateFrame);
+	if (Result == ERSBossEncounterResult::None)
+	{
+		return;
+	}
+
+	ResolveEncounter(Result);
+}
+
+ERSBossEncounterResult ARSBossEncounter::SelectOutcomeResult(const TOptional<uint64>& ClearFrame, const TOptional<uint64>& FailedFrame)
+{
+	if (ClearFrame.IsSet() && (!FailedFrame.IsSet() || ClearFrame.GetValue() <= FailedFrame.GetValue()))
+	{
+		return ERSBossEncounterResult::Clear;
+	}
+
+	return FailedFrame.IsSet() ? ERSBossEncounterResult::Failed : ERSBossEncounterResult::None;
+}
+
+void ARSBossEncounter::CleanupOutcomeEvaluation()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(OutcomeEvaluationTimerHandle);
+	}
+
+	OutcomeEvaluationTimerHandle.Invalidate();
+	bIsOutcomeEvaluationPending = false;
+	ClearCandidateFrame.Reset();
+	FailedCandidateFrame.Reset();
 }
 
 void ARSBossEncounter::StartTimeLimit()
@@ -456,6 +690,23 @@ void ARSBossEncounter::UnregisterParticipantEncounterSource(ARSPlayerState* Part
 	}
 }
 
+void ARSBossEncounter::HandleParticipantDeathStarted(URSHealthComponent* HealthComponent)
+{
+	if (EncounterState != ERSBossEncounterState::Active || !IsValid(HealthComponent))
+	{
+		return;
+	}
+
+	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantDeathHealthComponents)
+	{
+		if (Observation.Value.Get() == HealthComponent)
+		{
+			RequestFailedOutcome();
+			return;
+		}
+	}
+}
+
 void ARSBossEncounter::HandleEncounterAreaBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	APawn* ParticipantPawn = Cast<APawn>(OtherActor);
@@ -466,5 +717,5 @@ void ARSBossEncounter::HandleEncounterAreaBeginOverlap(UPrimitiveComponent* Over
 
 void ARSBossEncounter::OnRep_EncounterState(ERSBossEncounterState OldState)
 {
-	BroadcastEncounterStateChanged(OldState);
+	BroadcastEncounterTransitionEvents(OldState);
 }

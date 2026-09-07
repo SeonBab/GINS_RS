@@ -48,10 +48,11 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	const FDisplayCase DisplayCases[] =
 	{
 		{ TEXT("Inactive"), ERSBossEncounterState::Inactive, false, 0.0f, TEXT(""), false, false },
+		{ TEXT("Preparing"), ERSBossEncounterState::Preparing, false, 0.0f, TEXT(""), false, false },
 		{ TEXT("Active running"), ERSBossEncounterState::Active, false, 73.0f, TEXT("01:13"), true, true },
 		{ TEXT("Active expired"), ERSBossEncounterState::Active, true, 0.0f, TEXT("00:00"), true, false },
-		{ TEXT("Completed in time"), ERSBossEncounterState::Completed, false, 71.0f, TEXT("01:11"), true, false },
-		{ TEXT("Completed after expiration"), ERSBossEncounterState::Completed, true, 0.0f, TEXT("00:00"), true, false }
+		{ TEXT("Finished in time"), ERSBossEncounterState::Finished, false, 71.0f, TEXT("01:11"), true, false },
+		{ TEXT("Finished after expiration"), ERSBossEncounterState::Finished, true, 0.0f, TEXT("00:00"), true, false }
 	};
 
 	for (const FDisplayCase& DisplayCase : DisplayCases)
@@ -75,8 +76,8 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("New display second text"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("02:00")));
 
 	// 초기화 후 우연히 같은 초가 들어와도 이전 표시 이력 때문에 빈 문자열이 남으면 안 됩니다
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Completed, false, 42.0f);
-	TestEqual(TEXT("Completed snapshot text"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("00:42")));
+	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Finished, false, 42.0f);
+	TestEqual(TEXT("Finished snapshot text"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("00:42")));
 	ViewModel->ResetTimerValues();
 	TestTrue(TEXT("Reset clears text"), ViewModel->RemainingTimeText.IsEmpty());
 	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, 42.0f);

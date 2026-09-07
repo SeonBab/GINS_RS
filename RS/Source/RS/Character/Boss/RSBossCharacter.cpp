@@ -99,11 +99,10 @@ void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 
 	GetCharacterMovement()->DisableMovement();
 
-	// 처치 순간의 남은 시간을 고정하는 것은 Encounter가 전투 결과를 확정할 때뿐이므로 사망 처리에서 완료를 알립니다
-	// CompleteEncounter는 서버에서만 동작하고 이미 완료된 전투를 무시하므로 사망이 다시 전달되어도 결과가 바뀌지 않습니다
+	// Player 사망과 같은 Frame에 발생할 수 있으므로 즉시 확정하지 않고 Clear 후보를 전달합니다
 	if (BossEncounter)
 	{
-		BossEncounter->CompleteEncounter();
+		BossEncounter->RequestClearOutcome();
 	}
 }
 

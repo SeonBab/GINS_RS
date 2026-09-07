@@ -124,7 +124,7 @@ void URSBossEncounterTimerViewModel::RefreshFromSource()
 void URSBossEncounterTimerViewModel::ApplyEncounterValues(ERSBossEncounterState InEncounterState, bool bInHasTimeLimitExpired, float InRemainingSeconds)
 {
 	// 시작되지 않았거나 초기화된 전투에는 표시할 남은 시간이라는 개념이 없습니다
-	if (InEncounterState == ERSBossEncounterState::Inactive)
+	if (InEncounterState == ERSBossEncounterState::Inactive || InEncounterState == ERSBossEncounterState::Preparing)
 	{
 		ResetTimerValues();
 		return;

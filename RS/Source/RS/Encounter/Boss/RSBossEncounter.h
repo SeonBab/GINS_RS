@@ -12,6 +12,7 @@ class ARSBossEncounter;
 class ARSPlayerController;
 class ARSPlayerState;
 class UBoxComponent;
+class URSHealthComponent;
 class URSPlayerCameraComponent;
 class USceneComponent;
 
@@ -22,15 +23,35 @@ enum class ERSBossEncounterState : uint8
 	/** 보스전이 시작되지 않았거나 초기화된 상태입니다 */
 	Inactive,
 
+	/** 참가자를 확정하고 실제 전투 시작에 필요한 준비를 수행하는 상태입니다 */
+	Preparing,
+
 	/** 한 명 이상의 참가자가 등록되어 보스전이 진행 중인 상태입니다 */
 	Active,
 
-	/** 보스 처치 등 정상적인 완료 조건을 충족한 상태입니다 */
-	Completed
+	/** Clear 또는 Failed 결과가 확정되어 전투가 끝난 상태입니다 */
+	Finished
+};
+
+/** 보스전이 끝난 원인입니다 */
+UENUM(BlueprintType)
+enum class ERSBossEncounterResult : uint8
+{
+	/** 보스전 결과가 아직 확정되지 않았습니다 */
+	None,
+
+	/** 보스를 처치하여 전투를 완료했습니다 */
+	Clear,
+
+	/** 플레이어 사망 등 실패 조건으로 전투가 끝났습니다 */
+	Failed
 };
 
 /** 보스전의 시작과 종료를 외부 시스템에 전달하는 델리게이트입니다 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRSBossEncounterSignature, ARSBossEncounter*, BossEncounter);
+
+/** 확정된 보스전 결과를 외부 시스템에 전달하는 델리게이트입니다 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRSBossEncounterFinishedSignature, ARSBossEncounter*, BossEncounter, ERSBossEncounterResult, Result);
 
 /** 보스전 참가자의 등록과 제거를 외부 시스템에 전달하는 델리게이트입니다 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRSBossEncounterParticipantSignature, ARSBossEncounter*, BossEncounter, ARSPlayerState*, Participant);
@@ -52,10 +73,10 @@ protected:
 	/** 서버에서 보스와 Encounter를 연결하고 이미 영역 안에 있는 플레이어를 등록합니다 */
 	virtual void BeginPlay() override;
 
-	/** Encounter가 제거되기 전에 예약된 제한 시간과 참가자의 데이터 원본 연결을 정리합니다 */
+	/** Encounter가 제거되기 전에 예약된 제한 시간과 결과 평가, 참가자 구독과 데이터 원본 연결을 정리합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/** 클라이언트가 전투 시작과 종료를 알 수 있도록 EncounterState를 복제합니다 */
+	/** 클라이언트가 전투의 진행 상태와 확정 결과를 알 수 있도록 State와 Result를 복제합니다 */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
@@ -67,9 +88,20 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "RS|Boss")
 	void UnregisterParticipant(ARSPlayerState* Participant);
 
-	/** 보스 처치 등 정상적인 종료 조건이 충족되었음을 기록합니다 */
+	/** 최초 참가자 등록 이후 실제 전투 시작 전 준비 상태로 전환합니다 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "RS|Boss")
-	void CompleteEncounter();
+	void BeginPreparing();
+
+	/** 준비가 끝난 Encounter의 제한 시간과 Boss 전투를 시작합니다 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "RS|Boss")
+	void StartEncounter();
+
+	/** Active Encounter의 Clear 또는 Failed 결과를 한 번만 확정합니다 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "RS|Boss")
+	void ResolveEncounter(ERSBossEncounterResult Result);
+
+	/** 보스 사망으로 발생한 Clear 후보를 현재 Frame의 결과 판정에 기록합니다 */
+	void RequestClearOutcome();
 
 	/** 보스전을 초기 상태로 되돌리고 기존 참가자를 모두 제거합니다 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "RS|Boss")
@@ -82,6 +114,10 @@ public:
 	/** 현재 보스전 상태를 반환합니다 */
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	ERSBossEncounterState GetEncounterState() const { return EncounterState; }
+
+	/** 현재 확정된 보스전 결과를 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Boss")
+	ERSBossEncounterResult GetEncounterResult() const { return EncounterResult; }
 
 	/**
 	 * 표시할 수 있는 제한 시간의 남은 초를 반환하며 항상 0 이상입니다
@@ -114,9 +150,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
 	FRSBossEncounterSignature OnEncounterStarted;
 
-	/** 보스전이 완료되거나 초기화되어 종료될 때 발생합니다 */
+	/** Active 전투 구간의 내부 정리가 완료된 뒤 발생합니다 */
 	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
 	FRSBossEncounterSignature OnEncounterEnded;
+
+	/** Clear 또는 Failed 결과와 내부 정리가 모두 확정된 뒤 발생합니다 */
+	UPROPERTY(BlueprintAssignable, Category = "RS|Boss")
+	FRSBossEncounterFinishedSignature OnEncounterFinished;
 
 	/**
 	 * 제한 시간이 만료될 때 한 번 발생하며 이후에도 보스전은 계속 진행됩니다
@@ -156,17 +196,41 @@ private:
 	/** BossCharacter를 빙의한 BossController를 반환하며 없으면 nullptr입니다 */
 	ARSBossController* GetBossController() const;
 
-	/** 전투 상태를 변경하고 필요한 경우 서버의 대응 이벤트를 즉시 전달합니다 */
-	void SetEncounterState(ERSBossEncounterState NewState, bool bBroadcastEvent = true);
-
-	/** 상태 변경에 대응하는 전투 시작 또는 종료 이벤트를 전달합니다 */
-	void BroadcastEncounterStateChanged(ERSBossEncounterState OldState);
+	/** 내부 준비 또는 정리가 끝난 전이를 외부에 계약된 순서로 전달합니다 */
+	void BroadcastEncounterTransitionEvents(ERSBossEncounterState OldState);
 
 	/** BossController에 전투 시작을 알리고 첫 공격 대상을 선택하게 합니다 */
 	void NotifyControllerEncounterStarted();
 
 	/** BossController가 Blackboard와 현재 공격 대상을 정리하게 합니다 */
 	void NotifyControllerEncounterEnded();
+
+	/** Active 참가자의 현재 HealthComponent에 사망 관찰을 중복 없이 연결합니다 */
+	void BindParticipantDeathObservation(ARSPlayerState* Participant);
+
+	/** 참가자에 대해 실제 연결했던 HealthComponent에서 사망 관찰을 해제합니다 */
+	void UnbindParticipantDeathObservation(ARSPlayerState* Participant);
+
+	/** 모든 참가자 HealthComponent의 Active 범위 사망 관찰을 해제합니다 */
+	void UnbindAllParticipantDeathObservations();
+
+	/** 플레이어 사망으로 발생한 Failed 후보를 현재 Frame의 결과 판정에 기록합니다 */
+	void RequestFailedOutcome();
+
+	/** 결과 종류별 최초 후보 Frame을 기록하고 평가를 요청합니다 */
+	void RecordOutcomeCandidate(ERSBossEncounterResult CandidateResult);
+
+	/** 아직 예약되지 않았다면 다음 Tick에 결과 후보를 평가하도록 예약합니다 */
+	void RequestOutcomeEvaluation();
+
+	/** 가장 먼저 후보가 발생한 Frame을 기준으로 최종 결과를 선택합니다 */
+	void EvaluateOutcome();
+
+	/** 후보 Frame 조합에서 확정할 결과를 반환합니다 */
+	static ERSBossEncounterResult SelectOutcomeResult(const TOptional<uint64>& ClearFrame, const TOptional<uint64>& FailedFrame);
+
+	/** 예약된 평가와 결과 후보를 Active 수명 종료에 맞춰 정리합니다 */
+	void CleanupOutcomeEvaluation();
 
 	/** 만료 상태와 고정한 남은 시간을 초기화하고 제한 시간 타이머를 예약합니다 */
 	void StartTimeLimit();
@@ -209,9 +273,13 @@ private:
 
 	/**
 	 * 참가자의 로컬 ViewModel 저장소에서 이 Encounter 데이터 원본을 해제합니다
-	 * 완료 후에도 처치 순간의 남은 시간을 계속 표시하므로 CompleteEncounter에서는 호출하지 않습니다
+	 * 완료 후에도 결과 순간의 남은 시간을 계속 표시하므로 ResolveEncounter에서는 호출하지 않습니다
 	 */
 	void UnregisterParticipantEncounterSource(ARSPlayerState* Participant);
+
+	/** 관찰 중인 참가자의 사망을 Failed 결과 후보로 변환합니다 */
+	UFUNCTION()
+	void HandleParticipantDeathStarted(URSHealthComponent* HealthComponent);
 
 	/** 영역에 진입한 플레이어를 참가자로 등록합니다 */
 	UFUNCTION()
@@ -222,9 +290,18 @@ private:
 	void OnRep_EncounterState(ERSBossEncounterState OldState);
 
 private:
+	friend class FRSBossEncounterStateTest;
+
 	/** 시야나 현재 Pawn의 변경과 관계없이 유지되는 전투 참가자 목록입니다 */
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<ARSPlayerState>> Participants;
+
+	/** 참가자별로 실제 사망 이벤트를 연결한 HealthComponent입니다 */
+	TMap<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>> ParticipantDeathHealthComponents;
+
+	/** 서버에서 결정하고 클라이언트에 복제하는 보스전 결과입니다 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
+	ERSBossEncounterResult EncounterResult = ERSBossEncounterResult::None;
 
 	/** 서버에서 결정하고 클라이언트에 복제하는 보스전 상태입니다 */
 	UPROPERTY(ReplicatedUsing = OnRep_EncounterState, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
@@ -242,4 +319,16 @@ private:
 
 	/** 전투가 완료된 순간에 고정한 남은 시간이며 완료 이후 표시에 사용합니다 */
 	float CompletionRemainingTimeSeconds = 0.0f;
+
+	/** Boss Death가 처음 기록된 엔진 Frame입니다 */
+	TOptional<uint64> ClearCandidateFrame;
+
+	/** Player Death가 처음 기록된 엔진 Frame입니다 */
+	TOptional<uint64> FailedCandidateFrame;
+
+	/** 다음 Tick의 결과 후보 평가가 이미 예약되어 있는지입니다 */
+	bool bIsOutcomeEvaluationPending = false;
+
+	/** 다음 Tick 결과 후보 평가를 취소하기 위한 Timer Handle입니다 */
+	FTimerHandle OutcomeEvaluationTimerHandle;
 };
