@@ -306,6 +306,11 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 		}
 	}
 
+	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(Damage, TEXT("Damage"), Context))
+	{
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
 	return ValidationResult;
 }
 #endif

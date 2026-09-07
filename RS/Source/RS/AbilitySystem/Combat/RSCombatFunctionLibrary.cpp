@@ -11,6 +11,10 @@
 #include "HAL/IConsoleManager.h"
 #include "RSGameplayTags.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
 namespace
 {
 	// 형상과 무관하게 같은 층으로 취급할 높이입니다
@@ -208,3 +212,22 @@ bool URSCombatFunctionLibrary::IsHitCheckDebugEnabled()
 	return false;
 #endif
 }
+
+#if WITH_EDITOR
+bool URSCombatFunctionLibrary::ValidateIntegerDamage(const FScalableFloat& Damage, const FString& DamageLabel, FDataValidationContext& Context)
+{
+	// 커브 테이블을 참조하면 모든 레벨을 확인할 수 없으므로 기본 레벨의 평가값만 검사합니다
+	const float DamageValue = Damage.GetValueAtLevel(1.0f);
+	const float RoundedDamageValue = FMath::RoundToFloat(DamageValue);
+
+	// 정확한 비교는 부동소수점 표현 오차에 걸리므로 의도적인 소수 입력만 걸러냅니다
+	if (FMath::IsNearlyEqual(DamageValue, RoundedDamageValue, DamageIntegerTolerance))
+	{
+		return true;
+	}
+
+	Context.AddError(FText::FromString(FString::Printf(TEXT("%s의 피해량 %f는 정수가 아닙니다. RS의 데미지는 정수 단위입니다"), *DamageLabel, DamageValue)));
+
+	return false;
+}
+#endif

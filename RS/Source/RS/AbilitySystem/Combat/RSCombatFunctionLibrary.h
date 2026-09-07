@@ -8,6 +8,10 @@
 #include "ScalableFloat.h"
 #include "RSCombatFunctionLibrary.generated.h"
 
+#if WITH_EDITOR
+class FDataValidationContext;
+#endif
+
 /** 판정 범위의 형상 종류입니다 */
 UENUM(BlueprintType)
 enum class ERSCombatShapeType : uint8
@@ -192,4 +196,23 @@ public:
 	 * 판정이 없는 예고 단계도 같은 형상 데이터로 같은 그림을 그리도록 그리기 코드를 한곳에 둡니다
 	 */
 	static void DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime);
+
+#if WITH_EDITOR
+
+public:
+	/**
+	 * 데미지 값이 정수인지 확인하고 아니면 DamageLabel을 붙인 오류를 Context에 추가합니다
+	 * RS의 데미지는 논리적으로 정수 단위이며 FScalableFloat가 float인 것은 GAS의 표현일 뿐입니다
+	 * 커브 테이블을 참조하는 값은 모든 레벨을 확인할 수 없으므로 레벨 1의 평가값만 보는 부분 검증입니다
+	 */
+	static bool ValidateIntegerDamage(const FScalableFloat& Damage, const FString& DamageLabel, FDataValidationContext& Context);
+
+public:
+	/**
+	 * 정수 데미지 검증에서 미세한 부동소수점 오차와 의도적인 소수 입력을 구분하는 도메인 tolerance입니다
+	 * 수치 계산의 정밀도를 보장하는 값이 아니므로 KINDA_SMALL_NUMBER보다 넉넉하게 둡니다
+	 */
+	static constexpr float DamageIntegerTolerance = 0.01f;
+
+#endif
 };

@@ -28,7 +28,7 @@ public:
 
 	/**
 	 * 진행 중인 보스전을 완료 상태로 만듭니다
-	 * 보스 사망과 CompleteEncounter의 연결이 아직 없어 완료 이후의 화면과 상태를 확인할 다른 수단이 없습니다
+	 * 보스 사망도 완료를 알리지만 보스를 실제로 처치하지 않고 완료 이후의 화면과 상태를 확인할 때 사용합니다
 	 */
 	UFUNCTION(Exec)
 	void RS_CompleteBossEncounter();
@@ -39,6 +39,14 @@ public:
 	 */
 	UFUNCTION(Exec)
 	void RS_ExpireBossTimeLimit();
+
+	/**
+	 * 플레이어를 가해자로 보스에게 피해를 적용합니다
+	 * 실제 대미지 GameplayEffect 경로를 그대로 사용하므로 표시 계층까지 같은 흐름으로 확인할 수 있습니다
+	 * RS의 데미지는 논리적으로 정수 단위이므로 인자도 정수로 받습니다
+	 */
+	UFUNCTION(Exec)
+	void RS_DamageBoss(int32 Amount);
 
 private:
 	/**

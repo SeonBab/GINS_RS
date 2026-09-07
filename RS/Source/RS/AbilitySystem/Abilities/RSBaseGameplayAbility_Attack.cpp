@@ -55,6 +55,15 @@ EDataValidationResult URSBaseGameplayAbility_Attack::IsDataValid(FDataValidation
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
+	// Montage가 없어도 데미지 값은 검사해야 하므로 아래 Notify 개수 검사보다 먼저 확인합니다
+	for (int32 HitCheckIndex = 0; HitCheckIndex < HitChecks.Num(); ++HitCheckIndex)
+	{
+		if (!URSCombatFunctionLibrary::ValidateIntegerDamage(HitChecks[HitCheckIndex].Damage, FString::Printf(TEXT("HitChecks[%d]"), HitCheckIndex), Context))
+		{
+			ValidationResult = EDataValidationResult::Invalid;
+		}
+	}
+
 	if (!AttackMontage)
 	{
 		return ValidationResult;
@@ -92,6 +101,7 @@ void URSBaseGameplayAbility_Attack::StartAttackMontage()
 	// InstancedPerActor라 인스턴스가 재사용되므로 이번 활성화가 첫 타격부터 시작하도록 되돌립니다
 	NextHitCheckIndex = 0;
 
+
 	// 한 Montage에 판정 시점이 여러 개일 수 있으므로 첫 이벤트에서 대기를 끝내지 않습니다
 	UAbilityTask_WaitGameplayEvent* HitCheckTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, RSGameplayTags::GameplayEvent_Combat_HitCheck, nullptr, false);
 	HitCheckTask->EventReceived.AddDynamic(this, &ThisClass::HandleHitCheckEvent);
@@ -118,7 +128,9 @@ void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Paylo
 	if (!HitChecks.IsValidIndex(NextHitCheckIndex))
 	{
 		// 설정이 어긋난 상태이므로 판정 디버그 여부와 상관없이 항상 알립니다
-		UE_LOG(LogTemp, Warning, TEXT("%s received hit check %d but only %d hit checks are configured"), *GetName(), NextHitCheckIndex, HitChecks.Num());
+		// 몽타주 이름을 함께 남기는 이유는 이 경고가 간헐적으로 발생하며, 원인이 개수 설정 오류인지
+		// 다른 몽타주의 판정 이벤트가 이 어빌리티까지 전달된 것인지 로그만으로 구분해야 하기 때문입니다
+		UE_LOG(LogTemp, Warning, TEXT("%s received hit check %d but only %d hit checks are configured (montage %s)"), *GetName(), NextHitCheckIndex, HitChecks.Num(), *GetNameSafe(AttackMontage));
 
 		return;
 	}

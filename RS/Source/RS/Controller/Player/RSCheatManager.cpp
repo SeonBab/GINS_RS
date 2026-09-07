@@ -4,10 +4,18 @@
 #include "RSCheatManager.h"
 
 #include "EngineUtils.h"
+#include "GameplayEffect.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSBossCharacter.h"
 #include "RSBossEncounter.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerState.h"
+
+namespace RSCheatDamage
+{
+	// 치트는 실제 전투와 같은 대미지 GameplayEffect를 사용해야 통지와 표시 경로까지 함께 검증됩니다
+	const TCHAR* DamageEffectPath = TEXT("/Game/AbilitySystem/GameplayEffects/GE_Damage_Basic.GE_Damage_Basic_C");
+}
 
 void URSCheatManager::RS_ToggleDownedTag()
 {
@@ -47,7 +55,7 @@ void URSCheatManager::RS_CompleteBossEncounter()
 		return;
 	}
 
-	BossEncounter->CompleteEncounter();
+	BossEncounter->ResolveEncounter(ERSBossEncounterResult::Clear);
 }
 
 void URSCheatManager::RS_ExpireBossTimeLimit()
@@ -93,4 +101,61 @@ ARSBossEncounter* URSCheatManager::FindTargetBossEncounter() const
 	}
 
 	return FallbackEncounter;
+}
+
+void URSCheatManager::RS_DamageBoss(int32 Amount)
+{
+	// 음수와 0은 HealthSet에서 걸러져 아무 일도 일어나지 않으므로 조용한 무반응 대신 이유를 남깁니다
+	if (Amount <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RS_DamageBoss needs a positive amount but received %d"), Amount);
+		return;
+	}
+
+	const APlayerController* PlayerController = GetPlayerController();
+	const ARSPlayerState* RSPlayerState = PlayerController ? PlayerController->GetPlayerState<ARSPlayerState>() : nullptr;
+	URSAbilitySystemComponent* InstigatorAbilitySystemComp = RSPlayerState ? RSPlayerState->GetRSAbilitySystemComponent() : nullptr;
+	if (!InstigatorAbilitySystemComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RS_DamageBoss found no player AbilitySystemComponent"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	URSAbilitySystemComponent* TargetAbilitySystemComp = nullptr;
+	if (World)
+	{
+		for (TActorIterator<ARSBossCharacter> BossIterator(World); BossIterator; ++BossIterator)
+		{
+			TargetAbilitySystemComp = BossIterator->GetRSAbilitySystemComponent();
+			if (TargetAbilitySystemComp)
+			{
+				break;
+			}
+		}
+	}
+
+	if (!TargetAbilitySystemComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RS_DamageBoss found no boss AbilitySystemComponent"));
+		return;
+	}
+
+	const TSubclassOf<UGameplayEffect> DamageEffectClass = LoadClass<UGameplayEffect>(nullptr, RSCheatDamage::DamageEffectPath);
+	if (!DamageEffectClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RS_DamageBoss failed to load %s"), RSCheatDamage::DamageEffectPath);
+		return;
+	}
+
+	const FGameplayEffectSpecHandle DamageSpecHandle = InstigatorAbilitySystemComp->MakeOutgoingSpec(DamageEffectClass, 1.0f, InstigatorAbilitySystemComp->MakeEffectContext());
+	if (!DamageSpecHandle.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RS_DamageBoss failed to create a damage GameplayEffectSpec"));
+		return;
+	}
+
+	DamageSpecHandle.Data->SetSetByCallerMagnitude(RSGameplayTags::SetByCaller_Damage, static_cast<float>(Amount));
+
+	InstigatorAbilitySystemComp->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetAbilitySystemComp);
 }
