@@ -2,8 +2,28 @@
 
 #include "RSLocalPlayerViewModelSubsystem.h"
 
+#include "RSLocalPlayerViewModelBase.h"
+
 void URSLocalPlayerViewModelSubsystem::Deinitialize()
 {
+	for (const TPair<TSubclassOf<UMVVMViewModelBase>, TObjectPtr<UMVVMViewModelBase>>& ViewModelPair : ViewModels)
+	{
+		URSLocalPlayerViewModelBase* ViewModel = Cast<URSLocalPlayerViewModelBase>(ViewModelPair.Value.Get());
+		if (!ViewModel)
+		{
+			continue;
+		}
+
+		for (const TWeakObjectPtr<UObject>& SourceReference : Sources)
+		{
+			if (UObject* Source = SourceReference.Get())
+			{
+				ViewModel->HandleSourceUnregistered(Source);
+			}
+		}
+	}
+
+	Sources.Reset();
 	ViewModels.Empty();
 
 	Super::Deinitialize();
@@ -44,5 +64,72 @@ UMVVMViewModelBase* URSLocalPlayerViewModelSubsystem::GetOrCreateViewModelByClas
 
 	ViewModels.Add(ViewModelClass, NewViewModel);
 
+	if (URSLocalPlayerViewModelBase* LocalPlayerViewModel = Cast<URSLocalPlayerViewModelBase>(NewViewModel))
+	{
+		for (const TWeakObjectPtr<UObject>& SourceReference : Sources)
+		{
+			if (UObject* Source = SourceReference.Get())
+			{
+				LocalPlayerViewModel->HandleSourceRegistered(Source);
+			}
+		}
+	}
+
 	return NewViewModel;
+}
+
+void URSLocalPlayerViewModelSubsystem::RegisterSource(UObject* Source)
+{
+	if (!IsValid(Source))
+	{
+		return;
+	}
+
+	Sources.RemoveAll([](const TWeakObjectPtr<UObject>& SourceReference)
+	{
+		return !SourceReference.IsValid();
+	});
+
+	// 이미 등록한 원본이라도 다시 알립니다
+	// Pawn을 소유하는 시점에는 아직 준비되지 않은 구성 요소가 있을 수 있어, 준비를 마친 게임 객체가 같은 경로로 다시 알릴 수 있어야 합니다
+	if (!Sources.Contains(Source))
+	{
+		Sources.Add(Source);
+	}
+
+	for (const TPair<TSubclassOf<UMVVMViewModelBase>, TObjectPtr<UMVVMViewModelBase>>& ViewModelPair : ViewModels)
+	{
+		if (URSLocalPlayerViewModelBase* ViewModel = Cast<URSLocalPlayerViewModelBase>(ViewModelPair.Value.Get()))
+		{
+			ViewModel->HandleSourceRegistered(Source);
+		}
+	}
+}
+
+void URSLocalPlayerViewModelSubsystem::UnregisterSource(UObject* Source)
+{
+	if (!Source)
+	{
+		return;
+	}
+
+	const bool bWasRegistered = Sources.Contains(Source);
+
+	Sources.RemoveAll([Source](const TWeakObjectPtr<UObject>& SourceReference)
+	{
+		return !SourceReference.IsValid() || SourceReference.Get() == Source;
+	});
+
+	if (!bWasRegistered)
+	{
+		return;
+	}
+
+	for (const TPair<TSubclassOf<UMVVMViewModelBase>, TObjectPtr<UMVVMViewModelBase>>& ViewModelPair : ViewModels)
+	{
+		if (URSLocalPlayerViewModelBase* ViewModel = Cast<URSLocalPlayerViewModelBase>(ViewModelPair.Value.Get()))
+		{
+			ViewModel->HandleSourceUnregistered(Source);
+		}
+	}
 }

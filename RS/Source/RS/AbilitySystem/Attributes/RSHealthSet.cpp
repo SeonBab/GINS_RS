@@ -3,7 +3,9 @@
 
 #include "RSHealthSet.h"
 
+#include "AbilitySystemComponent.h"
 #include "GameplayEffectExtension.h"
+#include "RSGameplayTags.h"
 
 URSHealthSet::URSHealthSet()
 	: Health(100.0f)
@@ -41,6 +43,12 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 
 		// Damage는 일회성 전달 값이므로 처리 전에 초기화합니다
 		SetDamage(0.0f);
+
+		// 방어 행동의 종류를 알지 않고 대상이 공개한 대미지 면역 계약만 확인합니다
+		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Immunity_Damage))
+		{
+			return;
+		}
 
 		if (LocalDamage > 0.0f)
 		{

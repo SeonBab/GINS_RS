@@ -5,6 +5,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSGameplayTags.h"
 #include "RSHealthSet.h"
 
 URSHealthComponent::URSHealthComponent()
@@ -43,6 +44,7 @@ void URSHealthComponent::InitializeWithAbilitySystem(URSAbilitySystemComponent* 
 
 	AbilitySystemComp = InAbilitySystemComponent;
 	HealthSet = FoundHealthSet;
+	UpdateDeadGameplayTag();
 
 	// ASC가 제공하는 Attribute 변경 델리게이트를 컴포넌트의 외부 이벤트로 연결합니다
 	HealthChangedDelegateHandle = AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetHealthAttribute()).AddUObject(this, &ThisClass::HandleHealthChanged);
@@ -52,12 +54,22 @@ void URSHealthComponent::InitializeWithAbilitySystem(URSAbilitySystemComponent* 
 	// 초기화 시점에도 현재 값을 전달하여 먼저 바인딩된 시스템이 초기 상태를 동기화할 수 있게 합니다
 	OnHealthChanged.Broadcast(this, GetHealth(), GetHealth());
 	OnMaxHealthChanged.Broadcast(this, GetMaxHealth(), GetMaxHealth());
+
+	if (GetHealth() <= 0.0f)
+	{
+		StartDeath();
+	}
 }
 
 void URSHealthComponent::UninitializeFromAbilitySystem()
 {
 	if (AbilitySystemComp)
 	{
+		if (bDeadGameplayTagApplied)
+		{
+			AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Dead);
+		}
+
 		if (HealthChangedDelegateHandle.IsValid())
 		{
 			AbilitySystemComp->GetGameplayAttributeValueChangeDelegate(URSHealthSet::GetHealthAttribute()).Remove(HealthChangedDelegateHandle);
@@ -71,6 +83,7 @@ void URSHealthComponent::UninitializeFromAbilitySystem()
 
 	HealthChangedDelegateHandle.Reset();
 	MaxHealthChangedDelegateHandle.Reset();
+	bDeadGameplayTagApplied = false;
 
 	HealthSet = nullptr;
 	AbilitySystemComp = nullptr;
@@ -97,9 +110,45 @@ float URSHealthComponent::GetHealthNormalized() const
 void URSHealthComponent::HandleHealthChanged(const FOnAttributeChangeData& ChangeData)
 {
 	OnHealthChanged.Broadcast(this, ChangeData.OldValue, ChangeData.NewValue);
+
+	if (ChangeData.NewValue <= 0.0f)
+	{
+		StartDeath();
+	}
 }
 
 void URSHealthComponent::HandleMaxHealthChanged(const FOnAttributeChangeData& ChangeData)
 {
 	OnMaxHealthChanged.Broadcast(this, ChangeData.OldValue, ChangeData.NewValue);
+}
+
+void URSHealthComponent::StartDeath()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	bIsDead = true;
+	UpdateDeadGameplayTag();
+	OnDeathStarted.Broadcast(this);
+}
+
+void URSHealthComponent::UpdateDeadGameplayTag()
+{
+	if (!AbilitySystemComp)
+	{
+		return;
+	}
+
+	if (bIsDead && !bDeadGameplayTagApplied)
+	{
+		AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Dead);
+		bDeadGameplayTagApplied = true;
+	}
+	else if (!bIsDead && bDeadGameplayTagApplied)
+	{
+		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Dead);
+		bDeadGameplayTagApplied = false;
+	}
 }

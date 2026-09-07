@@ -7,6 +7,8 @@
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include "RSLocalPlayerViewModelSubsystem.generated.h"
 
+class URSLocalPlayerViewModelBase;
+
 /** 로컬 플레이어가 공유하는 ViewModel을 클래스별로 생성하고 보관합니다 */
 UCLASS()
 class RS_API URSLocalPlayerViewModelSubsystem : public ULocalPlayerSubsystem
@@ -40,8 +42,18 @@ public:
 	/** ViewModel을 클래스로 조회하고 없으면 생성합니다 */
 	UMVVMViewModelBase* GetOrCreateViewModelByClass(TSubclassOf<UMVVMViewModelBase> ViewModelClass);
 
+	/** 현재 로컬 플레이어의 ViewModel에 제공할 데이터 원본을 등록합니다 */
+	void RegisterSource(UObject* Source);
+
+	/** 등록한 데이터 원본을 제거하고 이를 관찰하는 ViewModel에 해제를 알립니다 */
+	void UnregisterSource(UObject* Source);
+
 private:
 	/** 로컬 플레이어가 공유하는 ViewModel 인스턴스입니다 */
 	UPROPERTY(Transient)
 	TMap<TSubclassOf<UMVVMViewModelBase>, TObjectPtr<UMVVMViewModelBase>> ViewModels;
+
+	/** ViewModel 생성 순서와 관계없이 다시 전달할 현재 데이터 원본입니다 */
+	UPROPERTY(Transient)
+	TArray<TWeakObjectPtr<UObject>> Sources;
 };

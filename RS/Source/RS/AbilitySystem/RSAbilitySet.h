@@ -3,12 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ActiveGameplayEffectHandle.h"
 #include "Engine/DataAsset.h"
 #include "GameplayAbilitySpecHandle.h"
 #include "GameplayTagContainer.h"
 #include "RSAbilitySet.generated.h"
 
 
+class UGameplayEffect;
 class URSAbilitySystemComponent;
 class URSBaseGameplayAbility;
 
@@ -45,12 +47,18 @@ public:
 	/** AbilitySet을 통해 부여된 유효한 어빌리티 핸들을 기록합니다 */
 	void AddAbilitySpecHandle(const FGameplayAbilitySpecHandle& Handle);
 
-	/** 기록된 어빌리티를 ASC에서 제거하고 보관 중인 핸들을 초기화합니다 */
+	/** AbilitySet을 통해 적용된 유효한 GameplayEffect 핸들을 기록합니다 */
+	void AddGameplayEffectHandle(const FActiveGameplayEffectHandle& Handle);
+
+	/** 기록된 어빌리티와 GameplayEffect를 ASC에서 제거하고 보관 중인 핸들을 초기화합니다 */
 	void TakeFromAbilitySystem(URSAbilitySystemComponent* AbilitySystemComponent);
 
 private:
 	UPROPERTY()
 	TArray<FGameplayAbilitySpecHandle> AbilitySpecHandles;
+
+	UPROPERTY()
+	TArray<FActiveGameplayEffectHandle> GameplayEffectHandles;
 };
 
 /** 여러 Gameplay Ability의 부여 설정을 하나의 데이터 에셋으로 관리합니다 */
@@ -70,4 +78,11 @@ private:
 	/** 이 AbilitySet이 ASC에 부여할 Gameplay Ability 목록입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
 	TArray<FRSAbilitySet_GameplayAbility> GrantedGameplayAbilities;
+
+	/**
+	 * 이 AbilitySet이 ASC에 적용할 상시 GameplayEffect 목록입니다
+	 * 초기 능력치나 진영 고유의 면역처럼 캐릭터가 태어날 때부터 유지하는 효과를 에셋에서 지정합니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effects", meta = (AllowPrivateAccess = "true"))
+	TArray<TSubclassOf<UGameplayEffect>> GrantedGameplayEffects;
 };

@@ -37,6 +37,12 @@ public:
 	/** 현재 공격 대상과 Blackboard 상태를 정리하고 보스전을 종료합니다 */
 	void EndEncounter();
 
+	/**
+	 * 보스가 더 이상 행동하지 않아야 할 때 Behavior Tree, 이동과 Focus를 모두 중지합니다
+	 * Ability만 취소하면 Behavior Tree가 다음 공격을 계속 시도하므로 사망 처리는 이 함수를 사용합니다
+	 */
+	void StopBossBehavior();
+
 	/** 현재 대상이 유효하지 않으면 살아 있는 참가자 중 가장 가까운 Pawn을 선택합니다 */
 	void RefreshTargetActor();
 

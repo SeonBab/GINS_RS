@@ -9,6 +9,8 @@
 #include "RSPlayerCharacter.generated.h"
 
 class UInputMappingContext;
+class UAnimMontage;
+class UAbilitySystemComponent;
 class URSInputConfig;
 class UCameraComponent;
 class USpringArmComponent;
@@ -23,6 +25,8 @@ class RS_API ARSPlayerCharacter : public ARSBaseCharacter, public IAbilitySystem
 
 public:
 	ARSPlayerCharacter();
+	virtual void PostInitializeComponents() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	virtual void PossessedBy(AController* NewController) override;
 
@@ -34,8 +38,12 @@ public:
 	/** 플레이어 입력 컴포넌트에 입력 액션을 바인딩합니다 */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	/** 입력 태그와 InputAction의 연결을 정의한 설정을 반환합니다 */
+	const URSInputConfig* GetInputConfig() const { return InputConfig; }
+
 protected:
-	void Input_Move(const FInputActionValue& InputActionValue);
+	/** PlayerController가 반환한 마우스 위치까지 Navigation 이동을 요청합니다 */
+	void Input_MoveTo(const FInputActionValue& InputActionValue);
 
 	/** 어빌리티 입력 태그의 누름 상태를 ASC에 전달합니다 */
 	void Input_AbilityTagPressed(FGameplayTag InputTag);
@@ -43,12 +51,45 @@ protected:
 	/** 어빌리티 입력 태그의 해제 상태를 ASC에 전달합니다 */
 	void Input_AbilityTagReleased(FGameplayTag InputTag);
 
+private:
+	/** 현재 Gameplay State에서 새 Navigation 이동을 요청할 수 있는지 반환합니다 */
+	bool CanRequestMoveTo() const;
+
+	/** 진행 중인 Navigation 경로 추종과 CharacterMovement의 속도를 중단합니다 */
+	void StopNavigationMovement();
+
+	/** 현재 ASC의 행동 및 이동 차단 상태 변경을 구독합니다 */
+	void InitializeMovementBlocking(UAbilitySystemComponent* AbilitySystemComp);
+
+	/** 이전 ASC에 등록한 이동 차단 상태 변경 구독을 해제합니다 */
+	void UninitializeMovementBlocking();
+
+	/** 행동 또는 이동 차단 상태가 시작되면 진행 중인 Navigation 이동을 중단합니다 */
+	void HandleMovementBlockingTagChanged(FGameplayTag GameplayTag, int32 NewCount);
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<URSInputConfig> InputConfig;
+
+	/** 우클릭을 누르는 동안 커서 위치와 Navigation 경로를 갱신할 최소 시간 간격입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (ClampMin = "0.0", Units = "s"))
+	float MoveToUpdateInterval = 0.1f;
+
+private:
+	/** 마지막으로 커서 위치 갱신을 시도한 월드 시간입니다 */
+	double LastMoveToUpdateTime = -TNumericLimits<double>::Max();
+
+	/** 이동 차단 상태 변경을 구독한 ASC입니다 */
+	TWeakObjectPtr<UAbilitySystemComponent> MovementStateAbilitySystemComp;
+
+	/** 행동 차단 상태 변경 델리게이트를 정확히 해제하기 위한 핸들입니다 */
+	FDelegateHandle ActionLockedTagDelegateHandle;
+
+	/** 이동 차단 상태 변경 델리게이트를 정확히 해제하기 위한 핸들입니다 */
+	FDelegateHandle MovementBlockedTagDelegateHandle;
 #pragma endregion
 
 #pragma region GAS
@@ -62,6 +103,10 @@ public:
 	/** PlayerState의 HealthSet을 현재 캐릭터에 연결하는 컴포넌트를 반환합니다 */
 	UFUNCTION(BlueprintPure, Category = "RS|Health")
 	URSHealthComponent* GetHealthComponent() const { return HealthComp; }
+
+	/** 현재 플레이어 캐릭터가 사망 상태인지 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Death")
+	bool IsDead() const;
 
 protected:
 	/**
@@ -78,6 +123,25 @@ private:
 
 	/** ASC 초기화가 여러 번 호출되어도 기본 어빌리티가 중복으로 부여되지 않게 합니다 */
 	bool bDefaultAbilitiesGranted = false;
+#pragma endregion
+
+#pragma region Death
+
+protected:
+	/** 사망 애니메이션 또는 Ragdoll 같은 시각적 연출을 Blueprint에서 시작합니다 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RS|Death", meta = (DisplayName = "Death Started"))
+	void ReceiveDeathStarted();
+
+private:
+	/** 사망 시 어빌리티와 이동을 중지하고 Blueprint 사망 연출을 시작합니다 */
+	UFUNCTION()
+	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
+
+protected:
+	/** 사망 상태가 시작될 때 재생할 Animation Montage입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Death")
+	TObjectPtr<UAnimMontage> DeathMontage;
+
 #pragma endregion
 
 private:

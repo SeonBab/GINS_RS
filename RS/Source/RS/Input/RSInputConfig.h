@@ -29,6 +29,8 @@ class RS_API URSInputConfig : public UDataAsset
 public:
 	const UInputAction* FindNativeInputAction(const FGameplayTag& InputTag, bool bLogNotFound = true) const;
 
+	const UInputAction* FindAbilityInputAction(const FGameplayTag& InputTag, bool bLogNotFound = true) const;
+
 	const TArray<FRSInputAction>& GetAbilityInputActions() const
 	{
 		return AbilityInputActions;

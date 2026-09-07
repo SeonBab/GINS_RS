@@ -38,7 +38,7 @@ void URSPlayerAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 
 	// 작은 속도 오차는 무시하고, 입력 가속도가 있을 때만 이동 애니메이션으로 전환한다
 	// 따라서 입력을 놓고 감속만 진행 중일 때 이동 상태가 불필요하게 유지되지 않는다
-	bShouldMove = GroundSpeed > 3.0f && !PlayerMovement->GetCurrentAcceleration().IsNearlyZero();
+	bShouldMove = GroundSpeed > 3.0f;
 
 	// 점프뿐 아니라 지면에서 떨어져 낙하하는 상태도 포함한다
 	bIsFalling = PlayerMovement->IsFalling();

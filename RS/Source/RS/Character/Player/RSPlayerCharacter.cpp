@@ -3,12 +3,17 @@
 
 #include "RSPlayerCharacter.h"
 
+#include "AbilitySystemComponent.h"
+#include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Components/CapsuleComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSHealthComponent.h"
+#include "RSPlayerController.h"
 #include "RSPlayerState.h"
 #include "RSGameplayTags.h"
 #include "RSInputComponent.h"
@@ -25,6 +30,27 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	CameraComp->SetupAttachment(SpringArmComp);
 
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+
+	// 공격 판정이 진영을 콜리전 채널로 구분하므로 Blueprint 설정 누락을 막기 위해 캡슐 프로파일을 코드에서 고정합니다
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("RSPlayerBody"));
+
+	// 클릭 경로가 꺾일 때 CharacterMovement가 현재 진행 방향을 기준으로 캐릭터를 회전시킵니다
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+}
+
+void ARSPlayerCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+}
+
+void ARSPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UninitializeMovementBlocking();
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void ARSPlayerCharacter::PossessedBy(AController* NewController)
@@ -64,8 +90,8 @@ void ARSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		return;
 	}
 
-	// Native Input은 캐릭터가 직접 처리할 콜백에 바인딩합니다
-	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Input_Move);
+	// Triggered를 사용해 우클릭을 누르는 동안 현재 커서 위치를 계속 추적합니다
+	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Triggered, this, &ThisClass::Input_MoveTo);
 
 	// Ability Input은 입력 태그를 함께 전달하여 ASC의 입력 상태로 기록합니다
 	RSInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityTagPressed, &ThisClass::Input_AbilityTagReleased);
@@ -78,28 +104,108 @@ void ARSPlayerCharacter::OnRep_PlayerState()
 	InitializeAbilitySystem();
 }
 
-void ARSPlayerCharacter::Input_Move(const FInputActionValue& InputActionValue)
+void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 {
-	if (!Controller)
+	if (!InputActionValue.Get<bool>() || !CanRequestMoveTo())
 	{
 		return;
 	}
 
-	const FVector2D MovementValue = InputActionValue.Get<FVector2D>();
+	const double CurrentTime = GetWorld()->GetTimeSeconds();
+	if (CurrentTime - LastMoveToUpdateTime < MoveToUpdateInterval)
+	{
+		return;
+	}
 
-	// 컨트롤러의 Yaw 회전을 기준으로 이동 방향을 계산합니다
-	const FRotator ControlRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0.0f, ControlRotation.Yaw, 0.0f);
+	LastMoveToUpdateTime = CurrentTime;
 
-	// 카메라 기준 이동이 필요하면 아래 회전을 대신 사용합니다
-	// const FRotator CameraRotation = CameraComp->GetComponentRotation();
-	// const FRotator YawRotation(0.0f, CameraRotation.Yaw, 0.0f);
+	ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
+	if (!PlayerController)
+	{
+		return;
+	}
 
-	const FVector ForwardDirection = YawRotation.RotateVector(FVector::ForwardVector);
-	const FVector RightDirection = YawRotation.RotateVector(FVector::RightVector);
+	FVector MoveToLocation;
+	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
+	if (!PlayerController->GetCursorWorldLocation(MoveToLocation))
+	{
+		return;
+	}
 
-	AddMovementInput(ForwardDirection, MovementValue.Y);
-	AddMovementInput(RightDirection, MovementValue.X);
+	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
+}
+
+bool ARSPlayerCharacter::CanRequestMoveTo() const
+{
+	const UAbilitySystemComponent* AbilitySystemComp = GetAbilitySystemComponent();
+
+	return AbilitySystemComp
+		&& !IsDead()
+		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Action_Locked)
+		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Movement_Blocked);
+}
+
+void ARSPlayerCharacter::StopNavigationMovement()
+{
+	if (Controller)
+	{
+		// 속도만 중단하면 Navigation 경로 추종이 다음 프레임에 이동을 다시 요청할 수 있습니다
+		Controller->StopMovement();
+	}
+
+	GetCharacterMovement()->StopMovementImmediately();
+}
+
+void ARSPlayerCharacter::InitializeMovementBlocking(UAbilitySystemComponent* AbilitySystemComp)
+{
+	if (!AbilitySystemComp)
+	{
+		UninitializeMovementBlocking();
+
+		return;
+	}
+
+	if (MovementStateAbilitySystemComp.Get() != AbilitySystemComp || !ActionLockedTagDelegateHandle.IsValid() || !MovementBlockedTagDelegateHandle.IsValid())
+	{
+		UninitializeMovementBlocking();
+
+		MovementStateAbilitySystemComp = AbilitySystemComp;
+		ActionLockedTagDelegateHandle = AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Action_Locked, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleMovementBlockingTagChanged);
+		MovementBlockedTagDelegateHandle = AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Movement_Blocked, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleMovementBlockingTagChanged);
+	}
+
+	HandleMovementBlockingTagChanged(RSGameplayTags::State_Action_Locked, AbilitySystemComp->GetTagCount(RSGameplayTags::State_Action_Locked));
+	HandleMovementBlockingTagChanged(RSGameplayTags::State_Movement_Blocked, AbilitySystemComp->GetTagCount(RSGameplayTags::State_Movement_Blocked));
+}
+
+void ARSPlayerCharacter::UninitializeMovementBlocking()
+{
+	UAbilitySystemComponent* AbilitySystemComp = MovementStateAbilitySystemComp.Get();
+	if (AbilitySystemComp)
+	{
+		if (ActionLockedTagDelegateHandle.IsValid())
+		{
+			AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Action_Locked, EGameplayTagEventType::NewOrRemoved).Remove(ActionLockedTagDelegateHandle);
+		}
+
+		if (MovementBlockedTagDelegateHandle.IsValid())
+		{
+			AbilitySystemComp->RegisterGameplayTagEvent(RSGameplayTags::State_Movement_Blocked, EGameplayTagEventType::NewOrRemoved).Remove(MovementBlockedTagDelegateHandle);
+		}
+	}
+
+	MovementStateAbilitySystemComp.Reset();
+	ActionLockedTagDelegateHandle.Reset();
+	MovementBlockedTagDelegateHandle.Reset();
+}
+
+void ARSPlayerCharacter::HandleMovementBlockingTagChanged(FGameplayTag GameplayTag, int32 NewCount)
+{
+	const bool bIsMovementBlockingTag = GameplayTag == RSGameplayTags::State_Action_Locked || GameplayTag == RSGameplayTags::State_Movement_Blocked;
+	if (bIsMovementBlockingTag && NewCount > 0)
+	{
+		StopNavigationMovement();
+	}
 }
 
 void ARSPlayerCharacter::Input_AbilityTagPressed(FGameplayTag InputTag)
@@ -135,12 +241,18 @@ UAbilitySystemComponent* ARSPlayerCharacter::GetAbilitySystemComponent() const
 	return RSPlayerState ? RSPlayerState->GetAbilitySystemComponent() : nullptr;
 }
 
+bool ARSPlayerCharacter::IsDead() const
+{
+	return HealthComp && HealthComp->IsDead();
+}
+
 void ARSPlayerCharacter::InitializeAbilitySystem()
 {
 	ARSPlayerState* RSPlayerState = GetPlayerState<ARSPlayerState>();
 	if (!RSPlayerState)
 	{
 		// PlayerState가 교체되거나 제거된 경우 이전 ASC의 델리게이트 연결을 정리합니다
+		UninitializeMovementBlocking();
 		HealthComp->UninitializeFromAbilitySystem();
 
 		return;
@@ -149,6 +261,7 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 	URSAbilitySystemComponent* AbilitySystemComp = RSPlayerState->GetRSAbilitySystemComponent();
 	if (!AbilitySystemComp)
 	{
+		UninitializeMovementBlocking();
 		HealthComp->UninitializeFromAbilitySystem();
 
 		return;
@@ -158,6 +271,7 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 
 	// ActorInfo 초기화가 끝난 ASC와 HealthSet을 캐릭터의 HealthComponent에 연결합니다
 	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
+	InitializeMovementBlocking(AbilitySystemComp);
 
 	if (AbilitySystemComp->IsOwnerActorAuthoritative() && !bDefaultAbilitiesGranted && DefaultAbilitySet)
 	{
@@ -165,4 +279,34 @@ void ARSPlayerCharacter::InitializeAbilitySystem()
 
 		bDefaultAbilitiesGranted = true;
 	}
+
+	// Pawn 소유는 ASC 초기화보다 먼저 일어나므로, 관찰할 준비가 끝난 지금 다시 알려 사용자 인터페이스가 초기화 순서에 의존하지 않게 합니다
+	if (ARSPlayerController* RSPlayerController = GetController<ARSPlayerController>())
+	{
+		RSPlayerController->RegisterViewModelSource(this);
+	}
+}
+
+void ARSPlayerCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
+{
+	if (InHealthComponent != HealthComp)
+	{
+		return;
+	}
+
+	if (URSAbilitySystemComponent* AbilitySystemComp = Cast<URSAbilitySystemComponent>(GetAbilitySystemComponent()))
+	{
+		AbilitySystemComp->ClearAbilityInput();
+		AbilitySystemComp->CancelAbilities();
+	}
+
+	StopNavigationMovement();
+	GetCharacterMovement()->DisableMovement();
+
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+
+	ReceiveDeathStarted();
 }

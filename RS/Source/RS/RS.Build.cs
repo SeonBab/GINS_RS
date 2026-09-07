@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.IO;
 using UnrealBuildTool;
@@ -14,7 +14,14 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Attributes"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Components"),
+			Path.Combine(ModuleDirectory, "AI"),
+			Path.Combine(ModuleDirectory, "AI", "Tasks"),
 			Path.Combine(ModuleDirectory, "AnimInstance"),
+			Path.Combine(ModuleDirectory, "Animation"),
+			Path.Combine(ModuleDirectory, "Animation", "Notifies"),
+			Path.Combine(ModuleDirectory, "Camera"),
+			Path.Combine(ModuleDirectory, "Camera", "Boss"),
+			Path.Combine(ModuleDirectory, "Camera", "Player"),
 			Path.Combine(ModuleDirectory, "Character"),
 			Path.Combine(ModuleDirectory, "Character", "Boss"),
 			Path.Combine(ModuleDirectory, "Character", "Player"),
@@ -34,7 +41,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "UI", "Widget"),
 		});
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "FieldNotification", "ModelViewViewModel" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "InputCore", "EnhancedInput", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "SlateCore", "FieldNotification", "ModelViewViewModel" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

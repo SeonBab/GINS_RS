@@ -3,6 +3,7 @@
 
 #include "RSAbilitySet.h"
 
+#include "GameplayEffect.h"
 #include "RSAbilitySystemComponent.h"
 #include "Abilities/RSBaseGameplayAbility.h"
 
@@ -14,6 +15,16 @@ void FRSAbilitySet_GrantedHandles::AddAbilitySpecHandle(const FGameplayAbilitySp
 	}
 
 	AbilitySpecHandles.Add(Handle);
+}
+
+void FRSAbilitySet_GrantedHandles::AddGameplayEffectHandle(const FActiveGameplayEffectHandle& Handle)
+{
+	if (!Handle.IsValid())
+	{
+		return;
+	}
+
+	GameplayEffectHandles.Add(Handle);
 }
 
 void FRSAbilitySet_GrantedHandles::TakeFromAbilitySystem(URSAbilitySystemComponent* AbilitySystemComponent)
@@ -35,7 +46,19 @@ void FRSAbilitySet_GrantedHandles::TakeFromAbilitySystem(URSAbilitySystemCompone
 		AbilitySystemComponent->ClearAbility(Handle);
 	}
 
+	for (const FActiveGameplayEffectHandle& Handle : GameplayEffectHandles)
+	{
+		if (!Handle.IsValid())
+		{
+			continue;
+		}
+
+		// AbilitySet을 통해 적용했던 상시 효과만 제거하고 다른 출처의 효과는 건드리지 않습니다
+		AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
+	}
+
 	AbilitySpecHandles.Reset();
+	GameplayEffectHandles.Reset();
 }
 
 void URSAbilitySet::GiveToAbilitySystem(URSAbilitySystemComponent* AbilitySystemComponent, FRSAbilitySet_GrantedHandles* OutGrantedHandles, UObject* SourceObject) const
@@ -72,5 +95,33 @@ void URSAbilitySet::GiveToAbilitySystem(URSAbilitySystemComponent* AbilitySystem
 
 		// AbilitySet이 해제될 때 이 어빌리티만 회수할 수 있도록 핸들을 기록합니다
 		OutGrantedHandles->AddAbilitySpecHandle(Handle);
+	}
+
+	for (const TSubclassOf<UGameplayEffect>& EffectToGrant : GrantedGameplayEffects)
+	{
+		if (!EffectToGrant)
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s contains an invalid gameplay effect."), *GetNameSafe(this));
+
+			continue;
+		}
+
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		EffectContext.AddSourceObject(SourceObject);
+
+		const FGameplayEffectSpecHandle EffectSpec = AbilitySystemComponent->MakeOutgoingSpec(EffectToGrant, 1.0f, EffectContext);
+		if (!EffectSpec.IsValid())
+		{
+			continue;
+		}
+
+		const FActiveGameplayEffectHandle Handle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*EffectSpec.Data.Get());
+
+		if (!OutGrantedHandles)
+		{
+			continue;
+		}
+
+		OutGrantedHandles->AddGameplayEffectHandle(Handle);
 	}
 }
