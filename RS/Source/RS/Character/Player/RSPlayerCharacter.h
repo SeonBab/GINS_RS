@@ -11,6 +11,7 @@
 class UInputMappingContext;
 class UAnimMontage;
 class UAbilitySystemComponent;
+class UNiagaraSystem;
 class URSInputConfig;
 class UCameraComponent;
 class USpringArmComponent;
@@ -42,6 +43,9 @@ public:
 	const URSInputConfig* GetInputConfig() const { return InputConfig; }
 
 protected:
+	/** 우클릭을 누른 순간 최초 Navigation 이동과 클릭 위치 표시를 요청합니다 */
+	void Input_MoveToStarted();
+
 	/** PlayerController가 반환한 마우스 위치까지 Navigation 이동을 요청합니다 */
 	void Input_MoveTo(const FInputActionValue& InputActionValue);
 
@@ -52,6 +56,12 @@ protected:
 	void Input_AbilityTagReleased(FGameplayTag InputTag);
 
 private:
+	/** PlayerController에서 마우스 커서 아래의 이동 요청 위치를 가져옵니다 */
+	bool TryGetMoveToLocation(FVector& OutMoveToLocation) const;
+
+	/** 이동 요청 위치에 MoveClick Niagara를 한 번 재생합니다 */
+	void SpawnMoveClickEffect(const FVector& Location) const;
+
 	/** 현재 Gameplay State에서 새 Navigation 이동을 요청할 수 있는지 반환합니다 */
 	bool CanRequestMoveTo() const;
 
@@ -74,11 +84,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<URSInputConfig> InputConfig;
 
+	/** 우클릭을 누른 위치에 한 번 재생할 Niagara System입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input|Presentation")
+	TObjectPtr<UNiagaraSystem> MoveClickSystem;
+
 	/** 우클릭을 누르는 동안 커서 위치와 Navigation 경로를 갱신할 최소 시간 간격입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (ClampMin = "0.0", Units = "s"))
 	float MoveToUpdateInterval = 0.1f;
 
 private:
+	/** Started에서 최초 이동을 요청한 엔진 프레임입니다 */
+	uint64 LastInitialMoveToRequestFrame = MAX_uint64;
+
 	/** 마지막으로 커서 위치 갱신을 시도한 월드 시간입니다 */
 	double LastMoveToUpdateTime = -TNumericLimits<double>::Max();
 

@@ -8,6 +8,7 @@
 #include "Components/CapsuleComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "NiagaraFunctionLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
@@ -90,7 +91,10 @@ void ARSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		return;
 	}
 
-	// Triggered를 사용해 우클릭을 누르는 동안 현재 커서 위치를 계속 추적합니다
+	// Started의 최초 이동과 같은 프레임에 발생한 Triggered는 Input_MoveTo에서 건너뜁니다
+	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Started, this, &ThisClass::Input_MoveToStarted);
+
+	// Triggered를 사용해 최초 입력 프레임 이후 우클릭을 누르는 동안 현재 커서 위치를 계속 추적합니다
 	RSInputComponent->BindNativeAction(InputConfig, RSGameplayTags::InputTag_MoveTo, ETriggerEvent::Triggered, this, &ThisClass::Input_MoveTo);
 
 	// Ability Input은 입력 태그를 함께 전달하여 ASC의 입력 상태로 기록합니다
@@ -104,9 +108,35 @@ void ARSPlayerCharacter::OnRep_PlayerState()
 	InitializeAbilitySystem();
 }
 
+void ARSPlayerCharacter::Input_MoveToStarted()
+{
+	if (!CanRequestMoveTo())
+	{
+		return;
+	}
+
+	FVector MoveToLocation;
+	if (!TryGetMoveToLocation(MoveToLocation))
+	{
+		return;
+	}
+
+	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
+	SpawnMoveClickEffect(MoveToLocation);
+
+	LastInitialMoveToRequestFrame = GFrameCounter;
+	LastMoveToUpdateTime = GetWorld()->GetTimeSeconds();
+}
+
 void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 {
 	if (!InputActionValue.Get<bool>() || !CanRequestMoveTo())
+	{
+		return;
+	}
+
+	// Started가 처리한 최초 프레임에는 같은 위치의 Trace와 Navigation 경로 탐색을 반복하지 않습니다
+	if (LastInitialMoveToRequestFrame == GFrameCounter)
 	{
 		return;
 	}
@@ -119,20 +149,31 @@ void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 
 	LastMoveToUpdateTime = CurrentTime;
 
-	ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
-	if (!PlayerController)
-	{
-		return;
-	}
-
 	FVector MoveToLocation;
-	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
-	if (!PlayerController->GetCursorWorldLocation(MoveToLocation))
+	if (!TryGetMoveToLocation(MoveToLocation))
 	{
 		return;
 	}
 
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
+}
+
+bool ARSPlayerCharacter::TryGetMoveToLocation(FVector& OutMoveToLocation) const
+{
+	const ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
+
+	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
+	return PlayerController && PlayerController->GetCursorWorldLocation(OutMoveToLocation);
+}
+
+void ARSPlayerCharacter::SpawnMoveClickEffect(const FVector& Location) const
+{
+	if (!MoveClickSystem)
+	{
+		return;
+	}
+
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, MoveClickSystem, Location);
 }
 
 bool ARSPlayerCharacter::CanRequestMoveTo() const
