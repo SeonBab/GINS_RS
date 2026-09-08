@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "RSBossResultAction.h"
 #include "RSPlayerController.generated.h"
 
 class URSLocalPlayerViewModelSubsystem;
@@ -57,6 +58,12 @@ public:
 
 	/** Local Presentation에 전달된 Boss Encounter 결과를 반환합니다 */
 	ERSBossEncounterResult GetBossResultPresentation() const;
+
+	/** Local Result UI의 Action 의도를 현재 World의 Game Rule 계층으로 전달합니다 */
+	bool RequestBossResultAction(ERSBossResultAction Action);
+
+	/** GameMode가 Action을 승인하면 Local Result UI의 추가 입력을 비활성화합니다 */
+	void HandleBossResultActionAccepted();
 
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */

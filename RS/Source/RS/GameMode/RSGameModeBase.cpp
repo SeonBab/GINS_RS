@@ -4,6 +4,7 @@
 #include "RSGameModeBase.h"
 
 #include "EngineUtils.h"
+#include "Kismet/GameplayStatics.h"
 #include "RSBossEncounter.h"
 #include "RSPlayerController.h"
 #include "RSPlayerHeadUpDisplay.h"
@@ -96,4 +97,67 @@ void ARSGameModeBase::RequestLocalBossResultPresentation(ERSBossEncounterResult 
 		PlayerController->BeginBossResultPresentation(Result);
 		return;
 	}
+}
+
+bool ARSGameModeBase::RequestBossResultAction(ARSPlayerController* RequestingPlayerController, ERSBossResultAction Action)
+{
+	if (!IsValid(RequestingPlayerController) || RequestingPlayerController->GetWorld() != GetWorld() || !RequestingPlayerController->IsLocalController())
+	{
+		return false;
+	}
+
+	if (!BossResult.IsSet() || RequestingPlayerController->GetBossResultPresentation() != BossResult.GetValue())
+	{
+		return false;
+	}
+
+	if (!TryCommitBossResultAction(Action))
+	{
+		return false;
+	}
+
+	// Local Presentation의 재입력을 먼저 막은 뒤 World 전환을 실행합니다
+	RequestingPlayerController->HandleBossResultActionAccepted();
+	ExecuteBossResultAction(Action);
+	return true;
+}
+
+bool ARSGameModeBase::TryCommitBossResultAction(ERSBossResultAction Action)
+{
+	const ERSBossEncounterResult CurrentResult = BossResult.Get(ERSBossEncounterResult::None);
+	const bool bIsValidResult = CurrentResult == ERSBossEncounterResult::Clear || CurrentResult == ERSBossEncounterResult::Failed;
+	const bool bIsValidAction = Action == ERSBossResultAction::RestartLevel || Action == ERSBossResultAction::ReturnToMainMenu;
+	if (!bIsValidResult || !bIsValidAction || BossResultAction.IsSet())
+	{
+		return false;
+	}
+
+	BossResultAction.Emplace(Action);
+	return true;
+}
+
+void ARSGameModeBase::ExecuteBossResultAction(ERSBossResultAction Action)
+{
+	FName TargetLevelName;
+	switch (Action)
+	{
+	case ERSBossResultAction::RestartLevel:
+		TargetLevelName = FName(*UGameplayStatics::GetCurrentLevelName(this, true));
+		break;
+
+	case ERSBossResultAction::ReturnToMainMenu:
+		TargetLevelName = TEXT("/Game/Maps/MainMenuMap");
+		break;
+
+	default:
+		return;
+	}
+
+	if (TargetLevelName.IsNone())
+	{
+		BossResultAction.Reset();
+		return;
+	}
+
+	UGameplayStatics::OpenLevel(this, TargetLevelName, true);
 }
