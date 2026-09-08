@@ -48,11 +48,11 @@
 | --- | --- | --- |
 | `RegisterParticipant` | 등록 | 등록 |
 | `UnregisterParticipant` | 해제 | 해제 |
-| `CompleteEncounter` | 해제 | **유지** |
+| `ResolveEncounter` | **유지** | **유지** |
 | `ResetEncounter` | 해제 | 해제 |
 | `EndPlay` | 해제 | 해제 |
 
-보스를 처치하면 보스 체력 표시는 정리하지만 제한 시간은 처치 순간의 값을 계속 보여준다. 수명이 다르므로 두 원본의 해제를 하나의 공통 함수로 묶지 않는다.
+Result UI 표시 후에도 Boss Health와 처치 순간의 제한 시간을 함께 유지하므로 정상 `Finished` 전이에서는 두 Source를 유지한다. `ResetEncounter`, 참가자 제거와 `EndPlay`에서 각 Source를 해제하며, 수명이 다를 수 있으므로 해제 함수는 분리한다.
 
 ## 데이터 흐름
 

@@ -74,6 +74,8 @@ void ARSBossController::EndEncounter()
 {
 	GetWorldTimerManager().ClearTimer(TargetRefreshTimerHandle);
 
+	// Failed에서는 Behavior Tree를 유지하되 진행 중인 전투 이동이 Idle 구간까지 남지 않게 합니다
+	StopMovement();
 	SetTargetActor(nullptr);
 	BossEncounter = nullptr;
 }
