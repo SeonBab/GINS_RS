@@ -45,6 +45,10 @@ protected:
 	UFUNCTION()
 	virtual void HandleAttackMontageCompleted();
 
+	/** 공격 Montage가 자연스러운 Blend Out을 시작하면 어빌리티를 종료합니다 */
+	UFUNCTION()
+	virtual void HandleAttackMontageBlendedOut();
+
 	/** 공격 Montage가 중단되면 취소 종료합니다 */
 	UFUNCTION()
 	virtual void HandleAttackMontageInterrupted();

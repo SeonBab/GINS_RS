@@ -61,6 +61,12 @@ void URSGameplayAbility_BasicAttack::ActivateAbility(const FGameplayAbilitySpecH
 	}
 
 	ConsumeRequiredComboState();
+	if (!ApplyNextComboState())
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
 
 	// 공격 시작 이후 Navigation 경로 추종이 회전과 충돌하지 않게 현재 이동 요청을 중단합니다
 	PlayerController->StopMovement();
@@ -71,11 +77,16 @@ void URSGameplayAbility_BasicAttack::ActivateAbility(const FGameplayAbilitySpecH
 	StartAttackMontage();
 }
 
-void URSGameplayAbility_BasicAttack::HandleAttackMontageCompleted()
+void URSGameplayAbility_BasicAttack::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	ApplyNextComboState();
+	if (bWasCancelled && NextComboStateEffectHandle.IsValid() && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		ActorInfo->AbilitySystemComponent->RemoveActiveGameplayEffect(NextComboStateEffectHandle);
+	}
 
-	Super::HandleAttackMontageCompleted();
+	NextComboStateEffectHandle.Invalidate();
+
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 FGameplayTag URSGameplayAbility_BasicAttack::GetRequiredComboReadyTag() const
@@ -114,27 +125,30 @@ void URSGameplayAbility_BasicAttack::ConsumeRequiredComboState()
 	CurrentActorInfo->AbilitySystemComponent->RemoveActiveEffectsWithGrantedTags(TagsToRemove);
 }
 
-void URSGameplayAbility_BasicAttack::ApplyNextComboState()
+bool URSGameplayAbility_BasicAttack::ApplyNextComboState()
 {
 	if (!NextComboReadyTag.IsValid())
 	{
-		return;
+		return true;
 	}
 
-	if (!CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid() || !ComboStateEffectClass || ComboReadyDuration <= 0.0f)
+	if (!CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid() || !AttackMontage || !ComboStateEffectClass || ComboReadyDuration <= 0.0f)
 	{
-		return;
+		return false;
 	}
 
 	const float AbilityLevel = GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo);
 	FGameplayEffectSpecHandle ComboStateSpecHandle = MakeOutgoingGameplayEffectSpec(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, ComboStateEffectClass, AbilityLevel);
 	if (!ComboStateSpecHandle.IsValid())
 	{
-		return;
+		return false;
 	}
 
-	// 공용 GameplayEffect에 단계를 고정하지 않고 현재 공격이 여는 다음 단계와 시간을 실행별로 설정합니다
+	// 다음 단계는 현재 공격 중에도 선택할 수 있어야 하므로 Montage 수명과 완료 후 유예 시간을 함께 보장합니다
+	const float ComboStateDuration = AttackMontage->GetPlayLength() + ComboReadyDuration;
 	ComboStateSpecHandle.Data->DynamicGrantedTags.AddTag(NextComboReadyTag);
-	ComboStateSpecHandle.Data->SetSetByCallerMagnitude(RSGameplayTags::SetByCaller_Combo_Duration, ComboReadyDuration);
-	ApplyGameplayEffectSpecToOwner(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, ComboStateSpecHandle);
+	ComboStateSpecHandle.Data->SetSetByCallerMagnitude(RSGameplayTags::SetByCaller_Combo_Duration, ComboStateDuration);
+	NextComboStateEffectHandle = ApplyGameplayEffectSpecToOwner(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, ComboStateSpecHandle);
+
+	return NextComboStateEffectHandle.IsValid();
 }

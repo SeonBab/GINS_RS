@@ -94,6 +94,7 @@ void URSBaseGameplayAbility_Attack::StartAttackMontage()
 {
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage);
 	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleAttackMontageCompleted);
+	MontageTask->OnBlendOut.AddDynamic(this, &ThisClass::HandleAttackMontageBlendedOut);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleAttackMontageCancelled);
 	MontageTask->ReadyForActivation();
@@ -109,6 +110,11 @@ void URSBaseGameplayAbility_Attack::StartAttackMontage()
 }
 
 void URSBaseGameplayAbility_Attack::HandleAttackMontageCompleted()
+{
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void URSBaseGameplayAbility_Attack::HandleAttackMontageBlendedOut()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
