@@ -5,6 +5,8 @@
 #include "AIController.h"
 #include "AbilitySystemGlobals.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Class.h"
 #include "RSAbilitySystemComponent.h"
 #include "Abilities/RSBaseGameplayAbility.h"
 
@@ -14,13 +16,29 @@ URSBTTask_ActivateAbility::URSBTTask_ActivateAbility()
 
 	// 종료를 기다리는 동안 실행별 핸들과 델리게이트를 유지해야 하므로 노드마다 인스턴스를 만듭니다
 	bCreateNodeInstance = true;
+
+	// 고정 클래스를 사용하는 기존 구성과 함께 쓰이므로 키를 비워 두는 것도 정상 설정입니다
+	AbilityClassKey.AllowNoneAsValue(true);
+	AbilityClassKey.AddClassFilter(this, GET_MEMBER_NAME_CHECKED(URSBTTask_ActivateAbility, AbilityClassKey), URSBaseGameplayAbility::StaticClass());
+}
+
+void URSBTTask_ActivateAbility::InitializeFromAsset(UBehaviorTree& Asset)
+{
+	Super::InitializeFromAsset(Asset);
+
+	// Blackboard 애셋과 연결하지 않으면 선택한 키의 ID가 해석되지 않습니다
+	if (const UBlackboardData* BlackboardAsset = GetBlackboardAsset())
+	{
+		AbilityClassKey.ResolveSelectedKey(*BlackboardAsset);
+	}
 }
 
 EBTNodeResult::Type URSBTTask_ActivateAbility::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	ClearActivationState();
 
-	if (!AbilityClass)
+	const TSubclassOf<URSBaseGameplayAbility> AbilityClassToActivate = ResolveAbilityClass(OwnerComp);
+	if (!AbilityClassToActivate)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s has no ability class configured"), *GetName());
 
@@ -36,10 +54,10 @@ EBTNodeResult::Type URSBTTask_ActivateAbility::ExecuteTask(UBehaviorTreeComponen
 		return EBTNodeResult::Failed;
 	}
 
-	const FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass);
+	const FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClassToActivate);
 	if (!AbilitySpec)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not find a granted spec for %s"), *GetName(), *GetNameSafe(AbilityClass));
+		UE_LOG(LogTemp, Warning, TEXT("%s could not find a granted spec for %s"), *GetName(), *GetNameSafe(AbilityClassToActivate));
 
 		return EBTNodeResult::Failed;
 	}
@@ -93,7 +111,38 @@ EBTNodeResult::Type URSBTTask_ActivateAbility::AbortTask(UBehaviorTreeComponent&
 
 FString URSBTTask_ActivateAbility::GetStaticDescription() const
 {
-	return FString::Printf(TEXT("%s%s"), *GetNameSafe(AbilityClass), bWaitForAbilityEnd ? TEXT(" (종료까지 대기)") : TEXT(""));
+	const bool bUsesBlackboardKey = !AbilityClassKey.IsNone() && AbilityClassKey.SelectedKeyName != NAME_None;
+	const FString AbilitySourceDescription = bUsesBlackboardKey ? AbilityClassKey.SelectedKeyName.ToString() : GetNameSafe(AbilityClass);
+
+	return FString::Printf(TEXT("%s%s"), *AbilitySourceDescription, bWaitForAbilityEnd ? TEXT(" (종료까지 대기)") : TEXT(""));
+}
+
+TSubclassOf<URSBaseGameplayAbility> URSBTTask_ActivateAbility::ResolveAbilityClass(const UBehaviorTreeComponent& OwnerComp) const
+{
+	// 키를 지정하지 않은 기존 구성은 노드에 고정된 클래스를 그대로 사용합니다
+	if (AbilityClassKey.SelectedKeyType != UBlackboardKeyType_Class::StaticClass())
+	{
+		return AbilityClass;
+	}
+
+	const UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
+	if (!Blackboard)
+	{
+		return AbilityClass;
+	}
+
+	UClass* SelectedClass = Blackboard->GetValue<UBlackboardKeyType_Class>(AbilityClassKey.GetSelectedKeyID());
+
+	// 키의 클래스 필터는 에디터에서만 적용되므로 실행 시점에 한 번 더 확인합니다
+	if (!SelectedClass || !SelectedClass->IsChildOf(URSBaseGameplayAbility::StaticClass()))
+	{
+		return nullptr;
+	}
+
+	TSubclassOf<URSBaseGameplayAbility> ResolvedAbilityClass;
+	ResolvedAbilityClass = SelectedClass;
+
+	return ResolvedAbilityClass;
 }
 
 void URSBTTask_ActivateAbility::ClearActivationState()

@@ -15,6 +15,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Attributes"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Components"),
 			Path.Combine(ModuleDirectory, "AI"),
+			Path.Combine(ModuleDirectory, "AI", "Decorators"),
 			Path.Combine(ModuleDirectory, "AI", "Tasks"),
 			Path.Combine(ModuleDirectory, "AnimInstance"),
 			Path.Combine(ModuleDirectory, "Animation"),

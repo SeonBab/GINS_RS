@@ -7,6 +7,7 @@
 #include "RSAttackTelegraphComponent.h"
 #include "RSBossController.h"
 #include "RSBossEncounter.h"
+#include "RSBossPhaseComponent.h"
 #include "RSHealthComponent.h"
 #include "RSHealthSet.h"
 
@@ -18,6 +19,7 @@ ARSBossCharacter::ARSBossCharacter()
 	HealthSet = CreateDefaultSubobject<URSHealthSet>(TEXT("RSHealthSet"));
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
 	AttackTelegraphComp = CreateDefaultSubobject<URSAttackTelegraphComponent>(TEXT("AttackTelegraphComponent"));
+	BossPhaseComp = CreateDefaultSubobject<URSBossPhaseComponent>(TEXT("BossPhaseComponent"));
 
 	// 공격 판정이 진영을 콜리전 채널로 구분하므로 Blueprint 설정 누락을 막기 위해 캡슐 프로파일을 코드에서 고정합니다
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("RSEnemyBody"));

@@ -50,6 +50,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	AActor* GetTargetActor() const { return TargetActor; }
 
+	/** 지정한 Actor가 현재 Encounter에서 공격 가능한 참가자인지 검증합니다 */
+	bool IsTargetActorValid(const AActor* InTargetActor) const;
+
 private:
 	/** 현재 공격 대상을 변경하고 Blackboard의 TargetActor 키를 함께 갱신합니다 */
 	void SetTargetActor(AActor* InTargetActor);

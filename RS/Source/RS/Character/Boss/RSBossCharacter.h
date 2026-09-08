@@ -9,6 +9,7 @@
 class ARSBossEncounter;
 class URSAbilitySystemComponent;
 class URSAttackTelegraphComponent;
+class URSBossPhaseComponent;
 class URSHealthComponent;
 class URSHealthSet;
 
@@ -47,6 +48,9 @@ public:
 	/** 보스 공격의 바닥 예고를 그리는 표시 컴포넌트를 반환합니다 */
 	URSAttackTelegraphComponent* GetAttackTelegraphComponent() const { return AttackTelegraphComp; }
 
+	/** 보스 전투의 진행 상태와 패턴 선택 정책을 소유하는 컴포넌트를 반환합니다 */
+	URSBossPhaseComponent* GetBossPhaseComponent() const { return BossPhaseComp; }
+
 private:
 	/** ASC의 Owner와 Avatar를 보스 Character로 초기화하고 기본 AbilitySet을 한 번 부여합니다 */
 	void InitializeAbilitySystem();
@@ -76,6 +80,10 @@ private:
 	/** 공격 범위를 바닥에 미리 그리는 표시 컴포넌트입니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Telegraph", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSAttackTelegraphComponent> AttackTelegraphComp;
+
+	/** 패턴 사이클과 패턴 후보 목록을 소유하는 컴포넌트입니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSBossPhaseComponent> BossPhaseComp;
 
 	/** DefaultAbilitySet이 부여한 Ability를 정확히 식별하기 위한 핸들입니다 */
 	UPROPERTY(Transient)

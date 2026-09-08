@@ -24,13 +24,9 @@ struct FRSTelegraphPresentation
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float HoldDuration = 1.0f;
 
-	/** 나타나는 데 걸릴 시간이며 0이면 즉시 나타납니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
-	float FadeInDuration = 0.0f;
-
-	/** 사라지는 데 걸릴 시간이며 0이면 즉시 사라집니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
-	float FadeOutDuration = 0.0f;
+	/** 표시되는 동안 유지할 불투명도이며 Fade 없이 즉시 이 값으로 나타납니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float Opacity = 1.0f;
 
 	/**
 	 * 표시가 채워지는 데 걸릴 시간이며 0이면 채우지 않고 완성 상태로 표시합니다
@@ -123,13 +119,21 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
 	FName InnerRatioParameterName = TEXT("InnerRatio");
 
-	/** 페이드 진행도를 전달할 머티리얼 스칼라 파라미터 이름입니다 */
+	/** 요청별 고정 불투명도를 전달할 머티리얼 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
 	FName AlphaParameterName = TEXT("Alpha");
 
 	/** 채움 진행도를 전달할 머티리얼 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
 	FName FillParameterName = TEXT("Fill");
+
+	/** 기존 원형 마스크와 Cone 마스크 중 어느 경로를 사용할지 전달할 스칼라 파라미터 이름입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
+	FName UseConeMaskParameterName = TEXT("UseConeMask");
+
+	/** Cone 전체 각도의 절반에 대한 Cos 값을 전달할 스칼라 파라미터 이름입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
+	FName ConeHalfAngleCosParameterName = TEXT("ConeHalfAngleCos");
 
 private:
 	/** 데칼과 Dynamic Material Instance를 재사용하기 위한 슬롯 목록입니다 */

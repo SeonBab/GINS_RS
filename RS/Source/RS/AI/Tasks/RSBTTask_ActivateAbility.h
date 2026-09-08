@@ -24,11 +24,15 @@ class RS_API URSBTTask_ActivateAbility : public UBTTaskNode
 public:
 	URSBTTask_ActivateAbility();
 
+	virtual void InitializeFromAsset(UBehaviorTree& Asset) override;
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual EBTNodeResult::Type AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 	virtual FString GetStaticDescription() const override;
 
 private:
+	/** Blackboard 키가 지정되어 있으면 그 값을, 없으면 노드에 고정된 클래스를 반환합니다 */
+	TSubclassOf<URSBaseGameplayAbility> ResolveAbilityClass(const UBehaviorTreeComponent& OwnerComp) const;
+
 	/** 어빌리티 종료를 기다리며 등록한 델리게이트를 해제하고 이번 실행 상태를 정리합니다 */
 	void ClearActivationState();
 
@@ -39,6 +43,13 @@ private:
 	/** 활성화할 어빌리티 클래스이며 ASC에 부여된 스펙 중 이 클래스와 일치하는 하나를 찾습니다 */
 	UPROPERTY(EditAnywhere, Category = "RS|Ability")
 	TSubclassOf<URSBaseGameplayAbility> AbilityClass;
+
+	/**
+	 * 활성화할 어빌리티 클래스를 담은 Blackboard 키입니다
+	 * 앞선 Task가 어빌리티를 선택하는 경우에 사용하며, 지정하지 않으면 AbilityClass를 사용합니다
+	 */
+	UPROPERTY(EditAnywhere, Category = "RS|Ability")
+	FBlackboardKeySelector AbilityClassKey;
 
 	/** 어빌리티가 끝날 때까지 Task를 유지할지 결정하며, 끄면 활성화 직후 성공합니다 */
 	UPROPERTY(EditAnywhere, Category = "RS|Ability")

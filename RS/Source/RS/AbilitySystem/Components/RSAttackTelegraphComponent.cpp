@@ -37,6 +37,12 @@ void URSAttackTelegraphComponent::OnUnregister()
 
 void URSAttackTelegraphComponent::ShowShape(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation)
 {
+	// 잘못된 Cone을 Clamp하거나 다른 형상처럼 표시하면 실제 판정과 예고가 달라지므로 표시하지 않습니다
+	if (Shape.Type == ERSCombatShapeType::Cone && !Shape.IsDataValid())
+	{
+		return;
+	}
+
 	// 머티리얼이 준비되기 전까지 개발 중에도 표시를 확인할 수 있도록 판정과 같은 형상 데이터로 대신 그립니다
 	// 머티리얼을 지정하면 이 경로는 쓰이지 않습니다
 	if (!DecalMaterial)
@@ -111,7 +117,15 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 	// DecalSize가 곧 판정 범위이므로 형상에서 파생시켜 표시와 판정이 1:1로 대응하게 합니다
 	// X는 투영 깊이, Y와 Z는 투영 사각형의 반크기입니다
 	// Box 형상은 아직 예고를 쓰는 소비자가 없어 가장 긴 축으로 정사각형을 만드는 임시 값입니다
-	const float ShapeHalfSize = Slot.Shape.Type == ERSCombatShapeType::Sphere ? Slot.Shape.Radius : Slot.Shape.BoxExtent.GetMax();
+	float ShapeHalfSize = Slot.Shape.BoxExtent.GetMax();
+	if (Slot.Shape.Type == ERSCombatShapeType::Sphere)
+	{
+		ShapeHalfSize = Slot.Shape.Radius;
+	}
+	else if (Slot.Shape.Type == ERSCombatShapeType::Cone)
+	{
+		ShapeHalfSize = Slot.Shape.Range;
+	}
 	Slot.Decal->DecalSize = FVector(ProjectionDepth, ShapeHalfSize, ShapeHalfSize);
 
 	// DecalSize에는 Setter가 없어 직접 대입하므로, 슬롯을 재사용할 때 이전 크기가 남지 않도록 렌더 상태를 무효화합니다
@@ -121,8 +135,18 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 	const FRotator GroundProjectionRotation(-90.0f, ShapeTransform.GetRotation().Rotator().Yaw, 0.0f);
 	Slot.Decal->SetWorldLocationAndRotation(ShapeTransform.GetLocation(), GroundProjectionRotation);
 
-	const float InnerRatio = Slot.Shape.Radius > 0.0f ? Slot.Shape.InnerRadius / Slot.Shape.Radius : 0.0f;
+	const bool bUseConeMask = Slot.Shape.Type == ERSCombatShapeType::Cone;
+	const float InnerRatio = Slot.Shape.Type == ERSCombatShapeType::Sphere && Slot.Shape.Radius > 0.0f
+		? Slot.Shape.InnerRadius / Slot.Shape.Radius
+		: 0.0f;
+	const float ConeHalfAngleCos = bUseConeMask
+		? FMath::Cos(FMath::DegreesToRadians(Slot.Shape.Angle * 0.5f))
+		: 1.0f;
+
+	// 슬롯의 MID는 다른 Shape가 재사용할 수 있으므로 Shape 관련 값을 항상 완전한 상태로 다시 씁니다
+	Slot.MaterialInstance->SetScalarParameterValue(UseConeMaskParameterName, bUseConeMask ? 1.0f : 0.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, InnerRatio);
+	Slot.MaterialInstance->SetScalarParameterValue(ConeHalfAngleCosParameterName, ConeHalfAngleCos);
 
 	Slot.Decal->SetVisibility(true);
 }
@@ -133,30 +157,19 @@ void URSAttackTelegraphComponent::UpdateSlot(FRSTelegraphSlot& Slot, float Delta
 
 	const FRSTelegraphPresentation& Presentation = Slot.Presentation;
 
-	// 유지 시간이 지난 뒤 페이드 아웃까지 끝나면 슬롯을 되돌립니다
-	if (Slot.ElapsedTime >= Presentation.HoldDuration + Presentation.FadeOutDuration)
+	// Fade 없이 유지 시간이 끝나는 즉시 슬롯을 되돌립니다
+	if (Slot.ElapsedTime >= Presentation.HoldDuration)
 	{
 		ReleaseSlot(Slot);
 
 		return;
 	}
 
-	// 각 시간이 0이면 해당 애니메이션이 없다는 뜻이므로 값을 1로 고정합니다
-	float Alpha = 1.0f;
-	if (Presentation.FadeInDuration > 0.0f && Slot.ElapsedTime < Presentation.FadeInDuration)
-	{
-		Alpha = Slot.ElapsedTime / Presentation.FadeInDuration;
-	}
-	else if (Presentation.FadeOutDuration > 0.0f && Slot.ElapsedTime > Presentation.HoldDuration)
-	{
-		Alpha = 1.0f - (Slot.ElapsedTime - Presentation.HoldDuration) / Presentation.FadeOutDuration;
-	}
-
 	const float Fill = Presentation.FillDuration > 0.0f ? FMath::Min(Slot.ElapsedTime / Presentation.FillDuration, 1.0f) : 1.0f;
 
 	if (Slot.MaterialInstance)
 	{
-		Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, FMath::Clamp(Alpha, 0.0f, 1.0f));
+		Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, FMath::Clamp(Presentation.Opacity, 0.0f, 1.0f));
 		Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, Fill);
 	}
 }

@@ -56,6 +56,13 @@ ARSBossCharacter* ARSBossController::GetBossCharacter() const
 	return Cast<ARSBossCharacter>(GetPawn());
 }
 
+bool ARSBossController::IsTargetActorValid(const AActor* InTargetActor) const
+{
+	const APawn* TargetPawn = Cast<APawn>(InTargetActor);
+
+	return BossEncounter && BossEncounter->IsEncounterActive() && BossEncounter->IsParticipantPawnActive(TargetPawn);
+}
+
 void ARSBossController::StartEncounter(ARSBossEncounter* InBossEncounter)
 {
 	if (!InBossEncounter || !InBossEncounter->IsEncounterActive())

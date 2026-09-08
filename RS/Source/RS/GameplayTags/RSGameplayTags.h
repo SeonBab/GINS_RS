@@ -9,6 +9,9 @@ namespace RSGameplayTags
 	// Ability
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ConcentricRings);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_TargetedSlam);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_TargetedSlam_OneStrike);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_TargetedSlam_TwoStrike);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Downed);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Dash);
@@ -45,7 +48,6 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_Locked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready_Step02);
-	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready_Step03);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_CrowdControl_Downed);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_CrowdControl_Knockdown);
