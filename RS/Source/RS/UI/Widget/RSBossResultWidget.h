@@ -18,7 +18,7 @@ class RS_API URSBossResultWidget : public URSViewModelWidget
 	GENERATED_BODY()
 
 protected:
-	/** 저장된 Result 레이아웃 아래에 두 Action Button을 한 번 구성합니다 */
+	/** 저장 에셋에 저작한 두 Action Button의 클릭 이벤트를 연결합니다 */
 	virtual void NativeOnInitialized() override;
 
 public:
@@ -38,13 +38,13 @@ private:
 	void HandleMainMenuButtonClicked();
 
 private:
-	/** 런타임에 구성한 현재 Level 재시작 Button입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> RestartButton;
+	/** 현재 Level 재시작을 요청하는 Button입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Boss Result", meta = (BindWidget, AllowPrivateAccess = "true"))
+	TObjectPtr<UButton> Button_Restart;
 
-	/** 런타임에 구성한 Main Menu 이동 Button입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<UButton> MainMenuButton;
+	/** Main Menu Level 이동을 요청하는 Button입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Boss Result", meta = (BindWidget, AllowPrivateAccess = "true"))
+	TObjectPtr<UButton> Button_MainMenu;
 
 	/** Widget의 Action 의도를 HUD에 전달하는 출력 이벤트입니다 */
 	FRSBossResultActionRequested OnBossResultActionRequested;

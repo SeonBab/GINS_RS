@@ -233,14 +233,15 @@ TConstArrayView<FText> URSBossEncounterViewModel::GetResultMessageCandidates(ERS
 {
 	static const TArray<FText> ClearMessages =
 	{
-		NSLOCTEXT("RSBossEncounterResult", "ClearMessage01", "The boss has been defeated."),
-		NSLOCTEXT("RSBossEncounterResult", "ClearMessage02", "Victory is yours.")
+		NSLOCTEXT("RSBossEncounterResult", "ClearMessage01", "보스를 쓰러뜨렸다."),
+		NSLOCTEXT("RSBossEncounterResult", "ClearMessage02", "승리를 거두었다.")
 	};
 
 	static const TArray<FText> FailedMessages =
 	{
-		NSLOCTEXT("RSBossEncounterResult", "FailedMessage01", "The battle has been lost."),
-		NSLOCTEXT("RSBossEncounterResult", "FailedMessage02", "The challenge remains.")
+		NSLOCTEXT("RSBossEncounterResult", "FailedMessage01", "플레이에 도움이 되는 팁1"),
+		NSLOCTEXT("RSBossEncounterResult", "FailedMessage02", "플레이에 도움이 되는 팁2"),
+		NSLOCTEXT("RSBossEncounterResult", "FailedMessage03", "플레이에 도움이 되는 팁3")
 	};
 
 	if (InResult == ERSBossEncounterResult::Clear)

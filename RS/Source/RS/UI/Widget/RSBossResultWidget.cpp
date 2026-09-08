@@ -2,64 +2,33 @@
 
 #include "RSBossResultWidget.h"
 
-#include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
-#include "Components/HorizontalBox.h"
-#include "Components/HorizontalBoxSlot.h"
-#include "Components/TextBlock.h"
-#include "Components/VerticalBox.h"
 
 void URSBossResultWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
-	UVerticalBox* ResultContainer = Cast<UVerticalBox>(GetWidgetFromName(TEXT("VerticalBox")));
-	if (!ResultContainer || !WidgetTree)
+	if (Button_Restart)
 	{
-		return;
+		Button_Restart->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleRestartButtonClicked);
 	}
 
-	UHorizontalBox* ActionContainer = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionContainer"));
-	RestartButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("RestartButton"));
-	MainMenuButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("MainMenuButton"));
-	UTextBlock* RestartLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RestartLabel"));
-	UTextBlock* MainMenuLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MainMenuLabel"));
-	if (!ActionContainer || !RestartButton || !MainMenuButton || !RestartLabel || !MainMenuLabel)
+	if (Button_MainMenu)
 	{
-		RestartButton = nullptr;
-		MainMenuButton = nullptr;
-		return;
+		Button_MainMenu->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleMainMenuButtonClicked);
 	}
-
-	RestartLabel->SetText(NSLOCTEXT("RSBossResult", "Restart", "재시작"));
-	MainMenuLabel->SetText(NSLOCTEXT("RSBossResult", "MainMenu", "메인 메뉴"));
-	RestartButton->AddChild(RestartLabel);
-	MainMenuButton->AddChild(MainMenuLabel);
-
-	if (UHorizontalBoxSlot* RestartSlot = ActionContainer->AddChildToHorizontalBox(RestartButton))
-	{
-		RestartSlot->SetPadding(FMargin(8.0f));
-	}
-	if (UHorizontalBoxSlot* MainMenuSlot = ActionContainer->AddChildToHorizontalBox(MainMenuButton))
-	{
-		MainMenuSlot->SetPadding(FMargin(8.0f));
-	}
-
-	ResultContainer->AddChild(ActionContainer);
-	RestartButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleRestartButtonClicked);
-	MainMenuButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleMainMenuButtonClicked);
 }
 
 void URSBossResultWidget::SetActionsEnabled(bool bEnabled)
 {
-	if (RestartButton)
+	if (Button_Restart)
 	{
-		RestartButton->SetIsEnabled(bEnabled);
+		Button_Restart->SetIsEnabled(bEnabled);
 	}
 
-	if (MainMenuButton)
+	if (Button_MainMenu)
 	{
-		MainMenuButton->SetIsEnabled(bEnabled);
+		Button_MainMenu->SetIsEnabled(bEnabled);
 	}
 }
 

@@ -82,6 +82,8 @@ ARSBossEncounter   -> URSBossEncounterViewModel       -> Boss Encounter Timer Wi
 
 Result Action은 ViewModel 데이터가 아니다. `WBP_BossResult`의 `재시작`, `메인 메뉴` 의도는 `ARSPlayerHeadUpDisplay → ARSPlayerController → ARSGameModeBase`로 전달하고, GameMode가 현재 Result와 중복 요청을 검증한 뒤 Level 전환을 실행한다. 따라서 Widget과 ViewModel은 `OpenLevel`을 직접 호출하지 않는다.
 
+Action Button은 저장 Widget 에셋에 저작하고 C++는 `UPROPERTY(meta = (BindWidget))`으로 참조한다. Button Label은 결과에 따라 바뀌지 않는 표시 텍스트이므로 ViewModel 데이터로 만들지 않고 에셋에서 관리한다. 런타임에 Button을 생성하면 Designer에서 화면을 확인할 수 없고 Panel 이름 변경에 조용히 실패하므로 사용하지 않는다.
+
 어빌리티 슬롯처럼 같은 종류의 항목이 여럿인 UI는 아래 [목록 ViewModel 구성](#목록-viewmodel-구성)을 따른다.
 
 두 ViewModel의 체력 관찰 구현은 현재 독립적으로 유지한다. 실제 공통 요구가 체력 외에도 확인되기 전에는 공통 체력 ViewModel을 만들지 않는다.

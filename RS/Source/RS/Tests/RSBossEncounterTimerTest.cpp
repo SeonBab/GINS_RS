@@ -6,8 +6,11 @@
 #include "Misc/AutomationTest.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 #include "RSBossEncounter.h"
 #include "RSBossEncounterViewModel.h"
+#include "RSLocalPlayerViewModelSubsystem.h"
 #include "View/MVVMViewClass.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossEncounterTimerTest, "RS.UI.BossEncounterTimer", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -147,6 +150,45 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Player HUD Manual Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_PlayerHUD.WBP_PlayerHUD_C")), ExpectedSourceName);
 	TestEqual(TEXT("Boss Timer Context Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_BossTimer.WBP_BossTimer_C")), ExpectedSourceName);
 	TestEqual(TEXT("Boss Result Context Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_BossResult.WBP_BossResult_C")), ExpectedSourceName);
+
+	// ViewModel 저장소는 LocalPlayer 수명을 따르므로 World가 교체되어도 이전 전투의 표시 값이 남지 않아야 합니다
+	UWorld* FirstWorld = UWorld::CreateWorld(EWorldType::Game, false);
+	UWorld* SecondWorld = UWorld::CreateWorld(EWorldType::Game, false);
+	ARSBossEncounter* FirstEncounter = FirstWorld->SpawnActor<ARSBossEncounter>();
+	ARSBossEncounter* SecondEncounter = SecondWorld->SpawnActor<ARSBossEncounter>();
+	// ULocalPlayerSubsystem의 ClassWithin 계층을 테스트에서도 그대로 구성합니다
+	ULocalPlayer* TestLocalPlayer = NewObject<ULocalPlayer>(GEngine);
+	URSLocalPlayerViewModelSubsystem* ViewModelSubsystem = NewObject<URSLocalPlayerViewModelSubsystem>(TestLocalPlayer);
+	URSBossEncounterViewModel* SharedViewModel = ViewModelSubsystem->GetOrCreateViewModel<URSBossEncounterViewModel>();
+
+	ViewModelSubsystem->RegisterSource(FirstEncounter);
+	TestEqual(TEXT("First World Source is registered"), ViewModelSubsystem->Sources.Num(), 1);
+	TestTrue(TEXT("Shared ViewModel observes first World Encounter"), SharedViewModel->BossEncounter.Get() == FirstEncounter);
+
+	// 다른 World의 정리는 현재 원본을 해제하지 않아야 합니다
+	ViewModelSubsystem->HandleWorldBeginTearDown(SecondWorld);
+	TestEqual(TEXT("Other World tear down keeps Source"), ViewModelSubsystem->Sources.Num(), 1);
+	TestTrue(TEXT("Other World tear down keeps observation"), SharedViewModel->BossEncounter.Get() == FirstEncounter);
+
+	SharedViewModel->ApplyTimerValues(ERSBossEncounterState::Finished, false, 42.0f);
+	SharedViewModel->ApplyResultValues(ERSBossEncounterState::Finished, ERSBossEncounterResult::Clear);
+	ViewModelSubsystem->HandleWorldBeginTearDown(FirstWorld);
+	TestEqual(TEXT("Torn down World Source is removed"), ViewModelSubsystem->Sources.Num(), 0);
+	TestNull(TEXT("Torn down World clears observation"), SharedViewModel->BossEncounter.Get());
+	TestFalse(TEXT("Torn down World hides Timer"), SharedViewModel->bIsVisible);
+	TestTrue(TEXT("Torn down World clears Result Title"), SharedViewModel->ResultTitle.IsEmpty());
+	TestTrue(TEXT("Torn down World clears Result Message"), SharedViewModel->ResultMessage.IsEmpty());
+	TestEqual(TEXT("Torn down World clears Result"), SharedViewModel->Result, ERSBossEncounterResult::None);
+
+	// 이전 World의 해제를 놓친 경우에도 새 World의 원본이 들어오면 남은 원본을 정리해야 합니다
+	ViewModelSubsystem->RegisterSource(SecondEncounter);
+	ViewModelSubsystem->RegisterSource(FirstEncounter);
+	TestEqual(TEXT("Cross World registration keeps one Source"), ViewModelSubsystem->Sources.Num(), 1);
+	TestTrue(TEXT("Cross World registration replaces observation"), SharedViewModel->BossEncounter.Get() == FirstEncounter);
+
+	SharedViewModel->UninitializeViewModel();
+	FirstWorld->DestroyWorld(false);
+	SecondWorld->DestroyWorld(false);
 
 	// Tickable 객체가 갱신이 필요한 상태로 남지 않도록 마무리합니다
 	ViewModel->UninitializeViewModel();
