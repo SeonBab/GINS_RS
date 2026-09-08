@@ -7,8 +7,10 @@
 #include "RSAbilitySystemComponent.h"
 #include "RSBossEncounter.h"
 #include "RSCheatManager.h"
+#include "RSGameModeBase.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
+#include "RSPlayerHeadUpDisplay.h"
 #include "RSPlayerState.h"
 
 ARSPlayerController::ARSPlayerController()
@@ -119,13 +121,43 @@ void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Res
 		return;
 	}
 
-	// 입력과 UI 정책을 적용하지 않고 후속 Presentation이 사용할 확정 결과만 보존합니다
+	// 기존 입력 정책은 유지하고 HUD에 정적으로 배치된 Result Widget만 표시합니다
 	BossResultPresentation.Emplace(Result);
+
+	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
+	{
+		PlayerHeadUpDisplay->ShowBossResultPresentation(Result);
+	}
 }
 
 ERSBossEncounterResult ARSPlayerController::GetBossResultPresentation() const
 {
 	return BossResultPresentation.Get(ERSBossEncounterResult::None);
+}
+
+bool ARSPlayerController::RequestBossResultAction(ERSBossResultAction Action)
+{
+	if (!IsLocalController() || !BossResultPresentation.IsSet())
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	ARSGameModeBase* GameMode = World ? World->GetAuthGameMode<ARSGameModeBase>() : nullptr;
+	return GameMode && GameMode->RequestBossResultAction(this, Action);
+}
+
+void ARSPlayerController::HandleBossResultActionAccepted()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
+	{
+		PlayerHeadUpDisplay->SetBossResultActionsEnabled(false);
+	}
 }
 
 void ARSPlayerController::ConfigureMouseInput()

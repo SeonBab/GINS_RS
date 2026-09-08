@@ -34,7 +34,7 @@ public:
 	/** 보스전 참가자 목록을 사용하여 전투를 시작하고 공격 대상을 선택합니다 */
 	void StartEncounter(ARSBossEncounter* InBossEncounter);
 
-	/** 현재 공격 대상과 Blackboard 상태를 정리하고 보스전을 종료합니다 */
+	/** 현재 이동과 공격 대상을 정리하되 Behavior Tree를 유지한 채 보스전을 종료합니다 */
 	void EndEncounter();
 
 	/**

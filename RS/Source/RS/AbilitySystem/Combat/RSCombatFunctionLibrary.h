@@ -17,7 +17,8 @@ UENUM(BlueprintType)
 enum class ERSCombatShapeType : uint8
 {
 	Box		UMETA(DisplayName = "Box",		ToolTip = "배치 회전을 따르는 직육면체입니다."),
-	Sphere	UMETA(DisplayName = "Sphere",	ToolTip = "수평 거리로 판정하며 InnerRadius를 주면 도넛이 됩니다.")
+	Sphere	UMETA(DisplayName = "Sphere",	ToolTip = "수평 거리로 판정하며 InnerRadius를 주면 도넛이 됩니다."),
+	Cone	UMETA(DisplayName = "Cone",		ToolTip = "Transform Forward를 중심으로 하는 수평 부채꼴입니다.")
 };
 
 /**
@@ -44,6 +45,17 @@ struct FRSCombatShape
 	/** 판정에서 제외할 안쪽 반지름이며 0보다 크면 가운데가 비어 있는 도넛이 됩니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Sphere"))
 	float InnerRadius = 0.0f;
+
+	/** Cone 꼭짓점에서 외곽까지의 수평 거리입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "1.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Cone"))
+	float Range = 500.0f;
+
+	/** Cone의 양쪽 경계 사이 전체 각도입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "1.0", UIMax = "180.0", ForceUnits = "deg", EditCondition = "Type == ERSCombatShapeType::Cone"))
+	float Angle = 90.0f;
+
+	/** Shape 종류별 데이터가 판정 가능한 범위인지 검사합니다 */
+	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
 
 /** 타격이 대상에게 요청하는 피격 반응의 종류입니다 */
@@ -180,6 +192,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void FindTargetsInShape(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
+
+	/** 대상 위치의 중심점이 Cone의 수평 범위 안에 있는지 검사합니다 */
+	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
 
 	/**
 	 * 대상 하나에게 이번 타격이 요청하는 피격 반응을 전달합니다

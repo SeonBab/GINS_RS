@@ -96,6 +96,9 @@ public:
 	/** 이 캐릭터의 전투 참가자와 생명주기를 관리할 Encounter를 설정합니다 */
 	void SetBossEncounter(ARSBossEncounter* InBossEncounter);
 
+	/** 보스는 생존시킨 채 진행 중인 공격과 이동을 정리하고 Encounter 전투 상태에서 이탈합니다 */
+	void EndEncounterCombat();
+
 	/** 이 캐릭터에 연결된 Encounter를 반환합니다 */
 	ARSBossEncounter* GetBossEncounter() const { return BossEncounter; }
 

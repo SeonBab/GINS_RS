@@ -48,11 +48,11 @@
 | --- | --- | --- |
 | `RegisterParticipant` | 등록 | 등록 |
 | `UnregisterParticipant` | 해제 | 해제 |
-| `CompleteEncounter` | 해제 | **유지** |
+| `ResolveEncounter` | **유지** | **유지** |
 | `ResetEncounter` | 해제 | 해제 |
 | `EndPlay` | 해제 | 해제 |
 
-보스를 처치하면 보스 체력 표시는 정리하지만 제한 시간은 처치 순간의 값을 계속 보여준다. 수명이 다르므로 두 원본의 해제를 하나의 공통 함수로 묶지 않는다.
+Result UI 표시 후에도 Boss Health와 처치 순간의 제한 시간을 함께 유지하므로 정상 `Finished` 전이에서는 두 Source를 유지한다. `ResetEncounter`, 참가자 제거와 `EndPlay`에서 각 Source를 해제하며, 수명이 다를 수 있으므로 해제 함수는 분리한다.
 
 ## 데이터 흐름
 
@@ -66,16 +66,21 @@
   -> Widget Binding 갱신
 ```
 
-현재 Player와 Boss 체력, 보스전 제한 시간 흐름은 다음과 같다.
+현재 Player와 Boss 체력, 보스전 제한 시간·결과 흐름은 다음과 같다.
 
 ```text
 ARSPlayerCharacter -> URSPlayerStatusViewModel        -> Player Health Widget
                                                      -> Overhead Health Widget
 ARSBossCharacter   -> URSBossStatusViewModel          -> Boss Health Widget
-ARSBossEncounter   -> URSBossEncounterTimerViewModel  -> Boss Encounter Timer Widget
+ARSBossEncounter   -> URSBossEncounterViewModel       -> Boss Encounter Timer Widget
+                                                      -> Boss Result Widget
 ```
 
-`URSBossEncounterTimerViewModel`은 남은 시간이 실제로 줄어드는 동안에만 `FTickableGameObject`로 갱신하며, 표시 정수 초가 바뀔 때만 `FText`를 다시 만든다. `FText`는 내용이 같아도 새로 만들면 다른 값으로 취급되어 매 프레임 FieldNotify가 발생하기 때문이다.
+`URSBossEncounterViewModel`은 남은 시간이 실제로 줄어드는 동안에만 `FTickableGameObject`로 갱신하며, 표시 정수 초가 바뀔 때만 `FText`를 다시 만든다. `FText`는 내용이 같아도 새로 만들면 다른 값으로 취급되어 매 프레임 FieldNotify가 발생하기 때문이다.
+
+같은 ViewModel은 확정된 `Result`, `ResultTitle`, `ResultMessage`도 제공한다. `ResultMessage`는 Clear/Failed별 `FText` 후보 중 Result Cycle당 한 번 선택하며 같은 Source 재등록과 재동기화에서는 유지한다. ViewModel은 표시 데이터만 소유하고 Result Widget Visibility와 표시 시점은 `ARSPlayerHeadUpDisplay`가 소유한다. `WBP_BossResult`는 `WBP_PlayerHUD.MenuLayer`의 정적 Context Source 자식이며 기본 상태는 `Collapsed`다.
+
+Result Action은 ViewModel 데이터가 아니다. `WBP_BossResult`의 `재시작`, `메인 메뉴` 의도는 `ARSPlayerHeadUpDisplay → ARSPlayerController → ARSGameModeBase`로 전달하고, GameMode가 현재 Result와 중복 요청을 검증한 뒤 Level 전환을 실행한다. 따라서 Widget과 ViewModel은 `OpenLevel`을 직접 호출하지 않는다.
 
 어빌리티 슬롯처럼 같은 종류의 항목이 여럿인 UI는 아래 [목록 ViewModel 구성](#목록-viewmodel-구성)을 따른다.
 

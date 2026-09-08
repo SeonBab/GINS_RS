@@ -6,7 +6,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "RSBossEncounter.h"
-#include "RSBossEncounterTimerViewModel.h"
+#include "RSBossEncounterViewModel.h"
 #include "RSGameModeBase.h"
 #include "RSHealthComponent.h"
 #include "RSPlayerCharacter.h"
@@ -31,7 +31,7 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 
 	UWorld* TestWorld = UWorld::CreateWorld(EWorldType::Game, false);
 	ARSBossEncounter* BossEncounter = TestWorld->SpawnActor<ARSBossEncounter>();
-	URSBossEncounterTimerViewModel* TimerViewModel = NewObject<URSBossEncounterTimerViewModel>();
+	URSBossEncounterViewModel* TimerViewModel = NewObject<URSBossEncounterViewModel>();
 	TimerViewModel->InitializeViewModel(BossEncounter);
 
 	TestEqual(TEXT("Initial state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Inactive);
@@ -68,6 +68,19 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Ended event keeps finished timer visible"), TimerViewModel->bIsVisible);
 	TestFalse(TEXT("Ended event stops timer tick"), TimerViewModel->IsTickable());
 	TestEqual(TEXT("Finished getter uses captured snapshot"), BossEncounter->GetRemainingTimeSeconds(), BossEncounter->CompletionRemainingTimeSeconds);
+	TestEqual(TEXT("Finished event refreshes ViewModel result"), TimerViewModel->Result, ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("Finished event refreshes ViewModel title"), TimerViewModel->ResultTitle.ToString(), FString(TEXT("CLEAR")));
+	TestFalse(TEXT("Finished event selects ViewModel message"), TimerViewModel->ResultMessage.IsEmpty());
+	const FText ClearResultMessage = TimerViewModel->ResultMessage;
+	TimerViewModel->InitializeViewModel(BossEncounter);
+	TestTrue(TEXT("Same Source registration keeps Result Message"), TimerViewModel->ResultMessage.IdenticalTo(ClearResultMessage));
+
+	URSBossEncounterViewModel* LateViewModel = NewObject<URSBossEncounterViewModel>();
+	LateViewModel->InitializeViewModel(BossEncounter);
+	TestEqual(TEXT("Late Source restores result"), LateViewModel->Result, ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("Late Source restores title"), LateViewModel->ResultTitle.ToString(), FString(TEXT("CLEAR")));
+	TestFalse(TEXT("Late Source selects message"), LateViewModel->ResultMessage.IsEmpty());
+	LateViewModel->UninitializeViewModel();
 
 	BossEncounter->ResolveEncounter(ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("Duplicate resolve keeps state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Finished);
@@ -77,6 +90,10 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Finished reset state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Inactive);
 	TestEqual(TEXT("Finished reset result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
 	TestEqual(TEXT("Finished reset snapshot"), BossEncounter->GetRemainingTimeSeconds(), 0.0f);
+	// 실제 런타임에서는 Source 해제로 초기화되며, 직접 연결한 단위 테스트는 같은 Source 재동기화를 명시합니다
+	TimerViewModel->InitializeViewModel(BossEncounter);
+	TestEqual(TEXT("Finished reset clears ViewModel result"), TimerViewModel->Result, ERSBossEncounterResult::None);
+	TestTrue(TEXT("Finished reset clears ViewModel message"), TimerViewModel->ResultMessage.IsEmpty());
 
 	TimerViewModel->UninitializeViewModel();
 	TimerViewModel->InitializeViewModel(BossEncounter);
@@ -259,6 +276,24 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	GameMode->HandleBossEncounterFinished(BoundBossEncounter, ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("Failed starts a fresh GameMode Result Flow"), GameMode->GetBossResult(), ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("PlayerController receives Failed result"), PlayerController->GetBossResultPresentation(), ERSBossEncounterResult::Failed);
+
+	GameMode->BossResultAction.Reset();
+	GameMode->BossResult.Reset();
+	TestFalse(TEXT("Result Action requires a started Result Flow"), GameMode->TryCommitBossResultAction(ERSBossResultAction::RestartLevel));
+
+	GameMode->BossResult.Emplace(ERSBossEncounterResult::Clear);
+	TestFalse(
+		TEXT("Unknown Result Action cannot be committed"),
+		GameMode->TryCommitBossResultAction(static_cast<ERSBossResultAction>(MAX_uint8)));
+	TestTrue(TEXT("Restart Level Action commits after Clear"), GameMode->TryCommitBossResultAction(ERSBossResultAction::RestartLevel));
+	TestTrue(TEXT("Committed Result Action is in progress"), GameMode->IsBossResultActionInProgress());
+	TestEqual(TEXT("Committed Result Action is preserved"), GameMode->GetBossResultAction().GetValue(), ERSBossResultAction::RestartLevel);
+	TestFalse(TEXT("Second Result Action is rejected"), GameMode->TryCommitBossResultAction(ERSBossResultAction::ReturnToMainMenu));
+
+	GameMode->BossResultAction.Reset();
+	GameMode->BossResult.Emplace(ERSBossEncounterResult::Failed);
+	TestTrue(TEXT("Return to Main Menu Action commits after Failed"), GameMode->TryCommitBossResultAction(ERSBossResultAction::ReturnToMainMenu));
+	TestEqual(TEXT("Main Menu Action is preserved"), GameMode->GetBossResultAction().GetValue(), ERSBossResultAction::ReturnToMainMenu);
 
 	TimerViewModel->UninitializeViewModel();
 	TestWorld->DestroyWorld(false);

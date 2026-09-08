@@ -262,6 +262,15 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 			continue;
 		}
 
+		FString ShapeValidationError;
+		if (!Ring.IsDataValid(&ShapeValidationError))
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] is invalid: %s"), RingIndex, *ShapeValidationError)));
+			ValidationResult = EDataValidationResult::Invalid;
+
+			continue;
+		}
+
 		if (Ring.InnerRadius <= 0.0f || Ring.InnerRadius >= Ring.Radius)
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] needs 0 < InnerRadius (%.0f) < Radius (%.0f). Every ring is a donut; the center hole is outside this pattern."), RingIndex, Ring.InnerRadius, Ring.Radius)));

@@ -205,14 +205,9 @@ void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
 	CleanupOutcomeEvaluation();
 	UnbindAllParticipantDeathObservations();
 	StopTimeLimit();
-	NotifyControllerEncounterEnded();
+	NotifyBossEncounterEnded();
 
-	// 종료 후에도 결과 시점의 제한 시간을 표시하므로 Encounter 데이터 원본은 유지합니다
-	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
-	{
-		UnregisterParticipantBossSource(ParticipantReference.Get());
-	}
-
+	// Result UI와 종료 시점 Timer가 같은 Snapshot을 관찰하도록 Source는 Reset/EndPlay까지 유지합니다
 	BroadcastEncounterTransitionEvents(OldState);
 }
 
@@ -237,7 +232,7 @@ void ARSBossEncounter::ResetEncounter()
 
 	if (OldState == ERSBossEncounterState::Active)
 	{
-		NotifyControllerEncounterEnded();
+		NotifyBossEncounterEnded();
 	}
 
 	// 참가자 알림 전에 이 전이에서 수명이 끝나는 Source와 Camera 연결을 모두 정리합니다
@@ -384,13 +379,12 @@ void ARSBossEncounter::NotifyControllerEncounterStarted()
 	BossController->StartEncounter(this);
 }
 
-void ARSBossEncounter::NotifyControllerEncounterEnded()
+void ARSBossEncounter::NotifyBossEncounterEnded()
 {
-	ARSBossController* BossController = GetBossController();
-
-	if (BossController)
+	if (BossCharacter)
 	{
-		BossController->EndEncounter();
+		// Encounter는 ASC나 이동 구현을 직접 조작하지 않고 Boss 측 전투 종료 계약만 호출합니다
+		BossCharacter->EndEncounterCombat();
 	}
 }
 

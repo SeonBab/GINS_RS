@@ -1,17 +1,20 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
-// URSBossEncounterTimerViewModel의 표시 규칙만 검증합니다
+// URSBossEncounterViewModel의 제한 시간과 Result 표시 규칙을 검증합니다
 // 제한 시간 타이머의 예약과 정리, Encounter 생명주기 배선은 FTimerManager와 실제 월드가 필요하므로 PIE 검증이 담당합니다
 
 #include "Misc/AutomationTest.h"
+#include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "RSBossEncounter.h"
-#include "RSBossEncounterTimerViewModel.h"
+#include "RSBossEncounterViewModel.h"
+#include "View/MVVMViewClass.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossEncounterTimerTest, "RS.UI.BossEncounterTimer", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 {
-	URSBossEncounterTimerViewModel* ViewModel = NewObject<URSBossEncounterTimerViewModel>();
+	URSBossEncounterViewModel* ViewModel = NewObject<URSBossEncounterViewModel>();
 
 	// 분과 초의 경계에서 자리수와 올림이 어긋나지 않아야 합니다
 	const int32 FormatSeconds[] = { -1, 0, 1, 59, 60, 61, 599, 600, 3599, 3600 };
@@ -19,7 +22,7 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < UE_ARRAY_COUNT(FormatSeconds); ++Index)
 	{
 		const FString Context = FString::Printf(TEXT("Format %d"), FormatSeconds[Index]);
-		TestEqual(Context, URSBossEncounterTimerViewModel::MakeRemainingTimeText(FormatSeconds[Index]).ToString(), FString(FormatTexts[Index]));
+		TestEqual(Context, URSBossEncounterViewModel::MakeRemainingTimeText(FormatSeconds[Index]).ToString(), FString(FormatTexts[Index]));
 	}
 
 	// 실제로 시간이 남아 있는 동안에는 00:00을 표시하지 않아야 합니다
@@ -28,7 +31,7 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < UE_ARRAY_COUNT(CeilingSeconds); ++Index)
 	{
 		ViewModel->ResetTimerValues();
-		ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, CeilingSeconds[Index]);
+		ViewModel->ApplyTimerValues(ERSBossEncounterState::Active, false, CeilingSeconds[Index]);
 		const FString Context = FString::Printf(TEXT("Ceiling %.3f"), CeilingSeconds[Index]);
 		TestEqual(Context, ViewModel->RemainingTimeText.ToString(), FString(CeilingTexts[Index]));
 	}
@@ -58,7 +61,7 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 	for (const FDisplayCase& DisplayCase : DisplayCases)
 	{
 		ViewModel->ResetTimerValues();
-		ViewModel->ApplyEncounterValues(DisplayCase.EncounterState, DisplayCase.bHasExpired, DisplayCase.RemainingSeconds);
+		ViewModel->ApplyTimerValues(DisplayCase.EncounterState, DisplayCase.bHasExpired, DisplayCase.RemainingSeconds);
 		const FString Context = FString(DisplayCase.Context);
 		TestEqual(Context + TEXT(" text"), ViewModel->RemainingTimeText.ToString(), FString(DisplayCase.ExpectedText));
 		TestEqual(Context + TEXT(" visible"), ViewModel->bIsVisible, DisplayCase.bExpectedVisible);
@@ -67,21 +70,83 @@ bool FRSBossEncounterTimerTest::RunTest(const FString& Parameters)
 
 	// FText는 내용이 같아도 새로 만들면 다른 값이 되므로 같은 초에서는 다시 만들지 않아야 합니다
 	ViewModel->ResetTimerValues();
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, 120.4f);
+	ViewModel->ApplyTimerValues(ERSBossEncounterState::Active, false, 120.4f);
 	const FText FirstText = ViewModel->RemainingTimeText;
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, 120.1f);
+	ViewModel->ApplyTimerValues(ERSBossEncounterState::Active, false, 120.1f);
 	TestTrue(TEXT("Same display second keeps text"), ViewModel->RemainingTimeText.IdenticalTo(FirstText));
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, 119.9f);
+	ViewModel->ApplyTimerValues(ERSBossEncounterState::Active, false, 119.9f);
 	TestFalse(TEXT("New display second rebuilds text"), ViewModel->RemainingTimeText.IdenticalTo(FirstText));
 	TestEqual(TEXT("New display second text"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("02:00")));
 
 	// 초기화 후 우연히 같은 초가 들어와도 이전 표시 이력 때문에 빈 문자열이 남으면 안 됩니다
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Finished, false, 42.0f);
+	ViewModel->ApplyTimerValues(ERSBossEncounterState::Finished, false, 42.0f);
 	TestEqual(TEXT("Finished snapshot text"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("00:42")));
 	ViewModel->ResetTimerValues();
 	TestTrue(TEXT("Reset clears text"), ViewModel->RemainingTimeText.IsEmpty());
-	ViewModel->ApplyEncounterValues(ERSBossEncounterState::Active, false, 42.0f);
+	ViewModel->ApplyTimerValues(ERSBossEncounterState::Active, false, 42.0f);
 	TestEqual(TEXT("Same second after reset"), ViewModel->RemainingTimeText.ToString(), FString(TEXT("00:42")));
+
+	const auto IsResultMessageCandidate = [](ERSBossEncounterResult Result, const FText& Message)
+	{
+		for (const FText& Candidate : URSBossEncounterViewModel::GetResultMessageCandidates(Result))
+		{
+			if (Candidate.EqualTo(Message))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	// Result Message는 해당 후보에서 Result Cycle당 한 번 선택하고 재동기화에서는 유지해야 합니다
+	ViewModel->ResetResultValues();
+	ViewModel->ApplyResultValues(ERSBossEncounterState::Finished, ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("Clear result value"), ViewModel->Result, ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("Clear result title"), ViewModel->ResultTitle.ToString(), FString(TEXT("CLEAR")));
+	TestTrue(TEXT("Clear result message belongs to candidates"), IsResultMessageCandidate(ERSBossEncounterResult::Clear, ViewModel->ResultMessage));
+	const FText FirstClearMessage = ViewModel->ResultMessage;
+	ViewModel->ApplyResultValues(ERSBossEncounterState::Finished, ERSBossEncounterResult::Clear);
+	TestTrue(TEXT("Same Result Cycle keeps selected message"), ViewModel->ResultMessage.IdenticalTo(FirstClearMessage));
+
+	ViewModel->ApplyResultValues(ERSBossEncounterState::Inactive, ERSBossEncounterResult::None);
+	TestEqual(TEXT("New Result Cycle clears result"), ViewModel->Result, ERSBossEncounterResult::None);
+	TestTrue(TEXT("New Result Cycle clears title"), ViewModel->ResultTitle.IsEmpty());
+	TestTrue(TEXT("New Result Cycle clears message"), ViewModel->ResultMessage.IsEmpty());
+	TestFalse(TEXT("New Result Cycle clears selection history"), ViewModel->bHasSelectedResultMessage);
+
+	ViewModel->ApplyResultValues(ERSBossEncounterState::Finished, ERSBossEncounterResult::Failed);
+	TestEqual(TEXT("Failed result value"), ViewModel->Result, ERSBossEncounterResult::Failed);
+	TestEqual(TEXT("Failed result title"), ViewModel->ResultTitle.ToString(), FString(TEXT("FAILED")));
+	TestTrue(TEXT("Failed result message belongs to candidates"), IsResultMessageCandidate(ERSBossEncounterResult::Failed, ViewModel->ResultMessage));
+
+	// 부모 Manual Source와 정적 자식 Context Source는 클래스와 이름이 모두 일치해야 합니다
+	const auto FindEncounterSourceName = [this](const TCHAR* WidgetClassPath) -> FName
+	{
+		UClass* WidgetClass = LoadClass<UUserWidget>(nullptr, WidgetClassPath);
+		UWidgetBlueprintGeneratedClass* GeneratedClass = Cast<UWidgetBlueprintGeneratedClass>(WidgetClass);
+		const UMVVMViewClass* ViewClass = GeneratedClass ? GeneratedClass->GetExtension<UMVVMViewClass>() : nullptr;
+		if (!TestNotNull(FString::Printf(TEXT("MVVM ViewClass %s"), WidgetClassPath), ViewClass))
+		{
+			return FName();
+		}
+
+		for (const FMVVMViewClass_Source& Source : ViewClass->GetSources())
+		{
+			if (Source.IsViewModel() && Source.GetSourceClass() == URSBossEncounterViewModel::StaticClass())
+			{
+				return Source.GetName();
+			}
+		}
+
+		AddError(FString::Printf(TEXT("Boss Encounter ViewModel Source was not found: %s"), WidgetClassPath));
+		return FName();
+	};
+
+	const FName ExpectedSourceName(TEXT("BossEncounterViewModel"));
+	TestEqual(TEXT("Player HUD Manual Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_PlayerHUD.WBP_PlayerHUD_C")), ExpectedSourceName);
+	TestEqual(TEXT("Boss Timer Context Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_BossTimer.WBP_BossTimer_C")), ExpectedSourceName);
+	TestEqual(TEXT("Boss Result Context Source name"), FindEncounterSourceName(TEXT("/Game/Blueprints/Widget/WBP_BossResult.WBP_BossResult_C")), ExpectedSourceName);
 
 	// Tickable 객체가 갱신이 필요한 상태로 남지 않도록 마무리합니다
 	ViewModel->UninitializeViewModel();

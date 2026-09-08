@@ -202,8 +202,8 @@ private:
 	/** BossController에 전투 시작을 알리고 첫 공격 대상을 선택하게 합니다 */
 	void NotifyControllerEncounterStarted();
 
-	/** BossController가 Blackboard와 현재 공격 대상을 정리하게 합니다 */
-	void NotifyControllerEncounterEnded();
+	/** BossCharacter와 BossController가 진행 중인 공격, 이동과 공격 대상을 정리하게 합니다 */
+	void NotifyBossEncounterEnded();
 
 	/** Active 참가자의 현재 HealthComponent에 사망 관찰을 중복 없이 연결합니다 */
 	void BindParticipantDeathObservation(ARSPlayerState* Participant);

@@ -23,6 +23,116 @@ namespace
 
 	// 판정은 한 프레임만 실행되므로 결과를 눈으로 확인할 수 있을 만큼만 남깁니다
 	constexpr float RSCombatDebugLifeTime = 1.0f;
+
+	bool TryGetConeParameters(const FRSCombatShape& Shape, const FTransform& ShapeTransform, FVector& OutHorizontalForward, float& OutRangeSquared, float& OutMinimumDot)
+	{
+		if (Shape.Type != ERSCombatShapeType::Cone || !Shape.IsDataValid())
+		{
+			return false;
+		}
+
+		OutHorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
+		OutHorizontalForward.Z = 0.0f;
+		if (!OutHorizontalForward.Normalize())
+		{
+			return false;
+		}
+
+		OutRangeSquared = FMath::Square(Shape.Range);
+		OutMinimumDot = FMath::Cos(FMath::DegreesToRadians(Shape.Angle * 0.5f));
+
+		return true;
+	}
+
+	bool IsLocationInsidePreparedCone(const FVector& ShapeLocation, const FVector& HorizontalForward, float RangeSquared, float MinimumDot, const FVector& TargetLocation)
+	{
+		FVector Offset = TargetLocation - ShapeLocation;
+		Offset.Z = 0.0f;
+
+		const float DistanceSquared = Offset.SizeSquared();
+		if (DistanceSquared > RangeSquared && !FMath::IsNearlyEqual(DistanceSquared, RangeSquared))
+		{
+			return false;
+		}
+
+		// 꼭짓점에서는 방향이 정의되지 않지만 거리상 Cone 안이므로 각도 검사를 생략합니다
+		if (FMath::IsNearlyZero(DistanceSquared))
+		{
+			return true;
+		}
+
+		const FVector DirectionToTarget = Offset.GetSafeNormal();
+		const float ForwardDot = FVector::DotProduct(HorizontalForward, DirectionToTarget);
+
+		return ForwardDot >= MinimumDot || FMath::IsNearlyEqual(ForwardDot, MinimumDot);
+	}
+}
+
+bool FRSCombatShape::IsDataValid(FString* OutValidationError) const
+{
+	if (OutValidationError)
+	{
+		OutValidationError->Reset();
+	}
+
+	auto SetValidationError = [OutValidationError](const TCHAR* ErrorMessage)
+		{
+			if (OutValidationError)
+			{
+				*OutValidationError = ErrorMessage;
+			}
+		};
+
+	switch (Type)
+	{
+	case ERSCombatShapeType::Box:
+		if (BoxExtent.ContainsNaN() || BoxExtent.X <= 0.0f || BoxExtent.Y <= 0.0f || BoxExtent.Z <= 0.0f)
+		{
+			SetValidationError(TEXT("BoxExtent must contain finite values greater than zero."));
+
+			return false;
+		}
+		break;
+
+	case ERSCombatShapeType::Sphere:
+		if (!FMath::IsFinite(Radius) || Radius <= 0.0f)
+		{
+			SetValidationError(TEXT("Radius must be finite and greater than zero."));
+
+			return false;
+		}
+
+		if (!FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || InnerRadius >= Radius)
+		{
+			SetValidationError(TEXT("InnerRadius must be finite and satisfy 0 <= InnerRadius < Radius."));
+
+			return false;
+		}
+		break;
+
+	case ERSCombatShapeType::Cone:
+		if (!FMath::IsFinite(Range) || Range <= 0.0f)
+		{
+			SetValidationError(TEXT("Range must be finite and greater than zero."));
+
+			return false;
+		}
+
+		if (!FMath::IsFinite(Angle) || Angle <= 0.0f || Angle > 180.0f)
+		{
+			SetValidationError(TEXT("Angle must be finite and satisfy 0 < Angle <= 180 degrees."));
+
+			return false;
+		}
+		break;
+
+	default:
+		SetValidationError(TEXT("Shape type is not supported."));
+
+		return false;
+	}
+
+	return true;
 }
 
 #if !UE_BUILD_SHIPPING
@@ -72,19 +182,43 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 		return;
 	}
 
-	const bool bIsSphere = Shape.Type == ERSCombatShapeType::Sphere;
 	const FVector ShapeLocation = ShapeTransform.GetLocation();
+	const bool bIsSphere = Shape.Type == ERSCombatShapeType::Sphere;
+	const bool bIsCone = Shape.Type == ERSCombatShapeType::Cone;
+
+	FVector ConeHorizontalForward = FVector::ZeroVector;
+	float ConeRangeSquared = 0.0f;
+	float ConeMinimumDot = 0.0f;
+	if (bIsCone && !TryGetConeParameters(Shape, ShapeTransform, ConeHorizontalForward, ConeRangeSquared, ConeMinimumDot))
+	{
+		return;
+	}
 
 	// 축 정렬 박스를 사용하면 공격자가 대각선을 바라볼 때 판정이 어긋나므로 배치 회전을 함께 넘깁니다
-	// Sphere는 회전이 의미가 없고 후보 박스가 세로로 서 있어야 하므로 회전을 사용하지 않습니다
-	const FQuat QueryRotation = bIsSphere ? FQuat::Identity : ShapeTransform.GetRotation();
+	// Sphere와 Cone은 실제 형상을 수평 필터에서 자르므로 후보 박스의 회전을 사용하지 않습니다
+	const FQuat QueryRotation = bIsSphere || bIsCone ? FQuat::Identity : ShapeTransform.GetRotation();
 
 	// 오버랩 형상은 판정 형상을 나타내지 않습니다. 판정 영역을 감싸기만 하면 되고 실제 판정은 아래 필터가 합니다
 	// 그래서 형상마다 근사를 고르지 않고 항상 감싸는 박스로 모읍니다
 	// 구나 캡슐은 높이에 따라 수평 도달 거리가 줄어들어 대상을 놓칠 수 있는데 박스는 어느 높이에서든 일정합니다
-	const FCollisionShape QueryShape = bIsSphere
-		? FCollisionShape::MakeBox(FVector(Shape.Radius, Shape.Radius, RSCombatQueryVerticalExtent))
-		: FCollisionShape::MakeBox(Shape.BoxExtent);
+	FCollisionShape QueryShape;
+	switch (Shape.Type)
+	{
+	case ERSCombatShapeType::Sphere:
+		QueryShape = FCollisionShape::MakeBox(FVector(Shape.Radius, Shape.Radius, RSCombatQueryVerticalExtent));
+		break;
+
+	case ERSCombatShapeType::Cone:
+		QueryShape = FCollisionShape::MakeBox(FVector(Shape.Range, Shape.Range, RSCombatQueryVerticalExtent));
+		break;
+
+	case ERSCombatShapeType::Box:
+		QueryShape = FCollisionShape::MakeBox(Shape.BoxExtent);
+		break;
+
+	default:
+		return;
+	}
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.bTraceComplex = false;
@@ -123,6 +257,10 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 				continue;
 			}
 		}
+		else if (bIsCone && !IsLocationInsidePreparedCone(ShapeLocation, ConeHorizontalForward, ConeRangeSquared, ConeMinimumDot, OverlappedActor->GetActorLocation()))
+		{
+			continue;
+		}
 
 		OutTargets.Add(OverlappedActor);
 	}
@@ -131,6 +269,19 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 	{
 		DrawDebugCombatShape(World, Shape, ShapeTransform, OutTargets.IsEmpty() ? FColor::Silver : FColor::Red, RSCombatDebugLifeTime);
 	}
+}
+
+bool URSCombatFunctionLibrary::IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation)
+{
+	FVector HorizontalForward = FVector::ZeroVector;
+	float RangeSquared = 0.0f;
+	float MinimumDot = 0.0f;
+	if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
+	{
+		return false;
+	}
+
+	return IsLocationInsidePreparedCone(ShapeTransform.GetLocation(), HorizontalForward, RangeSquared, MinimumDot, TargetLocation);
 }
 
 void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime)
@@ -160,6 +311,37 @@ void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const F
 			DrawDebugCircle(World, ShapeLocation, Shape.InnerRadius, DebugCircleSegments, Color, false, LifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
 		}
 		break;
+
+	case ERSCombatShapeType::Cone:
+	{
+		if (!Shape.IsDataValid())
+		{
+			break;
+		}
+
+		FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
+		HorizontalForward.Z = 0.0f;
+		if (!HorizontalForward.Normalize())
+		{
+			break;
+		}
+
+		const FVector LeftBoundary = HorizontalForward.RotateAngleAxis(-Shape.Angle * 0.5f, FVector::UpVector);
+		const FVector RightBoundary = HorizontalForward.RotateAngleAxis(Shape.Angle * 0.5f, FVector::UpVector);
+		DrawDebugLine(World, ShapeLocation, ShapeLocation + LeftBoundary * Shape.Range, Color, false, LifeTime);
+		DrawDebugLine(World, ShapeLocation, ShapeLocation + RightBoundary * Shape.Range, Color, false, LifeTime);
+
+		FVector PreviousArcPoint = ShapeLocation + LeftBoundary * Shape.Range;
+		for (int32 SegmentIndex = 1; SegmentIndex <= DebugCircleSegments; ++SegmentIndex)
+		{
+			const float SegmentRatio = static_cast<float>(SegmentIndex) / static_cast<float>(DebugCircleSegments);
+			const float SegmentAngle = FMath::Lerp(-Shape.Angle * 0.5f, Shape.Angle * 0.5f, SegmentRatio);
+			const FVector ArcPoint = ShapeLocation + HorizontalForward.RotateAngleAxis(SegmentAngle, FVector::UpVector) * Shape.Range;
+			DrawDebugLine(World, PreviousArcPoint, ArcPoint, Color, false, LifeTime);
+			PreviousArcPoint = ArcPoint;
+		}
+		break;
+	}
 	}
 #endif
 }
