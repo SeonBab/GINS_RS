@@ -16,7 +16,7 @@ URSAbilityTask_CurveMovement* URSAbilityTask_CurveMovement::CreateCurveMovement(
 	URSAbilityTask_CurveMovement* Task = NewAbilityTask<URSAbilityTask_CurveMovement>(OwningAbility);
 	Task->CachedMovementComponent = MovementComponent;
 	Task->MovementDirection = Direction.GetSafeNormal2D();
-	Task->MovementDistance = Distance;
+	Task->MovementDistance = FMath::IsFinite(Distance) ? FMath::Max(Distance, 0.0f) : 0.0f;
 	Task->MovementDuration = Duration;
 	Task->DistanceProgressCurve = ProgressCurve;
 
@@ -25,7 +25,7 @@ URSAbilityTask_CurveMovement* URSAbilityTask_CurveMovement::CreateCurveMovement(
 
 void URSAbilityTask_CurveMovement::SetMeshArc(USkeletalMeshComponent* MeshComponent, float Height)
 {
-	if (!MeshComponent || Height <= 0.0f)
+	if (!MeshComponent || !FMath::IsFinite(Height) || Height <= 0.0f)
 	{
 		return;
 	}
@@ -39,10 +39,22 @@ void URSAbilityTask_CurveMovement::Activate()
 {
 	Super::Activate();
 
-	UCharacterMovementComponent* MovementComponent = CachedMovementComponent.Get();
-	if (!MovementComponent || !MovementComponent->UpdatedComponent || MovementDirection.IsNearlyZero() || MovementDistance <= 0.0f || MovementDuration <= 0.0f || DistanceProgressCurve.GetNumKeys() < 2)
+	if (!FMath::IsFinite(MovementDuration) || MovementDuration <= 0.0f)
 	{
 		EndTask();
+
+		return;
+	}
+
+	if (HasHorizontalMovement())
+	{
+		UCharacterMovementComponent* MovementComponent = CachedMovementComponent.Get();
+		if (!MovementComponent || !MovementComponent->UpdatedComponent || DistanceProgressCurve.GetNumKeys() < 2)
+		{
+			EndTask();
+
+			return;
+		}
 	}
 }
 
@@ -50,33 +62,36 @@ void URSAbilityTask_CurveMovement::TickTask(float DeltaTime)
 {
 	Super::TickTask(DeltaTime);
 
-	UCharacterMovementComponent* MovementComponent = CachedMovementComponent.Get();
-	if (!MovementComponent || !MovementComponent->UpdatedComponent)
-	{
-		EndTask();
-
-		return;
-	}
-
 	ElapsedTime = FMath::Min(ElapsedTime + DeltaTime, MovementDuration);
 
 	const float NormalizedTime = ElapsedTime / MovementDuration;
-	const float Progress = FMath::Clamp(DistanceProgressCurve.Eval(NormalizedTime), 0.0f, 1.0f);
-	const float DesiredDistance = MovementDistance * Progress;
-	const float DeltaDistance = FMath::Max(DesiredDistance - PreviousDesiredDistance, 0.0f);
-	PreviousDesiredDistance = FMath::Max(PreviousDesiredDistance, DesiredDistance);
-
-	if (DeltaDistance > UE_KINDA_SMALL_NUMBER)
+	if (HasHorizontalMovement())
 	{
-		const FVector MovementDelta = MovementDirection * DeltaDistance;
-		FHitResult Hit;
-		MovementComponent->SafeMoveUpdatedComponent(MovementDelta, MovementComponent->UpdatedComponent->GetComponentQuat(), true, Hit);
-
-		if (Hit.IsValidBlockingHit())
+		UCharacterMovementComponent* MovementComponent = CachedMovementComponent.Get();
+		if (!MovementComponent || !MovementComponent->UpdatedComponent)
 		{
-			// 막힌 거리를 다음 프레임에 보충하지 않고 남은 이동량만 표면 방향으로 처리합니다
-			UMovementComponent* BaseMovementComponent = MovementComponent;
-			BaseMovementComponent->SlideAlongSurface(MovementDelta, 1.0f - Hit.Time, Hit.Normal, Hit, true);
+			EndTask();
+
+			return;
+		}
+
+		const float Progress = FMath::Clamp(DistanceProgressCurve.Eval(NormalizedTime), 0.0f, 1.0f);
+		const float DesiredDistance = MovementDistance * Progress;
+		const float DeltaDistance = FMath::Max(DesiredDistance - PreviousDesiredDistance, 0.0f);
+		PreviousDesiredDistance = FMath::Max(PreviousDesiredDistance, DesiredDistance);
+
+		if (DeltaDistance > UE_KINDA_SMALL_NUMBER)
+		{
+			const FVector MovementDelta = MovementDirection * DeltaDistance;
+			FHitResult Hit;
+			MovementComponent->SafeMoveUpdatedComponent(MovementDelta, MovementComponent->UpdatedComponent->GetComponentQuat(), true, Hit);
+
+			if (Hit.IsValidBlockingHit())
+			{
+				// 막힌 거리를 다음 프레임에 보충하지 않고 남은 이동량만 표면 방향으로 처리합니다
+				UMovementComponent* BaseMovementComponent = MovementComponent;
+				BaseMovementComponent->SlideAlongSurface(MovementDelta, 1.0f - Hit.Time, Hit.Normal, Hit, true);
+			}
 		}
 	}
 
@@ -89,6 +104,11 @@ void URSAbilityTask_CurveMovement::TickTask(float DeltaTime)
 
 	if (ElapsedTime >= MovementDuration)
 	{
+		if (ShouldBroadcastAbilityTaskDelegates())
+		{
+			OnCompleted.Broadcast();
+		}
+
 		EndTask();
 	}
 }
@@ -99,6 +119,11 @@ void URSAbilityTask_CurveMovement::OnDestroy(bool bInOwnerFinished)
 	RestoreMeshLocation();
 
 	Super::OnDestroy(bInOwnerFinished);
+}
+
+bool URSAbilityTask_CurveMovement::HasHorizontalMovement() const
+{
+	return !MovementDirection.IsNearlyZero() && MovementDistance > 0.0f;
 }
 
 void URSAbilityTask_CurveMovement::RestoreMeshLocation()

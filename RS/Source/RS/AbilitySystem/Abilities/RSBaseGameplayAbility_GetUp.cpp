@@ -44,11 +44,6 @@ void URSBaseGameplayAbility_GetUp::ActivateAbility(const FGameplayAbilitySpecHan
 		return;
 	}
 
-	// CancelAbilitiesWithTag은 Commit보다 먼저 실행되므로, 쿨다운으로 실패한 기상이 누운 상태를 지우지 않도록 직접 취소합니다
-	FGameplayTagContainer DownedAbilityTags;
-	DownedAbilityTags.AddTag(RSGameplayTags::Ability_CrowdControl_Downed);
-	ActorInfo->AbilitySystemComponent->CancelAbilities(&DownedAbilityTags, nullptr, this);
-
 	StartGetUpMovement(*Character);
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GetUpMontage);
@@ -56,6 +51,16 @@ void URSBaseGameplayAbility_GetUp::ActivateAbility(const FGameplayAbilitySpecHan
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleGetUpMontageCancelled);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleGetUpMontageCancelled);
 	MontageTask->ReadyForActivation();
+	if (!IsActive())
+	{
+		return;
+	}
+
+	// 새 Montage가 슬롯 소유권을 넘겨받은 뒤 누움을 취소해 두 Montage 사이에 기본 자세가 노출되지 않게 합니다
+	// Commit과 Montage 재생이 모두 성공한 뒤 취소하므로 실패한 기상이 누운 상태를 먼저 지우지 않습니다
+	FGameplayTagContainer DownedAbilityTags;
+	DownedAbilityTags.AddTag(RSGameplayTags::Ability_CrowdControl_Downed);
+	ActorInfo->AbilitySystemComponent->CancelAbilities(&DownedAbilityTags, nullptr, this);
 }
 
 void URSBaseGameplayAbility_GetUp::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
