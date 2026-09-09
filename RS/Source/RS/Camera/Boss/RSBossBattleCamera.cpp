@@ -63,8 +63,8 @@ void ARSBossBattleCamera::UpdateCamera(float DeltaTime, bool bSnapToTarget)
 
 	// 위치를 따로 보간하면 이동 중에 궤도 안쪽을 가로질러 반지름이 흔들리므로 방위각에서 직접 계산합니다
 	const FVector OrbitDirection = FRotator(0.0f, CurrentOrbitYaw, 0.0f).Vector();
-	const FVector CameraLocation = PivotLocation + OrbitDirection * OrbitRadius + FVector::UpVector * CameraHeight;
-	const FVector LookAtLocation = PivotLocation + FVector::UpVector * LookAtHeight;
+	const FVector CameraLocation = PivotLocation + OrbitDirection * CameraContext.Settings.OrbitRadius + FVector::UpVector * CameraContext.Settings.CameraHeight;
+	const FVector LookAtLocation = PivotLocation + FVector::UpVector * CameraContext.Settings.LookAtHeight;
 
 	SetActorLocationAndRotation(CameraLocation, (LookAtLocation - CameraLocation).Rotation());
 }
@@ -79,14 +79,14 @@ void ARSBossBattleCamera::UpdateOrbitYaw(const FVector& PivotLocation, const FVe
 		// Pivot과 플레이어가 겹치면 방향을 만들 수 없으므로 유효한 방위각이 생길 때까지 기본값을 사용합니다
 		if (!bHasCurrentOrbitYaw)
 		{
-			CurrentOrbitYaw = FMath::UnwindDegrees(OrbitYawOffset);
+			CurrentOrbitYaw = FMath::UnwindDegrees(CameraContext.Settings.OrbitYawOffset);
 			bHasCurrentOrbitYaw = true;
 		}
 
 		return;
 	}
 
-	const float TargetOrbitYaw = FMath::UnwindDegrees(PlayerDirection.Rotation().Yaw + OrbitYawOffset);
+	const float TargetOrbitYaw = FMath::UnwindDegrees(PlayerDirection.Rotation().Yaw + CameraContext.Settings.OrbitYawOffset);
 
 	if (!bHasCurrentOrbitYaw || bSnapToTarget)
 	{
@@ -98,7 +98,7 @@ void ARSBossBattleCamera::UpdateOrbitYaw(const FVector& PivotLocation, const FVe
 
 	// 각도 차이를 -180~180도로 제한하여 경계에서 반대 방향으로 크게 회전하지 않게 합니다
 	const float DeltaYaw = FMath::FindDeltaAngleDegrees(CurrentOrbitYaw, TargetOrbitYaw);
-	const float MaximumYawStep = MaximumOrbitRotationSpeed * DeltaTime;
+	const float MaximumYawStep = CameraContext.Settings.MaximumOrbitRotationSpeed * DeltaTime;
 	CurrentOrbitYaw = FMath::UnwindDegrees(CurrentOrbitYaw + FMath::Clamp(DeltaYaw, -MaximumYawStep, MaximumYawStep));
 }
 

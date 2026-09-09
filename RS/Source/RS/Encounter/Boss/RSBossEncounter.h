@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "RSBossCameraTypes.h"
 #include "TimerManager.h"
 #include "RSBossEncounter.generated.h"
 
@@ -184,6 +185,10 @@ protected:
 	/** BossCharacter의 이동과 애니메이션에 영향받지 않는 보스전 카메라 중심입니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Camera")
 	TObjectPtr<USceneComponent> CameraPivot;
+
+	/** 이 보스전 공간에 적용할 Orbit Camera 조정값입니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (ShowOnlyInnerProperties))
+	FRSBossCameraSettings BossCameraSettings;
 
 	/** 이 Encounter가 제어할 보스 캐릭터입니다 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "RS|Boss")

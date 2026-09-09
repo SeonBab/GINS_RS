@@ -626,8 +626,8 @@ void ARSBossEncounter::RequestParticipantCameraActivation(ARSPlayerState* Partic
 {
 	if (URSPlayerCameraComponent* PlayerCameraComp = GetParticipantCameraComponent(Participant))
 	{
-		// 카메라에는 Encounter가 아니라 공전 중심이 될 Component만 전달합니다
-		PlayerCameraComp->ActivateBossCamera(CameraPivot);
+		// 카메라에는 Encounter가 아니라 공전 중심과 도메인 중립 조정값만 전달합니다
+		PlayerCameraComp->ActivateBossCamera(CameraPivot, BossCameraSettings);
 	}
 }
 

@@ -8,6 +8,7 @@ class APawn;
 class ARSBossBattleCamera;
 class ARSPlayerController;
 class USceneComponent;
+struct FRSBossCameraSettings;
 
 /** 로컬 플레이어가 현재 사용하는 카메라 종류입니다 */
 UENUM()
@@ -41,8 +42,8 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
-	/** 전달받은 Pivot을 중심으로 보스전 카메라를 활성화하고 ViewTarget을 전환합니다 */
-	void ActivateBossCamera(USceneComponent* PivotComponent);
+	/** 전달받은 Pivot과 조정값으로 보스전 카메라를 활성화하고 ViewTarget을 전환합니다 */
+	void ActivateBossCamera(USceneComponent* PivotComponent, const FRSBossCameraSettings& CameraSettings);
 
 	/** 보스전 카메라를 끝내고 현재 Pawn의 카메라로 복귀합니다 */
 	void DeactivateBossCamera();
