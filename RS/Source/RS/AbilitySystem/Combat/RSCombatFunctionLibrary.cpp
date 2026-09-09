@@ -348,6 +348,16 @@ void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const F
 
 void URSCombatFunctionLibrary::SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition)
 {
+	SendHitReactionInternal(Instigator, TargetActor, ReactionDefinition, false, FVector::ZeroVector);
+}
+
+void URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection)
+{
+	SendHitReactionInternal(Instigator, TargetActor, ReactionDefinition, true, KnockbackDirection);
+}
+
+void URSCombatFunctionLibrary::SendHitReactionInternal(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, bool bHasKnockbackDirection, const FVector& KnockbackDirection)
+{
 	if (!TargetActor || ReactionDefinition.Type == ERSHitReactionType::None)
 	{
 		return;
@@ -370,6 +380,8 @@ void URSCombatFunctionLibrary::SendHitReaction(const AActor* Instigator, AActor*
 
 		// 넉다운은 거리와 높이, 시간이 타격마다 다르므로 float 하나인 EventMagnitude 대신 TargetData로 전달합니다
 		FRSKnockbackTargetData* KnockbackData = new FRSKnockbackTargetData();
+		KnockbackData->bHasKnockbackDirection = bHasKnockbackDirection;
+		KnockbackData->KnockbackDirection = KnockbackDirection;
 		KnockbackData->Distance = ReactionDefinition.KnockbackDistance;
 		KnockbackData->Height = ReactionDefinition.KnockbackHeight;
 		KnockbackData->Duration = ReactionDefinition.KnockbackDuration;

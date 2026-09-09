@@ -68,13 +68,21 @@ enum class ERSHitReactionType : uint8
 };
 
 /**
- * 넉다운 요청이 대상에게 전달할 밀려나는 거리, 뜨는 높이와 시간입니다
- * FGameplayEventData에는 float이 하나뿐이라 세 값을 TargetData로 전달합니다
+ * 넉다운 요청이 대상에게 전달할 방향, 밀려나는 거리, 뜨는 높이와 시간입니다
+ * FGameplayEventData에는 필요한 값을 모두 담을 수 없어 TargetData로 전달합니다
  */
 USTRUCT()
 struct FRSKnockbackTargetData : public FGameplayAbilityTargetData
 {
 	GENERATED_BODY()
+
+	/** 공격이 기존 공격자 반대 방향 대신 사용할 방향을 지정했는지 나타냅니다 */
+	UPROPERTY()
+	bool bHasKnockbackDirection = false;
+
+	/** 공격이 지정한 월드 수평 방향이며 소비할 때 Z를 제거하고 정규화합니다 */
+	UPROPERTY()
+	FVector KnockbackDirection = FVector::ZeroVector;
 
 	/** 수평으로 밀려날 거리입니다 */
 	UPROPERTY()
@@ -88,6 +96,21 @@ struct FRSKnockbackTargetData : public FGameplayAbilityTargetData
 	UPROPERTY()
 	float Duration = 0.0f;
 
+	/** 명시된 방향을 수평 단위 벡터로 반환하며 미지정 또는 잘못된 방향이면 실패합니다 */
+	bool TryGetNormalizedDirection(FVector& OutDirection) const
+	{
+		OutDirection = FVector::ZeroVector;
+		if (!bHasKnockbackDirection || KnockbackDirection.ContainsNaN())
+		{
+			return false;
+		}
+
+		OutDirection = KnockbackDirection;
+		OutDirection.Z = 0.0f;
+
+		return OutDirection.Normalize();
+	}
+
 	virtual UScriptStruct* GetScriptStruct() const override
 	{
 		return FRSKnockbackTargetData::StaticStruct();
@@ -95,6 +118,16 @@ struct FRSKnockbackTargetData : public FGameplayAbilityTargetData
 
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 	{
+		Ar.SerializeBits(&bHasKnockbackDirection, 1);
+		if (bHasKnockbackDirection)
+		{
+			Ar << KnockbackDirection;
+		}
+		else if (Ar.IsLoading())
+		{
+			KnockbackDirection = FVector::ZeroVector;
+		}
+
 		Ar << Distance;
 		Ar << Height;
 		Ar << Duration;
@@ -203,6 +236,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition);
 
+	/** 지정한 월드 방향을 사용하는 넉백 반응을 대상에게 요청합니다 */
+	static void SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection);
+
 	/** 판정 형상 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
 	static bool IsHitCheckDebugEnabled();
 
@@ -230,4 +266,8 @@ public:
 	static constexpr float DamageIntegerTolerance = 0.01f;
 
 #endif
+
+private:
+	/** 선택적인 방향 데이터를 포함해 공통 피격 반응 Event를 구성하고 전송합니다 */
+	static void SendHitReactionInternal(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, bool bHasKnockbackDirection, const FVector& KnockbackDirection);
 };
