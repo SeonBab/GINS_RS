@@ -14,7 +14,7 @@ URSBaseGameplayAbility_GetUp::URSBaseGameplayAbility_GetUp()
 
 	ActivationOwnedTags.AddTag(RSGameplayTags::State_CrowdControl_GettingUp);
 
-	// 누워 있을 때만 일어날 수 있으므로 누운 상태를 요구합니다
+	// 일반 기상은 누워 있을 때만 실행하며 빠른 기상은 파생 생성자에서 이 조건을 가용 구간 태그로 교체합니다
 	ActivationRequiredTags.AddTag(RSGameplayTags::State_CrowdControl_Downed);
 
 	// 누움이 부여한 State.Action.Locked는 기상을 막으면 안 되므로 이 어빌리티는 공통 잠금을 차단 조건에 넣지 않습니다
@@ -44,11 +44,6 @@ void URSBaseGameplayAbility_GetUp::ActivateAbility(const FGameplayAbilitySpecHan
 		return;
 	}
 
-	// CancelAbilitiesWithTag은 Commit보다 먼저 실행되므로, 쿨다운으로 실패한 기상이 누운 상태를 지우지 않도록 직접 취소합니다
-	FGameplayTagContainer DownedAbilityTags;
-	DownedAbilityTags.AddTag(RSGameplayTags::Ability_CrowdControl_Downed);
-	ActorInfo->AbilitySystemComponent->CancelAbilities(&DownedAbilityTags, nullptr, this);
-
 	StartGetUpMovement(*Character);
 
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GetUpMontage);
@@ -56,6 +51,17 @@ void URSBaseGameplayAbility_GetUp::ActivateAbility(const FGameplayAbilitySpecHan
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleGetUpMontageCancelled);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleGetUpMontageCancelled);
 	MontageTask->ReadyForActivation();
+	if (!IsActive())
+	{
+		return;
+	}
+
+	// 새 Montage가 슬롯 소유권을 넘겨받은 뒤 이전 상태를 취소해 두 Montage 사이에 기본 자세가 노출되지 않게 합니다
+	// Commit과 Montage 재생이 모두 성공한 뒤 취소하므로 실패한 기상이 누운 상태를 먼저 지우지 않습니다
+	FGameplayTagContainer PreviousRecoveryAbilityTags;
+	PreviousRecoveryAbilityTags.AddTag(RSGameplayTags::Ability_CrowdControl_Knockdown);
+	PreviousRecoveryAbilityTags.AddTag(RSGameplayTags::Ability_CrowdControl_Downed);
+	ActorInfo->AbilitySystemComponent->CancelAbilities(&PreviousRecoveryAbilityTags, nullptr, this);
 }
 
 void URSBaseGameplayAbility_GetUp::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)

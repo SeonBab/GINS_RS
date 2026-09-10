@@ -8,6 +8,10 @@
 
 class APawn;
 class URSBaseGameplayAbility;
+class URSBossPhaseData;
+class URSHealthComponent;
+
+struct FRSBossPhaseDefinition;
 
 /** 보스가 사용하는 패턴의 분류입니다 */
 UENUM(BlueprintType)
@@ -18,6 +22,23 @@ enum class ERSBossPatternType : uint8
 
 	/** 사이클의 지정된 차례에만 사용하는 특수 패턴입니다 */
 	Special
+};
+
+/**
+ * 메인 기믹에 대한 플레이어의 대응 결과입니다
+ * 어빌리티가 정상 종료했는지와는 다른 축이며 게임플레이 판정만 나타냅니다
+ */
+UENUM(BlueprintType)
+enum class ERSBossMainGimmickOutcome : uint8
+{
+	/** 아직 판정이 없습니다. 취소되어 판정에 도달하지 못한 경우를 포함합니다 */
+	None,
+
+	/** 플레이어가 기믹을 파훼했습니다 */
+	Broken,
+
+	/** 플레이어가 끝까지 기믹을 파훼하지 못했습니다 */
+	NotBroken
 };
 
 /**
@@ -32,8 +53,18 @@ class RS_API URSBossPhaseComponent : public UActorComponent
 public:
 	URSBossPhaseComponent();
 
+protected:
+	/** 소유 보스의 체력 변경을 구독해 페이즈 트리거를 감시합니다 */
+	virtual void BeginPlay() override;
+
+	/** 체력 구독을 해제합니다 */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+public:
 	/** 지정한 Pawn이 소유한 진행 컴포넌트를 반환합니다 */
 	static URSBossPhaseComponent* FindPhaseComponent(const APawn* Pawn);
+
+#pragma region Pattern Cycle
 
 	/** 현재 사이클 차례의 패턴 종류를 반환합니다 */
 	bool TryGetCurrentPatternType(ERSBossPatternType& OutPatternType) const;
@@ -47,39 +78,105 @@ public:
 	/** 사이클을 처음 차례로 되돌립니다 */
 	void ResetPatternCycle();
 
-	/** 현재 차례가 CycleSequence에서 몇 번째인지 반환합니다 */
+	/**
+	 * 후보가 없는 차례를 건너뛰어 실행 가능한 차례로 맞춥니다
+	 * 데이터 오류로 보스가 영구히 멈추지 않게 하는 안전망이며 모든 차례에 후보가 없으면 false를 반환합니다
+	 */
+	bool SkipUnusablePatternTurns();
+
+	/** 현재 차례가 사이클 순서에서 몇 번째인지 반환합니다 */
 	int32 GetCurrentCycleIndex() const { return CurrentCycleIndex; }
 
-	/** 한 사이클을 구성하는 행동 수를 반환합니다 */
-	int32 GetCycleLength() const { return CycleSequence.Num(); }
+	/** 현재 페이즈의 한 사이클을 구성하는 행동 수를 반환합니다 */
+	int32 GetCycleLength() const;
+
+#pragma endregion
+
+#pragma region Phase
+
+	/** 현재 진행 중인 페이즈의 순서 번호를 반환합니다 */
+	int32 GetCurrentPhaseIndex() const { return CurrentPhaseIndex; }
+
+	/** 설정된 페이즈 개수를 반환합니다 */
+	int32 GetPhaseCount() const;
+
+	/** 체력 기준에 도달해 다음 페이즈로 넘어가기를 기다리는 중인지 반환합니다 */
+	bool IsPhaseTransitionPending() const { return bPhaseTransitionPending; }
+
+	/** 전환 전에 실행할 메인 기믹이 설정되어 있으면 반환하며 기믹 없는 전환에서는 false입니다 */
+	bool TryGetPendingMainGimmick(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
+
+	/**
+	 * 기믹을 파훼했고 무력화가 설정되어 있을 때만 무력화 어빌리티를 반환합니다
+	 * 무력화를 실행할지 판단하는 조건을 이 함수 하나로 모읍니다
+	 */
+	bool TryGetPendingGroggy(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
+
+	/** 메인 기믹이 종료되기 전에 플레이어의 대응 결과를 기록합니다 */
+	void ReportMainGimmickOutcome(ERSBossMainGimmickOutcome Outcome);
+
+	/** 현재 페이즈 기믹에 대한 판정 결과를 반환합니다 */
+	ERSBossMainGimmickOutcome GetMainGimmickOutcome() const { return MainGimmickOutcome; }
+
+	/** 다음 페이즈를 활성화하고 사이클과 기믹 대기 상태를 초기화합니다 */
+	void AdvanceToNextPhase();
+
+#pragma endregion
 
 #if WITH_DEV_AUTOMATION_TESTS
-	/** 자동 테스트가 사이클 구성과 후보 목록을 준비할 수 있게 합니다 */
-	void SetPatternCycleForTest(const TArray<ERSBossPatternType>& InCycleSequence, const TArray<TSubclassOf<URSBaseGameplayAbility>>& InBasicPatterns, const TArray<TSubclassOf<URSBaseGameplayAbility>>& InSpecialPatterns);
+	/** 자동 테스트가 페이즈 데이터를 애셋 없이 준비할 수 있게 합니다 */
+	void SetPhasesForTest(const TArray<FRSBossPhaseDefinition>& InPhases);
+
+	/** 자동 테스트가 체력 변경 경로를 직접 실행할 수 있게 합니다 */
+	void EvaluateHealthTriggerForTest(float Health, float MaxHealth);
+
+	/** 자동 테스트가 공용 무력화 어빌리티를 지정할 수 있게 합니다 */
+	void SetGroggyAbilityForTest(TSubclassOf<URSBaseGameplayAbility> InGroggyAbility);
 #endif
 
 private:
+	/** 현재 페이즈의 정의를 반환하며 설정이 없으면 nullptr을 반환합니다 */
+	const FRSBossPhaseDefinition* GetCurrentPhase() const;
+
 	/** 지정한 종류의 패턴 후보 목록을 반환합니다 */
-	const TArray<TSubclassOf<URSBaseGameplayAbility>>& GetPatternCandidates(ERSBossPatternType PatternType) const;
+	const TArray<TSubclassOf<URSBaseGameplayAbility>>* GetPatternCandidates(ERSBossPatternType PatternType) const;
+
+	/** 소유 보스의 HealthComponent를 반환합니다 */
+	URSHealthComponent* FindHealthComponent() const;
+
+	/** 체력 변경마다 현재 페이즈의 트리거 도달을 확인합니다 */
+	UFUNCTION()
+	void HandleHealthChanged(URSHealthComponent* HealthComponent, float OldValue, float NewValue);
+
+	/** 현재 페이즈의 체력 기준을 평가하고 한 번만 페이즈 전환 대기를 발행합니다 */
+	void EvaluateHealthTrigger(float Health, float MaxHealth);
+
+	/** 현재 페이즈 뒤에 넘어갈 페이즈가 있는지 반환합니다 */
+	bool HasNextPhase() const;
 
 protected:
-	/** 상시 차례에 사용할 패턴 후보이며 이 중 하나를 무작위로 선택합니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Pattern")
-	TArray<TSubclassOf<URSBaseGameplayAbility>> BasicPatterns;
-
-	/** 특수 차례에 사용할 패턴 후보이며 이 중 하나를 무작위로 선택합니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Pattern")
-	TArray<TSubclassOf<URSBaseGameplayAbility>> SpecialPatterns;
-
-	/**
-	 * 패턴 종류를 어떤 순서로 반복할지 정의합니다
-	 * 순서만 다른 페이즈는 Behavior Tree를 바꾸지 않고 이 배열로 표현합니다
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Pattern")
-	TArray<ERSBossPatternType> CycleSequence;
+	/** 이 보스의 페이즈 구성입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Phase")
+	TObjectPtr<URSBossPhaseData> PhaseData;
 
 private:
-	/** CycleSequence에서 현재 차례를 가리키는 위치입니다 */
+	/** 진행 중인 페이즈의 순서 번호입니다 */
+	UPROPERTY(Transient)
+	int32 CurrentPhaseIndex = 0;
+
+	/** 현재 페이즈의 사이클 순서에서 현재 차례를 가리키는 위치입니다 */
 	UPROPERTY(Transient)
 	int32 CurrentCycleIndex = 0;
+
+	/** 현재 페이즈의 체력 기준 도달이 이미 발행되었는지 나타냅니다 */
+	UPROPERTY(Transient)
+	bool bPhaseTransitionPending = false;
+
+	/** 현재 페이즈 기믹에 대한 플레이어의 대응 결과입니다 */
+	UPROPERTY(Transient)
+	ERSBossMainGimmickOutcome MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
+
+	/** 체력 구독을 해제하기 위해 보관한 HealthComponent입니다 */
+	UPROPERTY(Transient)
+	TObjectPtr<URSHealthComponent> ObservedHealthComponent;
 };

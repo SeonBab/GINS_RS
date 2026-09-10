@@ -21,6 +21,7 @@ URSGameplayAbility_Downed::URSGameplayAbility_Downed()
 	// 누움의 수명은 Montage 길이가 아니라 이 어빌리티가 정하므로 행동 잠금도 함께 소유합니다
 	ActivationOwnedTags.AddTag(RSGameplayTags::State_CrowdControl_Downed);
 	ActivationOwnedTags.AddTag(RSGameplayTags::State_Action_Locked);
+	ActivationOwnedTags.AddTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
 }
 
 void URSGameplayAbility_Downed::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)

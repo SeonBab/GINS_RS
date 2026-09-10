@@ -31,10 +31,12 @@ void URSCheatManager::RS_ToggleDownedTag()
 	if (bDownedTagApplied)
 	{
 		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_CrowdControl_Downed);
+		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
 	}
 	else
 	{
 		AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_CrowdControl_Downed);
+		AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
 	}
 
 	bDownedTagApplied = !bDownedTagApplied;

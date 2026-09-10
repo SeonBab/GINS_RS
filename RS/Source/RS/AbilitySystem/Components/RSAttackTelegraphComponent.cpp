@@ -6,6 +6,18 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 
+bool FRSAnnularSectorTelegraphDefinition::IsDataValid() const
+{
+	return FMath::IsFinite(InnerRadius)
+		&& FMath::IsFinite(OuterRadius)
+		&& FMath::IsFinite(StartYawOffset)
+		&& FMath::IsFinite(SweepAngleDegrees)
+		&& InnerRadius >= 0.0f
+		&& OuterRadius > InnerRadius
+		&& FMath::Abs(SweepAngleDegrees) > KINDA_SMALL_NUMBER
+		&& FMath::Abs(SweepAngleDegrees) <= 360.0f;
+}
+
 URSAttackTelegraphComponent::URSAttackTelegraphComponent()
 {
 	// 표시가 없는 동안 Tick 비용을 내지 않도록 활성 슬롯이 생길 때만 켭니다
@@ -19,13 +31,63 @@ void URSAttackTelegraphComponent::TickComponent(float DeltaTime, ELevelTick Tick
 
 	for (FRSTelegraphSlot& Slot : Slots)
 	{
-		if (Slot.bIsActive)
+		if (Slot.bIsActive && !Slot.bUsesExternalFill)
 		{
 			UpdateSlot(Slot, DeltaTime);
 		}
 	}
 
 	RefreshTickEnabled();
+}
+
+int32 URSAttackTelegraphComponent::ShowAnnularSector(const FRSAnnularSectorTelegraphDefinition& Definition, const FTransform& LockedTransform)
+{
+	if (!AnnularSectorDecalMaterial || !Definition.IsDataValid() || LockedTransform.ContainsNaN())
+	{
+		return INDEX_NONE;
+	}
+
+	FRSTelegraphSlot& Slot = AcquireSlot();
+	Slot.Handle = CreateHandle();
+	Slot.ElapsedTime = 0.0f;
+	Slot.bIsActive = true;
+	Slot.bUsesExternalFill = true;
+
+	if (!SetUpAnnularSectorDecal(Slot, Definition, LockedTransform))
+	{
+		ReleaseSlot(Slot);
+
+		return INDEX_NONE;
+	}
+
+	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, 1.0f);
+	Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, 0.0f);
+	Slot.Decal->SetVisibility(true);
+	RefreshTickEnabled();
+
+	return Slot.Handle;
+}
+
+bool URSAttackTelegraphComponent::SetExternalFill(int32 Handle, float Fill)
+{
+	FRSTelegraphSlot* Slot = FindSlot(Handle);
+	if (!Slot || !Slot->bUsesExternalFill || !Slot->MaterialInstance || !FMath::IsFinite(Fill))
+	{
+		return false;
+	}
+
+	Slot->MaterialInstance->SetScalarParameterValue(FillParameterName, FMath::Clamp(Fill, 0.0f, 1.0f));
+
+	return true;
+}
+
+void URSAttackTelegraphComponent::HideShape(int32 Handle)
+{
+	if (FRSTelegraphSlot* Slot = FindSlot(Handle))
+	{
+		ReleaseSlot(*Slot);
+		RefreshTickEnabled();
+	}
 }
 
 void URSAttackTelegraphComponent::OnUnregister()
@@ -108,11 +170,8 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 		Slot.Decal->SetUsingAbsoluteRotation(true);
 	}
 
-	if (!Slot.MaterialInstance)
-	{
-		Slot.MaterialInstance = UMaterialInstanceDynamic::Create(DecalMaterial, this);
-		Slot.Decal->SetDecalMaterial(Slot.MaterialInstance);
-	}
+
+	SetUpSlotMaterial(Slot, DecalMaterial);
 
 	// DecalSize가 곧 판정 범위이므로 형상에서 파생시켜 표시와 판정이 1:1로 대응하게 합니다
 	// X는 투영 깊이, Y와 Z는 투영 사각형의 반크기입니다
@@ -151,6 +210,83 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 	Slot.Decal->SetVisibility(true);
 }
 
+bool URSAttackTelegraphComponent::SetUpAnnularSectorDecal(FRSTelegraphSlot& Slot, const FRSAnnularSectorTelegraphDefinition& Definition, const FTransform& LockedTransform)
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return false;
+	}
+
+	if (!Slot.Decal)
+	{
+		Slot.Decal = NewObject<UDecalComponent>(Owner);
+		Slot.Decal->SetupAttachment(Owner->GetRootComponent());
+		Slot.Decal->RegisterComponent();
+		Slot.Decal->SetUsingAbsoluteLocation(true);
+		Slot.Decal->SetUsingAbsoluteRotation(true);
+	}
+
+	if (!SetUpSlotMaterial(Slot, AnnularSectorDecalMaterial))
+	{
+		return false;
+	}
+
+	Slot.Decal->DecalSize = FVector(ProjectionDepth, Definition.OuterRadius, Definition.OuterRadius);
+	Slot.Decal->MarkRenderStateDirty();
+
+	const float StartWorldYaw = LockedTransform.GetRotation().Rotator().Yaw + Definition.StartYawOffset;
+	const FRotator GroundProjectionRotation(-90.0f, StartWorldYaw, 0.0f);
+	Slot.Decal->SetWorldLocationAndRotation(LockedTransform.GetLocation(), GroundProjectionRotation);
+
+	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, Definition.InnerRadius / Definition.OuterRadius);
+	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, Definition.SweepAngleDegrees);
+
+	return true;
+}
+
+bool URSAttackTelegraphComponent::SetUpSlotMaterial(FRSTelegraphSlot& Slot, UMaterialInterface* Material)
+{
+	if (!Slot.Decal || !Material)
+	{
+		return false;
+	}
+
+	if (!Slot.MaterialInstance || Slot.SourceMaterial != Material)
+	{
+		Slot.SourceMaterial = Material;
+		Slot.MaterialInstance = UMaterialInstanceDynamic::Create(Material, this);
+		Slot.Decal->SetDecalMaterial(Slot.MaterialInstance);
+	}
+
+	return Slot.MaterialInstance != nullptr;
+}
+
+FRSTelegraphSlot* URSAttackTelegraphComponent::FindSlot(int32 Handle)
+{
+	if (Handle == INDEX_NONE)
+	{
+		return nullptr;
+	}
+
+	return Slots.FindByPredicate([Handle](const FRSTelegraphSlot& Slot)
+	{
+		return Slot.bIsActive && Slot.Handle == Handle;
+	});
+}
+
+int32 URSAttackTelegraphComponent::CreateHandle()
+{
+	const int32 Handle = NextHandle;
+	++NextHandle;
+	if (NextHandle == INDEX_NONE || NextHandle <= 0)
+	{
+		NextHandle = 1;
+	}
+
+	return Handle;
+}
+
 void URSAttackTelegraphComponent::UpdateSlot(FRSTelegraphSlot& Slot, float DeltaTime)
 {
 	Slot.ElapsedTime += DeltaTime;
@@ -177,7 +313,9 @@ void URSAttackTelegraphComponent::UpdateSlot(FRSTelegraphSlot& Slot, float Delta
 void URSAttackTelegraphComponent::ReleaseSlot(FRSTelegraphSlot& Slot)
 {
 	Slot.bIsActive = false;
+	Slot.bUsesExternalFill = false;
 	Slot.ElapsedTime = 0.0f;
+	Slot.Handle = INDEX_NONE;
 
 	// 데칼과 Dynamic Material Instance는 다음 표시에서 재사용하므로 숨기기만 합니다
 	if (Slot.Decal)
@@ -191,7 +329,7 @@ void URSAttackTelegraphComponent::RefreshTickEnabled()
 	bool bHasActiveSlot = false;
 	for (const FRSTelegraphSlot& Slot : Slots)
 	{
-		if (Slot.bIsActive)
+		if (Slot.bIsActive && !Slot.bUsesExternalFill)
 		{
 			bHasActiveSlot = true;
 

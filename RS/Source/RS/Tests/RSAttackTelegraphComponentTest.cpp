@@ -27,11 +27,20 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 
 	UMaterialInterface* TelegraphMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Resource/Telegraph/M_AttackTelegraph.M_AttackTelegraph"));
 	FObjectProperty* DecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("DecalMaterial"));
+	FObjectProperty* AnnularSectorDecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("AnnularSectorDecalMaterial"));
 	TestNotNull(TEXT("Telegraph material asset"), TelegraphMaterial);
 	TestNotNull(TEXT("DecalMaterial property"), DecalMaterialProperty);
-	if (TelegraphMaterial && DecalMaterialProperty)
+	TestNotNull(TEXT("AnnularSectorDecalMaterial property"), AnnularSectorDecalMaterialProperty);
+	if (TelegraphMaterial)
 	{
-		DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
+		if (DecalMaterialProperty)
+		{
+			DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
+		}
+		if (AnnularSectorDecalMaterialProperty)
+		{
+			AnnularSectorDecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
+		}
 	}
 	TelegraphComp->RegisterComponent();
 
@@ -105,6 +114,47 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	Cone.Range = 0.0f;
 	TelegraphComp->ShowShape(Cone, ConeTransform, Presentation);
 	TestFalse(TEXT("Invalid cone does not reactivate the pooled decal"), PooledDecal && PooledDecal->IsVisible());
+
+	FRSAnnularSectorTelegraphDefinition AnnularSector;
+	AnnularSector.InnerRadius = 50.0f;
+	AnnularSector.OuterRadius = 200.0f;
+	AnnularSector.StartYawOffset = -60.0f;
+	AnnularSector.SweepAngleDegrees = 120.0f;
+	const FVector AnnularSectorOrigin(80.0f, 25.0f, 10.0f);
+	const FTransform AnnularSectorTransform(FRotator(0.0f, 30.0f, 0.0f), AnnularSectorOrigin);
+	const int32 AnnularSectorHandle = TelegraphComp->ShowAnnularSector(AnnularSector, AnnularSectorTransform);
+	TestTrue(TEXT("Valid annular sector returns a handle"), AnnularSectorHandle != INDEX_NONE);
+	TestTrue(TEXT("Annular sector reuses and shows the pooled decal"), PooledDecal && PooledDecal->IsVisible());
+	if (PooledDecal)
+	{
+		TestEqual(TEXT("Annular sector uses OuterRadius as decal half size Y"), PooledDecal->DecalSize.Y, static_cast<double>(AnnularSector.OuterRadius));
+		TestEqual(TEXT("Annular sector uses OuterRadius as decal half size Z"), PooledDecal->DecalSize.Z, static_cast<double>(AnnularSector.OuterRadius));
+		TestTrue(TEXT("Annular sector stays at the locked origin"), PooledDecal->GetComponentLocation().Equals(AnnularSectorOrigin));
+		const FVector ExpectedStartDirection = FRotator(0.0f, -30.0f, 0.0f).Vector();
+		TestTrue(TEXT("Annular sector local material forward aligns with its start angle"), PooledDecal->GetUpVector().Equals(ExpectedStartDirection));
+
+		UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(PooledDecal->GetDecalMaterial());
+		if (MaterialInstance)
+		{
+			TestEqual(TEXT("Annular sector sets its inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.25f);
+			TestEqual(TEXT("Annular sector starts with no directional fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
+			TestTrue(TEXT("External fill accepts a valid handle"), TelegraphComp->SetExternalFill(AnnularSectorHandle, 0.75f));
+			TestEqual(TEXT("External fill updates the material directly"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.75f);
+		}
+	}
+
+	TelegraphComp->TickComponent(Presentation.HoldDuration, LEVELTICK_All, &TelegraphComp->PrimaryComponentTick);
+	TestTrue(TEXT("Externally driven annular sector does not expire by elapsed time"), PooledDecal && PooledDecal->IsVisible());
+	TelegraphComp->HideShape(AnnularSectorHandle);
+	TestFalse(TEXT("Handle hides only its active annular sector"), PooledDecal && PooledDecal->IsVisible());
+	TestFalse(TEXT("Released handle can no longer update fill"), TelegraphComp->SetExternalFill(AnnularSectorHandle, 1.0f));
+
+	if (AnnularSectorDecalMaterialProperty)
+	{
+		AnnularSectorDecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, nullptr);
+	}
+	TestEqual(TEXT("Missing dedicated material does not use a fallback"), TelegraphComp->ShowAnnularSector(AnnularSector, AnnularSectorTransform), INDEX_NONE);
+	TestFalse(TEXT("Missing dedicated material leaves the pooled decal hidden"), PooledDecal && PooledDecal->IsVisible());
 
 	TelegraphComp->UnregisterComponent();
 	TestWorld->RemoveFromRoot();

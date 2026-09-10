@@ -9,8 +9,8 @@
 class UAnimMontage;
 
 /**
- * 누운 상태에서 일어나는 구간을 소유하는 기상 어빌리티의 기반입니다
- * 누운 상태 확인과 Commit이 모두 성공한 뒤에만 누움 어빌리티를 취소하여, 실패한 활성화가 누운 상태를 먼저 지우지 않게 합니다
+ * Land 또는 누운 상태에서 일어나는 구간을 소유하는 기상 어빌리티의 기반입니다
+ * 실행 조건 확인과 Commit이 모두 성공한 뒤에만 이전 반응 어빌리티를 취소하여, 실패한 활성화가 기존 상태를 먼저 지우지 않게 합니다
  */
 UCLASS(Abstract, Blueprintable)
 class RS_API URSBaseGameplayAbility_GetUp : public URSBaseGameplayAbility
@@ -21,7 +21,7 @@ public:
 	URSBaseGameplayAbility_GetUp();
 
 protected:
-	/** 누움을 종료시키고 기상 Montage를 재생합니다 */
+	/** 이전 반응 상태를 종료시키고 기상 Montage를 재생합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
 	/** 중단된 Montage가 남긴 애니메이션 Gameplay State를 정리합니다 */

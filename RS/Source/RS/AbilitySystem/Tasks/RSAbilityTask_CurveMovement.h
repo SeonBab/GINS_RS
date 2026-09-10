@@ -10,6 +10,9 @@
 class UCharacterMovementComponent;
 class USkeletalMeshComponent;
 
+/** CurveMovement가 지정 시간을 정상적으로 끝냈을 때 발생합니다 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRSCurveMovementCompleted);
+
 /**
  * 누적 거리 진행률 커브를 매 프레임 평가하여 충돌을 유지하며 캐릭터를 수평 이동시킵니다
  * 높이를 지정하면 캡슐은 지면에 둔 채 Mesh만 아치를 그려 떠오르는 것처럼 보이게 합니다
@@ -21,6 +24,10 @@ class RS_API URSAbilityTask_CurveMovement : public UAbilityTask
 
 public:
 	URSAbilityTask_CurveMovement(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+	/** 이동과 Mesh 아치가 지정 시간을 정상적으로 마쳤을 때 한 번 발생합니다 */
+	UPROPERTY(BlueprintAssignable, Category = "RS|Movement")
+	FRSCurveMovementCompleted OnCompleted;
 
 	/** 지정한 방향과 거리 진행률 커브로 이동하는 AbilityTask를 생성합니다 */
 	static URSAbilityTask_CurveMovement* CreateCurveMovement(UGameplayAbility* OwningAbility, UCharacterMovementComponent* MovementComponent, const FVector& Direction, float Distance, float Duration, const FRichCurve& ProgressCurve);
@@ -36,6 +43,9 @@ public:
 	virtual void OnDestroy(bool bInOwnerFinished) override;
 
 private:
+	/** 유효한 방향과 양의 거리를 모두 가져 수평 이동을 수행하는지 반환합니다 */
+	bool HasHorizontalMovement() const;
+
 	/** 띄웠던 Mesh를 원래 상대 위치로 되돌립니다 */
 	void RestoreMeshLocation();
 

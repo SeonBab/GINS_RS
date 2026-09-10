@@ -48,7 +48,7 @@ void URSPlayerCameraComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void URSPlayerCameraComponent::ActivateBossCamera(USceneComponent* PivotComponent)
+void URSPlayerCameraComponent::ActivateBossCamera(USceneComponent* PivotComponent, const FRSBossCameraSettings& CameraSettings)
 {
 	if (!IsLocalPlayerCamera() || !IsValid(PivotComponent))
 	{
@@ -68,6 +68,7 @@ void URSPlayerCameraComponent::ActivateBossCamera(USceneComponent* PivotComponen
 	FRSBossCameraContext CameraContext;
 	CameraContext.PivotComponent = PivotComponent;
 	CameraContext.TargetPlayer = PlayerController->GetPawn();
+	CameraContext.Settings = CameraSettings;
 
 	BattleCamera->ActivateCamera(CameraContext);
 	PlayerController->SetViewTargetWithBlend(BattleCamera, BattleCamera->GetViewTargetBlendTime(), VTBlend_Cubic, 2.0f, true);

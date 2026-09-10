@@ -6,6 +6,9 @@
 namespace RSGameplayTags
 {
 	// Ability
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing, "Ability.Combat.ArmSwing", "보스 팔 휘두르기 패턴 계열을 식별하며 직접 부여하지 않습니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Slow, "Ability.Combat.ArmSwing.Slow", "느린 팔 휘두르기 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Fast, "Ability.Combat.ArmSwing.Fast", "빠른 팔 휘두르기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam, "Ability.Combat.TargetedSlam", "타기팅 내려찍기 패턴 계열을 식별하며 직접 부여하지 않습니다");
@@ -13,6 +16,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam_TwoStrike, "Ability.Combat.TargetedSlam.TwoStrike", "두 번 내려찍는 타기팅 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Downed, "Ability.CrowdControl.Downed", "누워 기상을 기다리는 Ability를 식별하며 기상과 넉다운이 이 Ability를 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_HitReact, "Ability.CrowdControl.HitReact", "피격 경직 Ability를 식별하며 넉다운이 진행 중인 경직을 취소합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Knockdown, "Ability.CrowdControl.Knockdown", "밀려나 넘어지고 Land까지 진행하는 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Movement_Dash, "Ability.Movement.Dash", "대시 이동 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Normal, "Ability.Recovery.GetUp.Normal", "자동 조건으로 실행되는 일반 기상 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Quick, "Ability.Recovery.GetUp.Quick", "플레이어 입력으로 실행되는 빠른 기상 Ability를 식별합니다");
@@ -57,4 +61,5 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_Knockback, "State.Immunity.Knockback", "현재 대상에게 넉백을 적용할 수 없는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Blocked, "State.Movement.Blocked", "Navigation 이동 요청과 진행 중인 경로 추종을 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Dashing, "State.Movement.Dashing", "대시 이동이 실행되는 동안 적용합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Recovery_QuickGetUpAvailable, "State.Recovery.QuickGetUpAvailable", "Land 시작부터 누움이 끝날 때까지 빠른 기상 입력을 허용합니다");
 }

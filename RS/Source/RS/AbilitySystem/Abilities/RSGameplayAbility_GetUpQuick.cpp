@@ -15,6 +15,10 @@ URSGameplayAbility_GetUpQuick::URSGameplayAbility_GetUpQuick()
 	AssetTags.AddTag(RSGameplayTags::Ability_Recovery_GetUp_Quick);
 	SetAssetTags(AssetTags);
 
+	// 빠른 기상은 누움뿐 아니라 Land에서도 실행하므로 공통 기상의 Downed 조건을 가용 구간 태그로 교체합니다
+	ActivationRequiredTags.RemoveTag(RSGameplayTags::State_CrowdControl_Downed);
+	ActivationRequiredTags.AddTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
+
 	CooldownTags.AddTag(RSGameplayTags::Cooldown_Ability_GetUp_Quick);
 	CooldownDuration = 1.0f;
 

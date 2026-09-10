@@ -2,7 +2,7 @@
 
 #include "RSGameplayEffect_AnimationState.h"
 
-URSGameplayEffect_AnimationStateLease::URSGameplayEffect_AnimationStateLease()
+URSGameplayEffect_StateLease::URSGameplayEffect_StateLease()
 {
 	DurationPolicy = EGameplayEffectDurationType::Infinite;
 }

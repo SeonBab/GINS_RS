@@ -9,8 +9,8 @@
 
 
 /**
- * 누운 상태에서 입력을 받아 구르며 일어나는 빠른 기상입니다
- * 평상시에는 누운 상태가 아니라 활성화되지 않으므로 같은 입력 태그를 대시와 공유할 수 있습니다
+ * Land 또는 누운 상태에서 입력을 받아 구르며 일어나는 빠른 기상입니다
+ * 가용 구간 밖에서는 활성화되지 않으므로 같은 입력 태그를 대시와 공유할 수 있습니다
  */
 UCLASS(Abstract, Blueprintable)
 class RS_API URSGameplayAbility_GetUpQuick : public URSBaseGameplayAbility_GetUp
