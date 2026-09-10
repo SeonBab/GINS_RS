@@ -1,13 +1,12 @@
 #include "RSGameplayAbility_TargetedSlam.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
-#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tasks/RSAbilityTask_ObserveFacing.h"
-#include "RSAnimNotify_GameplayEvent.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
@@ -37,20 +36,19 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	LockedAttackTransform = FTransform::Identity;
 	PreAimStartTime = 0.0f;
 	CurrentStrikeIndex = 0;
-	bHasConsumedHitCheck = false;
+	bHasExecutedImpact = false;
+	bHasCompletedMontage = false;
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;
 	bIsCleaningUp = false;
 	bHasCommittedActivation = false;
 	State = ERSTargetedSlamState::Inactive;
 	ObserveFacingTask = nullptr;
-	HitCheckEventTask = nullptr;
+	ImpactDelayTask = nullptr;
 	MontageTask = nullptr;
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	float HitCheckTimeSeconds = 0.0f;
-	int32 HitCheckNotifyCount = 0;
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !ActorInfo
 		|| !ActorInfo->AbilitySystemComponent.IsValid()
@@ -66,10 +64,13 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 		|| AimYawTolerance < 0.0f
 		|| TargetDriftTolerance < 0.0f
 		|| MaxAimDuration <= 0.0f
+		|| !FMath::IsFinite(MontagePlayRate)
 		|| MontagePlayRate <= 0.0f
-		|| !GetHitCheckTimeSeconds(HitCheckTimeSeconds, &HitCheckNotifyCount))
+		|| !FMath::IsFinite(ImpactDelay)
+		|| ImpactDelay <= 0.0f
+		|| ImpactDelay > AttackMontage->GetPlayLength() / MontagePlayRate)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Targeted Slam because its runtime context or configuration is invalid (HitCheck count: %d)"), *GetName(), HitCheckNotifyCount);
+		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Targeted Slam because its runtime context or configuration is invalid"), *GetName());
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 
 		return;
@@ -91,10 +92,6 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 		return;
 	}
 	bHasCommittedActivation = true;
-
-	HitCheckEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, RSGameplayTags::GameplayEvent_Combat_HitCheck, nullptr, false);
-	HitCheckEventTask->EventReceived.AddDynamic(this, &ThisClass::HandleHitCheckEvent);
-	HitCheckEventTask->ReadyForActivation();
 
 	UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement();
 	OriginalRotationRate = CharacterMovementComp->RotationRate;
@@ -153,7 +150,6 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 	}
 
 	ResetStrikeTransientState();
-	HitCheckEventTask = nullptr;
 	CurrentStrikeIndex = 0;
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;
@@ -310,8 +306,7 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	float HitCheckTimeSeconds = 0.0f;
-	if (!GetBossContext(BossCharacter, BossController) || !GetHitCheckTimeSeconds(HitCheckTimeSeconds))
+	if (!GetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -319,8 +314,8 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 	}
 
 	FRSTelegraphPresentation Presentation;
-	Presentation.HoldDuration = HitCheckTimeSeconds;
-	Presentation.FillDuration = HitCheckTimeSeconds;
+	Presentation.HoldDuration = ImpactDelay;
+	Presentation.FillDuration = ImpactDelay;
 	BossCharacter->GetAttackTelegraphComponent()->ShowShape(AttackShape, LockedAttackTransform, Presentation);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
@@ -333,28 +328,39 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
 	MontageTask->ReadyForActivation();
+
+	if (bIsCleaningUp || State != ERSTargetedSlamState::Attacking)
+	{
+		return;
+	}
+
+	ImpactDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, ImpactDelay);
+	ImpactDelayTask->OnFinish.AddDynamic(this, &ThisClass::HandleImpactDelayFinished);
+	ImpactDelayTask->ReadyForActivation();
 }
 
-void URSGameplayAbility_TargetedSlam::HandleHitCheckEvent(FGameplayEventData Payload)
+void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 {
+	ImpactDelayTask = nullptr;
+
 	if (bIsCleaningUp)
 	{
 		return;
 	}
 
-	if (State != ERSTargetedSlamState::Attacking || bHasConsumedHitCheck)
+	if (State != ERSTargetedSlamState::Attacking || bHasExecutedImpact)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s ignored an early or duplicate HitCheck event during strike %d"), *GetName(), CurrentStrikeIndex);
+		UE_LOG(LogTemp, Warning, TEXT("%s ignored an invalid or duplicate Impact callback during strike %d"), *GetName(), CurrentStrikeIndex);
 
 		return;
 	}
 
-	// 다른 Callback이 같은 이벤트를 다시 보내도 피해를 두 번 적용하지 않도록 판정 전에 먼저 소비합니다
-	bHasConsumedHitCheck = true;
+	// Callback이 중복으로 들어와도 피해를 두 번 적용하지 않도록 판정 전에 먼저 완료 처리합니다
+	bHasExecutedImpact = true;
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
-		UE_LOG(LogTemp, Log, TEXT("%s [Strike %d] HitCheck"), *GetName(), CurrentStrikeIndex);
+		UE_LOG(LogTemp, Log, TEXT("%s [Strike %d] Impact"), *GetName(), CurrentStrikeIndex);
 	}
 
 	ARSBossCharacter* BossCharacter = nullptr;
@@ -375,6 +381,8 @@ void URSGameplayAbility_TargetedSlam::HandleHitCheckEvent(FGameplayEventData Pay
 		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
 		URSCombatFunctionLibrary::SendHitReaction(BossCharacter, HitTarget, Reaction);
 	}
+
+	TryFinishStrike();
 }
 
 void URSGameplayAbility_TargetedSlam::HandleAttackMontageCompleted()
@@ -392,21 +400,24 @@ void URSGameplayAbility_TargetedSlam::HandleAttackMontageCompleted()
 		return;
 	}
 
-	if (!bHasConsumedHitCheck)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s completed strike %d without receiving its HitCheck event"), *GetName(), CurrentStrikeIndex);
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-		return;
-	}
-
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
 		UE_LOG(LogTemp, Log, TEXT("%s [Strike %d] Montage Completed"), *GetName(), CurrentStrikeIndex);
 	}
 
-	State = ERSTargetedSlamState::Inactive;
+	bHasCompletedMontage = true;
 	MontageTask = nullptr;
+	TryFinishStrike();
+}
+
+void URSGameplayAbility_TargetedSlam::TryFinishStrike()
+{
+	if (bIsCleaningUp || State != ERSTargetedSlamState::Attacking || !bHasExecutedImpact || !bHasCompletedMontage)
+	{
+		return;
+	}
+
+	State = ERSTargetedSlamState::Inactive;
 	++CurrentStrikeIndex;
 
 	if (CurrentStrikeIndex >= StrikeCount)
@@ -433,8 +444,10 @@ void URSGameplayAbility_TargetedSlam::ResetStrikeTransientState()
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
 	PreAimStartTime = 0.0f;
-	bHasConsumedHitCheck = false;
+	bHasExecutedImpact = false;
+	bHasCompletedMontage = false;
 	ObserveFacingTask = nullptr;
+	ImpactDelayTask = nullptr;
 	MontageTask = nullptr;
 }
 
@@ -444,32 +457,6 @@ bool URSGameplayAbility_TargetedSlam::GetBossContext(ARSBossCharacter*& OutBossC
 	OutBossController = OutBossCharacter ? Cast<ARSBossController>(OutBossCharacter->GetController()) : nullptr;
 
 	return OutBossCharacter && OutBossController;
-}
-
-bool URSGameplayAbility_TargetedSlam::GetHitCheckTimeSeconds(float& OutHitCheckTimeSeconds, int32* OutHitCheckNotifyCount) const
-{
-	OutHitCheckTimeSeconds = 0.0f;
-	int32 HitCheckNotifyCount = 0;
-
-	if (AttackMontage && MontagePlayRate > 0.0f)
-	{
-		for (const FAnimNotifyEvent& NotifyEvent : AttackMontage->Notifies)
-		{
-			const URSAnimNotify_GameplayEvent* GameplayEventNotify = Cast<URSAnimNotify_GameplayEvent>(NotifyEvent.Notify);
-			if (GameplayEventNotify && GameplayEventNotify->GetEventTag().MatchesTagExact(RSGameplayTags::GameplayEvent_Combat_HitCheck))
-			{
-				++HitCheckNotifyCount;
-				OutHitCheckTimeSeconds = NotifyEvent.GetTriggerTime() / MontagePlayRate;
-			}
-		}
-	}
-
-	if (OutHitCheckNotifyCount)
-	{
-		*OutHitCheckNotifyCount = HitCheckNotifyCount;
-	}
-
-	return HitCheckNotifyCount == 1;
 }
 
 #if WITH_EDITOR
@@ -504,15 +491,23 @@ EDataValidationResult URSGameplayAbility_TargetedSlam::IsDataValid(FDataValidati
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	int32 HitCheckNotifyCount = 0;
-	float HitCheckTimeSeconds = 0.0f;
-	if (AttackMontage && !GetHitCheckTimeSeconds(HitCheckTimeSeconds, &HitCheckNotifyCount))
+	if (!FMath::IsFinite(ImpactDelay) || ImpactDelay <= 0.0f)
 	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("AttackMontage must contain exactly one GameplayEvent.Combat.HitCheck notify, but it has %d."), HitCheckNotifyCount)));
+		Context.AddError(FText::FromString(TEXT("ImpactDelay must be finite and greater than zero.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (AimRotationSpeed <= 0.0f || AimYawTolerance < 0.0f || TargetDriftTolerance < 0.0f || MaxAimDuration <= 0.0f || MontagePlayRate <= 0.0f)
+	if (AttackMontage && FMath::IsFinite(ImpactDelay) && FMath::IsFinite(MontagePlayRate) && MontagePlayRate > 0.0f && ImpactDelay > AttackMontage->GetPlayLength() / MontagePlayRate)
+	{
+		Context.AddError(FText::FromString(TEXT("ImpactDelay must not exceed the effective AttackMontage length.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!FMath::IsFinite(AimRotationSpeed) || AimRotationSpeed <= 0.0f
+		|| !FMath::IsFinite(AimYawTolerance) || AimYawTolerance < 0.0f
+		|| !FMath::IsFinite(TargetDriftTolerance) || TargetDriftTolerance < 0.0f
+		|| !FMath::IsFinite(MaxAimDuration) || MaxAimDuration <= 0.0f
+		|| !FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("Aim and Montage timing values are outside their supported ranges.")));
 		ValidationResult = EDataValidationResult::Invalid;
