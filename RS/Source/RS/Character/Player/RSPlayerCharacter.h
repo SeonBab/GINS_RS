@@ -64,6 +64,9 @@ private:
 	/** PlayerController에서 마우스 커서 아래의 이동 요청 위치를 가져옵니다 */
 	bool TryGetMoveToLocation(FVector& OutMoveToLocation) const;
 
+	/** 요청 위치를 NavMesh에 투영하고, 실패하면 같은 방향으로 도달할 수 있는 마지막 위치를 반환합니다 */
+	bool TryResolveNavigableLocation(const FVector& RequestedLocation, FVector& OutNavigableLocation) const;
+
 	/** 이동 요청 위치에 MoveClick Niagara를 한 번 재생합니다 */
 	void SpawnMoveClickEffect(const FVector& Location) const;
 
@@ -96,6 +99,14 @@ protected:
 	/** 우클릭을 누르는 동안 커서 위치와 Navigation 경로를 갱신할 최소 시간 간격입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (ClampMin = "0.0", Units = "s"))
 	float MoveToUpdateInterval = 0.1f;
+
+	/** 이동 요청 위치를 NavMesh로 보정할 때 사용할 검색 범위입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (Units = "cm"))
+	FVector MoveToProjectionExtent = FVector(150.0, 150.0, 500.0);
+
+	/** 보정에 실패한 클릭을 NavMesh 경계까지 대신 이동시킬 때 요구하는 최소 이동 거리입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (ClampMin = "0.0", Units = "cm"))
+	float MoveToMinimumFallbackDistance = 50.0f;
 
 private:
 	/** Started에서 최초 이동을 요청한 엔진 프레임입니다 */

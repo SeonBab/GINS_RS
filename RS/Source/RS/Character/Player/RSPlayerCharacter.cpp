@@ -10,6 +10,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/CollisionProfile.h"
 #include "InputMappingContext.h"
+#include "NavigationSystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -191,7 +192,48 @@ bool ARSPlayerCharacter::TryGetMoveToLocation(FVector& OutMoveToLocation) const
 	const ARSPlayerController* PlayerController = Cast<ARSPlayerController>(Controller);
 
 	// Controller는 화면 좌표를 월드 위치로 변환하고 Character가 상태 판정과 이동 요청을 소유합니다
-	return PlayerController && PlayerController->GetCursorWorldLocation(OutMoveToLocation);
+	FVector CursorWorldLocation;
+	if (!PlayerController || !PlayerController->GetCursorWorldLocation(CursorWorldLocation))
+	{
+		return false;
+	}
+
+	return TryResolveNavigableLocation(CursorWorldLocation, OutMoveToLocation);
+}
+
+bool ARSPlayerCharacter::TryResolveNavigableLocation(const FVector& RequestedLocation, FVector& OutNavigableLocation) const
+{
+	UNavigationSystemV1* NavigationSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (!NavigationSystem)
+	{
+		return false;
+	}
+
+	// 벽이나 보스처럼 NavMesh를 벗어난 지점을 클릭해도 주변의 이동 가능한 위치로 보정합니다
+	FNavLocation ProjectedLocation;
+	if (NavigationSystem->ProjectPointToNavigation(RequestedLocation, ProjectedLocation, MoveToProjectionExtent, &GetNavAgentPropertiesRef()))
+	{
+		OutNavigableLocation = ProjectedLocation.Location;
+		return true;
+	}
+
+	// 보정 범위를 벗어난 클릭은 같은 방향으로 NavMesh를 따라갈 수 있는 마지막 지점까지만 이동합니다
+	const FVector AgentNavLocation = GetNavAgentLocation();
+	const FVector FlattenedRayEnd(RequestedLocation.X, RequestedLocation.Y, AgentNavLocation.Z);
+
+	// NavMesh는 생성 단계에서 이미 Agent 반지름만큼 좁혀져 있으므로 경계 지점을 그대로 목적지로 사용합니다
+	FVector RaycastHitLocation;
+	UNavigationSystemV1::NavigationRaycast(Controller, AgentNavLocation, FlattenedRayEnd, RaycastHitLocation, nullptr, Controller);
+
+	// 현재 위치에서 클릭 방향으로 나아갈 수 없으면 이동과 클릭 표시를 모두 요청하지 않습니다
+	if (FVector::DistSquared2D(RaycastHitLocation, AgentNavLocation) < FMath::Square(MoveToMinimumFallbackDistance))
+	{
+		return false;
+	}
+
+	OutNavigableLocation = RaycastHitLocation;
+
+	return true;
 }
 
 void ARSPlayerCharacter::SpawnMoveClickEffect(const FVector& Location) const
