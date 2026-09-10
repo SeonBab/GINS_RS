@@ -14,6 +14,7 @@ class UAbilitySystemComponent;
 class UNiagaraSystem;
 class URSInputConfig;
 class UCameraComponent;
+class USkeletalMeshComponent;
 class USpringArmComponent;
 class URSHealthComponent;
 
@@ -162,6 +163,10 @@ protected:
 #pragma endregion
 
 private:
+	/** 본체 Mesh의 Leader Pose를 공유하며 외곽선 Material만 렌더링하는 Mesh입니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USkeletalMeshComponent> OutlineMeshComp;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> CameraComp;
 

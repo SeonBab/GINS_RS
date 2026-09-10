@@ -6,7 +6,9 @@
 #include "AbilitySystemComponent.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/CollisionProfile.h"
 #include "InputMappingContext.h"
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -23,6 +25,13 @@
 ARSPlayerCharacter::ARSPlayerCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	OutlineMeshComp = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("OutlineMeshComponent"));
+	OutlineMeshComp->SetupAttachment(GetMesh());
+	OutlineMeshComp->SetLeaderPoseComponent(GetMesh());
+	OutlineMeshComp->bUseBoundsFromLeaderPoseComponent = true;
+	OutlineMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	OutlineMeshComp->SetGenerateOverlapEvents(false);
 
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	SpringArmComp->SetupAttachment(GetRootComponent());
@@ -43,6 +52,13 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 void ARSPlayerCharacter::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
+
+	// 이전 Blueprint 컴포넌트의 설정이 상속돼도 외곽선 Mesh는 Pose와 Bounds만 공유하고 충돌에는 참여하지 않습니다
+	OutlineMeshComp->SetAnimInstanceClass(nullptr);
+	OutlineMeshComp->SetLeaderPoseComponent(GetMesh(), true);
+	OutlineMeshComp->bUseBoundsFromLeaderPoseComponent = true;
+	OutlineMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	OutlineMeshComp->SetGenerateOverlapEvents(false);
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 }
