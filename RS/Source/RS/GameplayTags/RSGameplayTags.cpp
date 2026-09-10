@@ -11,6 +11,10 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Fast, "Ability.Combat.ArmSwing.Fast", "빠른 팔 휘두르기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern, "Ability.Combat.PizzaPattern", "보스 피자 패턴 계열을 식별하며 직접 부여하지 않습니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_OneExplosion, "Ability.Combat.PizzaPattern.OneExplosion", "한 번 폭발하는 피자 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_TwoExplosions, "Ability.Combat.PizzaPattern.TwoExplosions", "두 번 폭발하는 피자 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_SequentialSweepExplosion, "Ability.Combat.SequentialSweepExplosion", "보스 순차 스윕 폭발 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam, "Ability.Combat.TargetedSlam", "타기팅 내려찍기 패턴 계열을 식별하며 직접 부여하지 않습니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam_OneStrike, "Ability.Combat.TargetedSlam.OneStrike", "한 번 내려찍는 타기팅 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam_TwoStrike, "Ability.Combat.TargetedSlam.TwoStrike", "두 번 내려찍는 타기팅 패턴 Ability를 식별합니다");

@@ -121,6 +121,9 @@ public:
 	/** 다음 페이즈를 활성화하고 사이클과 기믹 대기 상태를 초기화합니다 */
 	void AdvanceToNextPhase();
 
+	/** 현재 페이즈에 설정된 전투 지속형 Ability를 중복 없이 활성화합니다 */
+	bool EnterCurrentPhase();
+
 #pragma endregion
 
 #if WITH_DEV_AUTOMATION_TESTS

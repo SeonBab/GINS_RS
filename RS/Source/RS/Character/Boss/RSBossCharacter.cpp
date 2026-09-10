@@ -113,6 +113,14 @@ void ARSBossCharacter::SetBossEncounter(ARSBossEncounter* InBossEncounter)
 	BossEncounter = InBossEncounter;
 }
 
+void ARSBossCharacter::BeginEncounterCombat()
+{
+	if (BossPhaseComp)
+	{
+		BossPhaseComp->EnterCurrentPhase();
+	}
+}
+
 void ARSBossCharacter::EndEncounterCombat()
 {
 	// Failed에서도 보스는 죽지 않지만 이미 실행 중인 공격은 Encounter 수명과 함께 끝냅니다

@@ -4,6 +4,8 @@
 #include "RSBossPhaseComponent.h"
 
 #include "GameFramework/Pawn.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Abilities/RSBaseGameplayAbility.h"
 #include "RSBossPhaseData.h"
 #include "RSHealthComponent.h"
@@ -247,6 +249,8 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Phase %d -> %d"), PreviousPhaseIndex, CurrentPhaseIndex);
 
+	EnterCurrentPhase();
+
 	// 새 페이즈의 첫 차례에 후보가 없을 수 있습니다
 	SkipUnusablePatternTurns();
 
@@ -255,6 +259,54 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 	{
 		EvaluateHealthTrigger(ObservedHealthComponent->GetHealth(), ObservedHealthComponent->GetMaxHealth());
 	}
+}
+
+bool URSBossPhaseComponent::EnterCurrentPhase()
+{
+	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
+	if (!CurrentPhase)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 %d번 페이즈 데이터가 없어 진입 처리를 실행할 수 없습니다"), *GetNameSafe(GetOwner()), CurrentPhaseIndex);
+
+		return false;
+	}
+
+	if (!CurrentPhase->PersistentAbilityOnEnter)
+	{
+		return true;
+	}
+
+	UAbilitySystemComponent* AbilitySystemComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+	if (!AbilitySystemComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 ASC가 없어 %s를 활성화할 수 없습니다"), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = AbilitySystemComp->FindAbilitySpecFromClass(CurrentPhase->PersistentAbilityOnEnter);
+	if (!AbilitySpec)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 ASC에 %s Spec이 부여되지 않았습니다"), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	if (AbilitySpec->IsActive())
+	{
+		return true;
+	}
+
+	if (!AbilitySystemComp->TryActivateAbility(AbilitySpec->Handle))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 %d번 페이즈 진입 Ability %s 활성화에 실패했습니다"), *GetNameSafe(GetOwner()), CurrentPhaseIndex, *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Enter phase %d persistent ability %s"), CurrentPhaseIndex, *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+	return true;
 }
 
 #pragma endregion
