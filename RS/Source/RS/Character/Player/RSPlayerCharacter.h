@@ -35,6 +35,10 @@ public:
 	/** PlayerState가 복제된 후 ASC의 ActorInfo를 초기화합니다 */
 	virtual void OnRep_PlayerState() override;
 
+protected:
+	/** 스폰 방향을 카메라 방위로 고정합니다 */
+	virtual void BeginPlay() override;
+
 #pragma region Input
 public:
 	/** 플레이어 입력 컴포넌트에 입력 액션을 바인딩합니다 */

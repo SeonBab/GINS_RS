@@ -63,6 +63,18 @@ void ARSPlayerCharacter::PostInitializeComponents()
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 }
 
+void ARSPlayerCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 맵마다 이동 방향이 달라 고정된 카메라 방위를 그대로 쓰면 일부 맵에서 구도가 어긋나므로 PlayerStart 회전을 카메라 방위로 사용합니다
+	// bOrientRotationToMovement가 첫 이동에서 액터 Yaw를 바꿔 덮어쓰므로 스폰 방향을 읽을 수 있는 시점은 여기뿐입니다
+	// SpringArmComp는 부모의 Yaw를 상속하지 않으므로 상대 Yaw가 그대로 월드 방위가 되며 Pitch와 길이는 Blueprint 값을 유지합니다
+	FRotator SpringArmRotation = SpringArmComp->GetRelativeRotation();
+	SpringArmRotation.Yaw = GetActorRotation().Yaw;
+	SpringArmComp->SetRelativeRotation(SpringArmRotation);
+}
+
 void ARSPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UninitializeMovementBlocking();
