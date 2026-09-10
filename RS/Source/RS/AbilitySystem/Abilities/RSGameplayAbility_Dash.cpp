@@ -25,6 +25,7 @@ URSGameplayAbility_Dash::URSGameplayAbility_Dash()
 
 	// 누운 상태에서는 빠른 기상이 같은 입력을 담당하므로, 행동 잠금을 통한 간접 차단에 의존하지 않고 직접 명시합니다
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_CrowdControl_Downed);
+	ActivationBlockedTags.AddTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
 
 	CancelAbilitiesWithTag.AddTag(RSGameplayTags::Ability_Combat_BasicAttack);
 

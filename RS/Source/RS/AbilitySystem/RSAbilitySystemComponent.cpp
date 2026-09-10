@@ -425,7 +425,7 @@ const FGameplayTagContainer& URSAbilitySystemComponent::GetDisplayContextTags()
 {
 	// 슬롯이 대표하는 어빌리티 자체를 교체하는 상태만 등록합니다
 	// State.Action.Locked처럼 실행만 잠시 막는 상태는 슬롯의 의미를 바꾸지 않으므로 넣지 않습니다
-	static const FGameplayTagContainer DisplayContextTags(RSGameplayTags::State_CrowdControl_Downed);
+	static const FGameplayTagContainer DisplayContextTags(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
 
 	return DisplayContextTags;
 }

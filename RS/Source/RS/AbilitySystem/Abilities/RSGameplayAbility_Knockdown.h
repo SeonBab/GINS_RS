@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ActiveGameplayEffectHandle.h"
 #include "Curves/CurveFloat.h"
 #include "RSBaseGameplayAbility.h"
 #include "RSGameplayAbility_Knockdown.generated.h"
@@ -56,6 +57,12 @@ protected:
 	UFUNCTION()
 	void HandleKnockdownMontageCancelled();
 
+	/** Land 구간의 빠른 기상 가용 상태를 한 번 적용합니다 */
+	void ApplyQuickGetUpAvailability();
+
+	/** 현재 실행이 적용한 빠른 기상 가용 상태를 회수합니다 */
+	void ClearQuickGetUpAvailability(const FGameplayAbilityActorInfo* ActorInfo);
+
 protected:
 	/** 넘어지는 구간의 수명과 시각적 동작을 결정하는 Montage입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Knockdown")
@@ -83,4 +90,7 @@ private:
 
 	/** Downed 활성화가 Knockdown Montage를 정상적으로 교체하는 중인지 나타냅니다 */
 	bool bIsTransitioningToDowned = false;
+
+	/** Land 구간에 적용한 빠른 기상 가용 상태를 정확히 회수하기 위한 핸들입니다 */
+	FActiveGameplayEffectHandle QuickGetUpAvailabilityEffectHandle;
 };

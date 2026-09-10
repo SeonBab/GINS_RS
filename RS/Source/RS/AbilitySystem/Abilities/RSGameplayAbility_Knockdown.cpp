@@ -8,6 +8,7 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Combat/RSCombatFunctionLibrary.h"
+#include "Effects/RSGameplayEffect_AnimationState.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "RSGameplayTags.h"
@@ -70,6 +71,10 @@ URSGameplayAbility_Knockdown::URSGameplayAbility_Knockdown()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+
+	FGameplayTagContainer AssetTags;
+	AssetTags.AddTag(RSGameplayTags::Ability_CrowdControl_Knockdown);
+	SetAssetTags(AssetTags);
 
 	ActivationOwnedTags.AddTag(RSGameplayTags::State_CrowdControl_Knockdown);
 
@@ -233,6 +238,7 @@ void URSGameplayAbility_Knockdown::ActivateAbility(const FGameplayAbilitySpecHan
 
 void URSGameplayAbility_Knockdown::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+	ClearQuickGetUpAvailability(ActorInfo);
 	EndAnimationGameplayStatesForMontage(ActorInfo, KnockdownMontage);
 
 	bReachedLand = false;
@@ -270,6 +276,8 @@ void URSGameplayAbility_Knockdown::HandleKnockbackMovementCompleted()
 		// 이동 Task의 끝을 지면 접촉의 Source of Truth로 삼아 같은 프레임에 Land를 시작합니다
 		AnimInstance->Montage_JumpToSection(LandSectionName, KnockdownMontage);
 	}
+
+	ApplyQuickGetUpAvailability();
 }
 
 void URSGameplayAbility_Knockdown::HandleKnockdownLandCompleted()
@@ -328,6 +336,41 @@ void URSGameplayAbility_Knockdown::HandleKnockdownMontageCancelled()
 	}
 
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+}
+
+void URSGameplayAbility_Knockdown::ApplyQuickGetUpAvailability()
+{
+	if (QuickGetUpAvailabilityEffectHandle.IsValid())
+	{
+		return;
+	}
+
+	UAbilitySystemComponent* AbilitySystemComponent = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (!AbilitySystemComponent)
+	{
+		return;
+	}
+
+	const float AbilityLevel = GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo);
+	FGameplayEffectSpecHandle EffectSpecHandle = MakeOutgoingGameplayEffectSpec(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, URSGameplayEffect_StateLease::StaticClass(), AbilityLevel);
+	if (!EffectSpecHandle.IsValid())
+	{
+		return;
+	}
+
+	EffectSpecHandle.Data->DynamicGrantedTags.AddTag(RSGameplayTags::State_Recovery_QuickGetUpAvailable);
+	QuickGetUpAvailabilityEffectHandle = ApplyGameplayEffectSpecToOwner(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, EffectSpecHandle);
+}
+
+void URSGameplayAbility_Knockdown::ClearQuickGetUpAvailability(const FGameplayAbilityActorInfo* ActorInfo)
+{
+	UAbilitySystemComponent* AbilitySystemComponent = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (AbilitySystemComponent && QuickGetUpAvailabilityEffectHandle.IsValid())
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(QuickGetUpAvailabilityEffectHandle);
+	}
+
+	QuickGetUpAvailabilityEffectHandle.Invalidate();
 }
 
 #if WITH_EDITOR

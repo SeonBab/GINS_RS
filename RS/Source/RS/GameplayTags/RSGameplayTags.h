@@ -14,6 +14,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_TargetedSlam_TwoStrike);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Downed);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_HitReact);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Knockdown);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Dash);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Normal);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Quick);
@@ -58,4 +59,5 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Immunity_Knockback);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Blocked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Dashing);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Recovery_QuickGetUpAvailable);
 }
