@@ -6,6 +6,9 @@
 namespace RSGameplayTags
 {
 	// Ability
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing, "Ability.Combat.ArmSwing", "보스 팔 휘두르기 패턴 계열을 식별하며 직접 부여하지 않습니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Slow, "Ability.Combat.ArmSwing.Slow", "느린 팔 휘두르기 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Fast, "Ability.Combat.ArmSwing.Fast", "빠른 팔 휘두르기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam, "Ability.Combat.TargetedSlam", "타기팅 내려찍기 패턴 계열을 식별하며 직접 부여하지 않습니다");

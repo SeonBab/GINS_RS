@@ -7,6 +7,9 @@
 namespace RSGameplayTags
 {
 	// Ability
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ArmSwing);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ArmSwing_Slow);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ArmSwing_Fast);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ConcentricRings);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_TargetedSlam);
