@@ -27,19 +27,13 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 
 	UMaterialInterface* TelegraphMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Resource/Telegraph/M_AttackTelegraph.M_AttackTelegraph"));
 	FObjectProperty* DecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("DecalMaterial"));
-	FObjectProperty* AnnularSectorDecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("AnnularSectorDecalMaterial"));
 	TestNotNull(TEXT("Telegraph material asset"), TelegraphMaterial);
 	TestNotNull(TEXT("DecalMaterial property"), DecalMaterialProperty);
-	TestNotNull(TEXT("AnnularSectorDecalMaterial property"), AnnularSectorDecalMaterialProperty);
 	if (TelegraphMaterial)
 	{
 		if (DecalMaterialProperty)
 		{
 			DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
-		}
-		if (AnnularSectorDecalMaterialProperty)
-		{
-			AnnularSectorDecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
 		}
 	}
 	TelegraphComp->RegisterComponent();
@@ -71,7 +65,8 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(TEXT("Presentation sets a fixed opacity without fading"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), Presentation.Opacity);
 			TestEqual(TEXT("Fill starts at the apex or center"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
-			TestEqual(TEXT("Sphere selects the existing radial mask"), MaterialInstance->K2_GetScalarParameterValue(TEXT("UseConeMask")), 0.0f);
+			TestEqual(TEXT("Sphere selects the radial shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 0.0f);
+			TestEqual(TEXT("Sphere selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
 			TestEqual(TEXT("Sphere resets cone angle parameter"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ConeHalfAngleCos")), 1.0f);
 			TestEqual(TEXT("Sphere sets its inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.5f);
 		}
@@ -81,6 +76,40 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Presentation releases the decal immediately at HoldDuration"), PooledDecal && PooledDecal->IsVisible());
 
 	TelegraphComp->HideAllShapes();
+
+	FRSCombatShape FirstHandledSphere = Sphere;
+	FirstHandledSphere.InnerRadius = 0.0f;
+	FirstHandledSphere.Radius = 60.0f;
+	FRSCombatShape SecondHandledSphere = FirstHandledSphere;
+	SecondHandledSphere.Radius = 100.0f;
+	const int32 FirstSphereHandle = TelegraphComp->ShowShapeWithHandle(FirstHandledSphere, FTransform(FVector(100.0f, 0.0f, 0.0f)), Presentation);
+	const int32 SecondSphereHandle = TelegraphComp->ShowShapeWithHandle(SecondHandledSphere, FTransform(FVector(-100.0f, 0.0f, 0.0f)), Presentation);
+	TestTrue(TEXT("General shapes return distinct valid handles"), FirstSphereHandle != INDEX_NONE && SecondSphereHandle != INDEX_NONE && FirstSphereHandle != SecondSphereHandle);
+
+	Decals.Reset();
+	Owner->GetComponents<UDecalComponent>(Decals);
+	int32 VisibleDecalCount = 0;
+	for (const UDecalComponent* Decal : Decals)
+	{
+		VisibleDecalCount += Decal && Decal->IsVisible() ? 1 : 0;
+	}
+	TestEqual(TEXT("Two handled shapes remain visible together"), VisibleDecalCount, 2);
+
+	TelegraphComp->HideShape(FirstSphereHandle);
+	VisibleDecalCount = 0;
+	for (const UDecalComponent* Decal : Decals)
+	{
+		VisibleDecalCount += Decal && Decal->IsVisible() ? 1 : 0;
+	}
+	TestEqual(TEXT("Hiding one general shape preserves the other"), VisibleDecalCount, 1);
+
+	TelegraphComp->HideAllShapes();
+	VisibleDecalCount = 0;
+	for (const UDecalComponent* Decal : Decals)
+	{
+		VisibleDecalCount += Decal && Decal->IsVisible() ? 1 : 0;
+	}
+	TestEqual(TEXT("Hide all releases every handled shape"), VisibleDecalCount, 0);
 
 	FRSCombatShape Cone;
 	Cone.Type = ERSCombatShapeType::Cone;
@@ -92,7 +121,7 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 
 	Decals.Reset();
 	Owner->GetComponents<UDecalComponent>(Decals);
-	TestEqual(TEXT("Cone reuses the existing pooled decal"), Decals.Num(), 1);
+	TestEqual(TEXT("Cone reuses the existing decal pool"), Decals.Num(), 2);
 	if (!Decals.IsEmpty())
 	{
 		UDecalComponent* ConeDecal = Decals[0];
@@ -104,7 +133,8 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 		UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(ConeDecal->GetDecalMaterial());
 		if (MaterialInstance)
 		{
-			TestEqual(TEXT("Cone selects the cone mask"), MaterialInstance->K2_GetScalarParameterValue(TEXT("UseConeMask")), 1.0f);
+			TestEqual(TEXT("Cone selects the cone shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 1.0f);
+			TestEqual(TEXT("Cone selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
 			TestTrue(TEXT("Cone receives the cosine of its half angle"), FMath::IsNearlyEqual(MaterialInstance->K2_GetScalarParameterValue(TEXT("ConeHalfAngleCos")), FMath::InvSqrt(2.0f)));
 			TestEqual(TEXT("Cone resets the radial inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.0f);
 		}
@@ -136,7 +166,10 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 		UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(PooledDecal->GetDecalMaterial());
 		if (MaterialInstance)
 		{
+			TestEqual(TEXT("Annular sector selects the angular sector shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 2.0f);
+			TestEqual(TEXT("Annular sector selects angular fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 1.0f);
 			TestEqual(TEXT("Annular sector sets its inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.25f);
+			TestEqual(TEXT("Annular sector sets its signed sweep"), MaterialInstance->K2_GetScalarParameterValue(TEXT("SweepAngleDegrees")), AnnularSector.SweepAngleDegrees);
 			TestEqual(TEXT("Annular sector starts with no directional fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
 			TestTrue(TEXT("External fill accepts a valid handle"), TelegraphComp->SetExternalFill(AnnularSectorHandle, 0.75f));
 			TestEqual(TEXT("External fill updates the material directly"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.75f);
@@ -149,12 +182,12 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Handle hides only its active annular sector"), PooledDecal && PooledDecal->IsVisible());
 	TestFalse(TEXT("Released handle can no longer update fill"), TelegraphComp->SetExternalFill(AnnularSectorHandle, 1.0f));
 
-	if (AnnularSectorDecalMaterialProperty)
+	if (DecalMaterialProperty)
 	{
-		AnnularSectorDecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, nullptr);
+		DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, nullptr);
 	}
-	TestEqual(TEXT("Missing dedicated material does not use a fallback"), TelegraphComp->ShowAnnularSector(AnnularSector, AnnularSectorTransform), INDEX_NONE);
-	TestFalse(TEXT("Missing dedicated material leaves the pooled decal hidden"), PooledDecal && PooledDecal->IsVisible());
+	TestEqual(TEXT("Missing shared material does not use a fallback"), TelegraphComp->ShowAnnularSector(AnnularSector, AnnularSectorTransform), INDEX_NONE);
+	TestFalse(TEXT("Missing shared material leaves the pooled decal hidden"), PooledDecal && PooledDecal->IsVisible());
 
 	TelegraphComp->UnregisterComponent();
 	TestWorld->RemoveFromRoot();

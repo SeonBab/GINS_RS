@@ -111,16 +111,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RS|Telegraph")
 	void ShowShape(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation);
 
+	/** 형상을 표시하고 해당 표시만 조기에 회수할 수 있는 Handle을 반환합니다 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Telegraph")
+	int32 ShowShapeWithHandle(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation);
+
+	/** 형상을 월드에 고정하고 외부 진행률 0으로 표시합니다 */
+	int32 ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Opacity);
+
 	/**
 	 * 환형 부채꼴을 월드에 고정하고 외부 진행률 0으로 표시합니다
-	 * 전용 Material이 없거나 공간 데이터가 잘못되면 대체 표시 없이 실패합니다
+	 * 공용 Material이 없거나 공간 데이터가 잘못되면 대체 표시 없이 실패합니다
 	 */
 	int32 ShowAnnularSector(const FRSAnnularSectorTelegraphDefinition& Definition, const FTransform& LockedTransform);
 
 	/** 외부 수명 표시의 채움 진행률을 갱신합니다 */
 	bool SetExternalFill(int32 Handle, float Fill);
 
-	/** 지정한 외부 수명 표시를 즉시 회수합니다 */
+	/** 지정한 표시를 즉시 회수합니다 */
 	void HideShape(int32 Handle);
 
 	/**
@@ -163,10 +170,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMaterialInterface> DecalMaterial;
 
-	/** 환형 부채꼴 경로에 사용할 전용 Material이며 지정하지 않으면 표시 요청이 실패합니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UMaterialInterface> AnnularSectorDecalMaterial;
-
 	/**
 	 * 데칼이 바닥을 향해 투영할 깊이의 반값입니다
 	 * 볼륨이 원점 기준 대칭이라 이 값만큼 위로도 뻗으므로 벽과 소품의 밑단이 물들지 않을 만큼 얇게 둡니다
@@ -186,9 +189,13 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
 	FName FillParameterName = TEXT("Fill");
 
-	/** 기존 원형 마스크와 Cone 마스크 중 어느 경로를 사용할지 전달할 스칼라 파라미터 이름입니다 */
+	/** 원·링, Cone과 환형 부채꼴 중 어느 형상 경로를 사용할지 전달할 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
-	FName UseConeMaskParameterName = TEXT("UseConeMask");
+	FName ShapeModeParameterName = TEXT("ShapeMode");
+
+	/** 반경 방향과 각도 방향 중 어느 채움 경로를 사용할지 전달할 스칼라 파라미터 이름입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
+	FName FillModeParameterName = TEXT("FillMode");
 
 	/** Cone 전체 각도의 절반에 대한 Cos 값을 전달할 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
