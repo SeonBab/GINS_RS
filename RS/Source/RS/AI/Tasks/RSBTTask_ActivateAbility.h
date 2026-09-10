@@ -55,6 +55,13 @@ private:
 	UPROPERTY(EditAnywhere, Category = "RS|Ability")
 	bool bWaitForAbilityEnd = true;
 
+	/**
+	 * 대상 어빌리티가 지정되지 않았을 때 실패 대신 성공으로 통과할지 결정합니다
+	 * 무력화처럼 있을 수도 없을 수도 있는 어빌리티를 Sequence 중간에 둘 때 사용합니다
+	 */
+	UPROPERTY(EditAnywhere, Category = "RS|Ability")
+	bool bSucceedWhenAbilityMissing = false;
+
 	/** 종료를 기다리는 동안 결과를 돌려줄 Behavior Tree입니다 */
 	UPROPERTY(Transient)
 	TObjectPtr<UBehaviorTreeComponent> WaitingOwnerComp;

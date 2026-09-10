@@ -202,6 +202,31 @@ bool URSBossPhaseComponent::TryGetPendingMainGimmick(TSubclassOf<URSBaseGameplay
 	return true;
 }
 
+bool URSBossPhaseComponent::TryGetPendingGroggy(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const
+{
+	// 무력화는 기믹을 파훼한 보상이므로 판정이 없거나 파훼하지 못한 경우에는 재생하지 않습니다
+	if (!bPhaseTransitionPending || MainGimmickOutcome != ERSBossMainGimmickOutcome::Broken)
+	{
+		return false;
+	}
+
+	if (!PhaseData || !PhaseData->GroggyAbility)
+	{
+		return false;
+	}
+
+	OutAbilityClass = PhaseData->GroggyAbility;
+
+	return true;
+}
+
+void URSBossPhaseComponent::ReportMainGimmickOutcome(ERSBossMainGimmickOutcome Outcome)
+{
+	MainGimmickOutcome = Outcome;
+
+	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Gimmick outcome phase %d %s"), CurrentPhaseIndex, *UEnum::GetDisplayValueAsText(Outcome).ToString());
+}
+
 void URSBossPhaseComponent::AdvanceToNextPhase()
 {
 	// 마지막 페이즈에는 다음 페이즈가 없으므로 진행 요청을 무시합니다
@@ -215,8 +240,9 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 	const int32 PreviousPhaseIndex = CurrentPhaseIndex;
 	++CurrentPhaseIndex;
 
-	// 새 페이즈는 사이클을 처음 차례부터 시작하고 이전 페이즈의 기믹 대기를 남기지 않습니다
+	// 새 페이즈는 사이클을 처음 차례부터 시작하고 이전 페이즈의 대기와 판정을 남기지 않습니다
 	bPhaseTransitionPending = false;
+	MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 	CurrentCycleIndex = 0;
 
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Phase %d -> %d"), PreviousPhaseIndex, CurrentPhaseIndex);
@@ -243,11 +269,20 @@ void URSBossPhaseComponent::SetPhasesForTest(const TArray<FRSBossPhaseDefinition
 	CurrentPhaseIndex = 0;
 	CurrentCycleIndex = 0;
 	bPhaseTransitionPending = false;
+	MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 }
 
 void URSBossPhaseComponent::EvaluateHealthTriggerForTest(float Health, float MaxHealth)
 {
 	EvaluateHealthTrigger(Health, MaxHealth);
+}
+
+void URSBossPhaseComponent::SetGroggyAbilityForTest(TSubclassOf<URSBaseGameplayAbility> InGroggyAbility)
+{
+	if (PhaseData)
+	{
+		PhaseData->GroggyAbility = InGroggyAbility;
+	}
 }
 #endif
 

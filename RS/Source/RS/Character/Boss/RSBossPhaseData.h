@@ -58,6 +58,13 @@ class RS_API URSBossPhaseData : public UDataAsset
 	GENERATED_BODY()
 
 public:
+	/**
+	 * 메인 기믹을 파훼했을 때 재생할 무력화 어빌리티이며 선택 사항입니다
+	 * 보스 하나가 같은 무력화를 공유하므로 페이즈마다 두지 않습니다
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
+	TSubclassOf<URSBaseGameplayAbility> GroggyAbility;
+
 	/** 진행 순서대로 나열한 페이즈 정의입니다 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
 	TArray<FRSBossPhaseDefinition> Phases;

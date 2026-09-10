@@ -40,6 +40,12 @@ EBTNodeResult::Type URSBTTask_ActivateAbility::ExecuteTask(UBehaviorTreeComponen
 	const TSubclassOf<URSBaseGameplayAbility> AbilityClassToActivate = ResolveAbilityClass(OwnerComp);
 	if (!AbilityClassToActivate)
 	{
+		// 선택 사항인 어빌리티가 설정되지 않은 경우이므로 Sequence를 끊지 않고 다음 노드로 넘깁니다
+		if (bSucceedWhenAbilityMissing)
+		{
+			return EBTNodeResult::Succeeded;
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("%s has no ability class configured"), *GetName());
 
 		return EBTNodeResult::Failed;

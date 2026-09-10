@@ -25,6 +25,23 @@ enum class ERSBossPatternType : uint8
 };
 
 /**
+ * 메인 기믹에 대한 플레이어의 대응 결과입니다
+ * 어빌리티가 정상 종료했는지와는 다른 축이며 게임플레이 판정만 나타냅니다
+ */
+UENUM(BlueprintType)
+enum class ERSBossMainGimmickOutcome : uint8
+{
+	/** 아직 판정이 없습니다. 취소되어 판정에 도달하지 못한 경우를 포함합니다 */
+	None,
+
+	/** 플레이어가 기믹을 파훼했습니다 */
+	Broken,
+
+	/** 플레이어가 끝까지 기믹을 파훼하지 못했습니다 */
+	NotBroken
+};
+
+/**
  * 보스 전투의 진행 상태와 패턴 선택 정책을 소유합니다
  * Behavior Tree와 Blackboard를 참조하지 않으므로 AI 없이도 진행 규칙을 검증할 수 있습니다
  */
@@ -89,6 +106,18 @@ public:
 	/** 전환 전에 실행할 메인 기믹이 설정되어 있으면 반환하며 기믹 없는 전환에서는 false입니다 */
 	bool TryGetPendingMainGimmick(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
 
+	/**
+	 * 기믹을 파훼했고 무력화가 설정되어 있을 때만 무력화 어빌리티를 반환합니다
+	 * 무력화를 실행할지 판단하는 조건을 이 함수 하나로 모읍니다
+	 */
+	bool TryGetPendingGroggy(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
+
+	/** 메인 기믹이 종료되기 전에 플레이어의 대응 결과를 기록합니다 */
+	void ReportMainGimmickOutcome(ERSBossMainGimmickOutcome Outcome);
+
+	/** 현재 페이즈 기믹에 대한 판정 결과를 반환합니다 */
+	ERSBossMainGimmickOutcome GetMainGimmickOutcome() const { return MainGimmickOutcome; }
+
 	/** 다음 페이즈를 활성화하고 사이클과 기믹 대기 상태를 초기화합니다 */
 	void AdvanceToNextPhase();
 
@@ -100,6 +129,9 @@ public:
 
 	/** 자동 테스트가 체력 변경 경로를 직접 실행할 수 있게 합니다 */
 	void EvaluateHealthTriggerForTest(float Health, float MaxHealth);
+
+	/** 자동 테스트가 공용 무력화 어빌리티를 지정할 수 있게 합니다 */
+	void SetGroggyAbilityForTest(TSubclassOf<URSBaseGameplayAbility> InGroggyAbility);
 #endif
 
 private:
@@ -139,6 +171,10 @@ private:
 	/** 현재 페이즈의 체력 기준 도달이 이미 발행되었는지 나타냅니다 */
 	UPROPERTY(Transient)
 	bool bPhaseTransitionPending = false;
+
+	/** 현재 페이즈 기믹에 대한 플레이어의 대응 결과입니다 */
+	UPROPERTY(Transient)
+	ERSBossMainGimmickOutcome MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 
 	/** 체력 구독을 해제하기 위해 보관한 HealthComponent입니다 */
 	UPROPERTY(Transient)

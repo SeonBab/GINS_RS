@@ -74,26 +74,19 @@ EDataValidationResult URSBossPhaseData::IsDataValid(FDataValidationContext& Cont
 		}
 
 		// 페이즈는 배열 순서대로 진행하므로 마지막 원소에는 넘어갈 다음 페이즈가 없습니다
+		// 마지막 페이즈에 남은 기준값은 뒤에 페이즈를 추가하면 그대로 쓰이므로 문제로 보지 않습니다
 		const bool bIsLastPhase = PhaseIndex + 1 >= Phases.Num();
-		if (bIsLastPhase)
-		{
-			if (Phase.HealthTriggerRatio > 0.0f)
-			{
-				Context.AddWarning(FText::FromString(FString::Printf(TEXT("%d번 페이즈는 마지막이라 HealthTriggerRatio가 사용되지 않습니다"), PhaseIndex)));
-			}
-
-			continue;
-		}
 
 		// 다음 페이즈가 있는데 기준이 0이면 체력이 0이 되어야 넘어가므로 사실상 전환되지 않습니다
-		if (Phase.HealthTriggerRatio <= 0.0f)
+		if (!bIsLastPhase && Phase.HealthTriggerRatio <= 0.0f)
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("%d번 페이즈의 HealthTriggerRatio가 0이라 다음 페이즈로 넘어가지 않습니다"), PhaseIndex)));
 			ValidationResult = EDataValidationResult::Invalid;
 		}
 
 		// 체력은 줄어들기만 하므로 뒤 페이즈의 기준이 앞 페이즈보다 낮아야 순서대로 진행됩니다
-		if (PhaseIndex > 0 && Phase.HealthTriggerRatio >= Phases[PhaseIndex - 1].HealthTriggerRatio)
+		// 지금 쓰이지 않는 마지막 페이즈의 값도 함께 검사해 페이즈를 추가한 순간 어긋나 있지 않게 합니다
+		if (PhaseIndex > 0 && Phase.HealthTriggerRatio > 0.0f && Phase.HealthTriggerRatio >= Phases[PhaseIndex - 1].HealthTriggerRatio)
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("%d번 페이즈의 HealthTriggerRatio가 앞 페이즈보다 낮지 않아 순서대로 진행되지 않습니다"), PhaseIndex)));
 			ValidationResult = EDataValidationResult::Invalid;

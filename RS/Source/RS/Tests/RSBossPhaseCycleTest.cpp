@@ -98,6 +98,38 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	PhaseComponent->EvaluateHealthTriggerForTest(1.0f, 100.0f);
 	TestFalse(TEXT("Last phase never requests transition"), PhaseComponent->IsPhaseTransitionPending());
 
+	// 무력화는 기믹을 파훼했을 때만 재생합니다
+	TArray<FRSBossPhaseDefinition> GroggyPhases;
+	GroggyPhases.Add(MakeTestPhase(BasicPattern, SpecialPattern, URSGameplayAbility_ConcentricRings::StaticClass(), 0.5f));
+	GroggyPhases.Add(MakeTestPhase(BasicPattern, SpecialPattern, nullptr, 0.0f));
+
+	PhaseComponent->SetPhasesForTest(GroggyPhases);
+	PhaseComponent->SetGroggyAbilityForTest(URSGameplayAbility_TargetedSlam::StaticClass());
+	PhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
+
+	TSubclassOf<URSBaseGameplayAbility> PendingGroggy;
+	TestEqual(TEXT("Outcome starts as none"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::None);
+	TestFalse(TEXT("No groggy before judgement"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
+	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::NotBroken);
+	TestFalse(TEXT("No groggy when gimmick was not broken"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
+	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::Broken);
+	TestTrue(TEXT("Groggy plays when gimmick was broken"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+	TestEqual(TEXT("Groggy uses the shared ability"), PendingGroggy.Get(), URSGameplayAbility_TargetedSlam::StaticClass());
+
+	// 페이즈 전환은 판정 결과도 초기화해 다음 기믹에 영향을 주지 않습니다
+	PhaseComponent->AdvanceToNextPhase();
+	TestEqual(TEXT("Phase change clears outcome"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::None);
+	TestFalse(TEXT("Phase change clears groggy"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
+	// 무력화 어빌리티가 설정되지 않은 보스는 파훼해도 무력화가 없습니다
+	PhaseComponent->SetPhasesForTest(GroggyPhases);
+	PhaseComponent->SetGroggyAbilityForTest(nullptr);
+	PhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
+	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::Broken);
+	TestFalse(TEXT("No groggy without a configured ability"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
 	// 메인 기믹이 없어도 체력 기준만으로 다음 페이즈로 넘어갈 수 있습니다
 	TArray<FRSBossPhaseDefinition> GimmicklessPhases;
 	GimmicklessPhases.Add(MakeTestPhase(BasicPattern, SpecialPattern, nullptr, 0.5f));
