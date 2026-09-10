@@ -4,7 +4,7 @@
 
 namespace
 {
-	bool IsFinite(float Value)
+	bool IsFiniteAttackWindowValue(float Value)
 	{
 		return FMath::IsFinite(Value);
 	}
@@ -13,7 +13,7 @@ namespace
 bool FRSAttackWindowMath::TryCalculateAlpha(float MontagePosition, float WindowStartPosition, float WindowEndPosition, float& OutAlpha)
 {
 	OutAlpha = 0.0f;
-	if (!IsFinite(MontagePosition) || !IsFinite(WindowStartPosition) || !IsFinite(WindowEndPosition) || WindowEndPosition - WindowStartPosition <= KINDA_SMALL_NUMBER)
+	if (!IsFiniteAttackWindowValue(MontagePosition) || !IsFiniteAttackWindowValue(WindowStartPosition) || !IsFiniteAttackWindowValue(WindowEndPosition) || WindowEndPosition - WindowStartPosition <= KINDA_SMALL_NUMBER)
 	{
 		return false;
 	}
@@ -26,7 +26,7 @@ bool FRSAttackWindowMath::TryCalculateAlpha(float MontagePosition, float WindowS
 bool FRSAttackWindowMath::TryCalculateStep(float PreviousMontagePosition, float CurrentMontagePosition, float WindowStartPosition, float WindowEndPosition, bool bWindowActive, FRSAttackWindowStep& OutStep)
 {
 	OutStep = FRSAttackWindowStep();
-	if (!IsFinite(PreviousMontagePosition) || !IsFinite(CurrentMontagePosition) || CurrentMontagePosition + KINDA_SMALL_NUMBER < PreviousMontagePosition)
+	if (!IsFiniteAttackWindowValue(PreviousMontagePosition) || !IsFiniteAttackWindowValue(CurrentMontagePosition) || CurrentMontagePosition + KINDA_SMALL_NUMBER < PreviousMontagePosition)
 	{
 		return false;
 	}
