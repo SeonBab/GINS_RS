@@ -4,7 +4,7 @@ namespace
 {
 	constexpr float AngleBoundaryToleranceDegrees = 0.01f;
 
-	bool TryGetHorizontalForward(const FTransform& Transform, FVector& OutForward)
+	bool TryGetHorizontalSweepForward(const FTransform& Transform, FVector& OutForward)
 	{
 		OutForward = Transform.GetUnitAxis(EAxis::X);
 		OutForward.Z = 0.0f;
@@ -133,7 +133,7 @@ bool RSSequentialSweepExplosionMath::IsLocationInSector(const FTransform& Locked
 	}
 
 	FVector LockedForward;
-	if (!TryGetHorizontalForward(LockedTransform, LockedForward))
+	if (!TryGetHorizontalSweepForward(LockedTransform, LockedForward))
 	{
 		return false;
 	}
