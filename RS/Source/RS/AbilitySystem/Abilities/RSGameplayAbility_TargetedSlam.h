@@ -9,7 +9,7 @@
 class ARSBossCharacter;
 class ARSBossController;
 class UAbilityTask_PlayMontageAndWait;
-class UAbilityTask_WaitGameplayEvent;
+class UAbilityTask_WaitDelay;
 class UAnimMontage;
 class UGameplayEffect;
 class URSAbilityTask_ObserveFacing;
@@ -61,11 +61,11 @@ private:
 	/** 현재 Strike의 일회성 상태를 초기화하고 Montage를 시작합니다 */
 	void StartStrike();
 
-	/** 전체 Ability 수명의 HitCheck listener가 현재 Strike의 판정을 한 번만 실행하게 합니다 */
+	/** 현재 Strike의 ImpactDelay가 끝나면 고정한 공격 공간에 판정을 실행합니다 */
 	UFUNCTION()
-	void HandleHitCheckEvent(FGameplayEventData Payload);
+	void HandleImpactDelayFinished();
 
-	/** Montage가 정상 완료되면 HitCheck 소비 여부를 확인하고 다음 Strike 또는 종료로 전환합니다 */
+	/** Montage가 정상 완료되면 Impact 완료 여부와 함께 현재 Strike 종료를 시도합니다 */
 	UFUNCTION()
 	void HandleAttackMontageCompleted();
 
@@ -73,14 +73,14 @@ private:
 	UFUNCTION()
 	void HandleAttackMontageInterrupted();
 
+	/** Impact와 Montage가 모두 완료됐으면 다음 Strike 또는 Ability 종료로 전환합니다 */
+	void TryFinishStrike();
+
 	/** 재사용되는 Ability 인스턴스에서 현재 Strike의 상태를 초기화합니다 */
 	void ResetStrikeTransientState();
 
 	/** 현재 ActorInfo에서 Targeted Slam 실행에 필요한 Boss Character와 Controller를 반환합니다 */
 	bool GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
-
-	/** Montage의 유일한 HitCheck Notify 시점을 재생 속도가 적용된 초 단위로 반환합니다 */
-	bool GetHitCheckTimeSeconds(float& OutHitCheckTimeSeconds, int32* OutHitCheckNotifyCount = nullptr) const;
 
 private:
 	/** 한 활성화에서 실행할 Strike 수이며 현재 패턴은 1회형과 2회형만 지원합니다 */
@@ -98,6 +98,10 @@ private:
 	/** Montage 재생 속도이며 Telegraph Fill 시간 계산에도 같은 값이 적용됩니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Animation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01"))
 	float MontagePlayRate = 1.0f;
+
+	/** Strike 시작부터 실제 판정까지의 시간이며 Telegraph Fill과 Hold가 같은 값을 사용합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Timing", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
+	float ImpactDelay = 1.35f;
 
 	/** Pre-Aim 동안 임시로 적용할 Boss Yaw 회전 속도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Aim", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "deg/s"))
@@ -147,8 +151,11 @@ private:
 	/** 현재 활성화에서 실행 중인 Strike 인덱스입니다 */
 	int32 CurrentStrikeIndex = 0;
 
-	/** 현재 Strike가 유일한 HitCheck를 이미 소비했는지 나타냅니다 */
-	bool bHasConsumedHitCheck = false;
+	/** 현재 Strike의 Impact 판정을 이미 실행했는지 나타냅니다 */
+	bool bHasExecutedImpact = false;
+
+	/** 현재 Strike의 Montage가 정상 완료됐는지 나타냅니다 */
+	bool bHasCompletedMontage = false;
 
 	/** Ability가 설정한 외부 상태를 되돌릴 수 있도록 원래 회전 설정을 저장했는지 나타냅니다 */
 	bool bHasSavedRotationSettings = false;
@@ -175,9 +182,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<URSAbilityTask_ObserveFacing> ObserveFacingTask;
 
-	/** Ability 전체에서 HitCheck Gameplay Event를 받는 Task입니다 */
+	/** 현재 Strike 시작부터 Impact 판정까지 기다리는 Task입니다 */
 	UPROPERTY(Transient)
-	TObjectPtr<UAbilityTask_WaitGameplayEvent> HitCheckEventTask;
+	TObjectPtr<UAbilityTask_WaitDelay> ImpactDelayTask;
 
 	/** 현재 Strike의 Montage 수명을 관찰하는 Task입니다 */
 	UPROPERTY(Transient)

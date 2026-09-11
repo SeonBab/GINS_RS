@@ -11,6 +11,12 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ArmSwing_Fast, "Ability.Combat.ArmSwing.Fast", "빠른 팔 휘두르기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_BasicAttack, "Ability.Combat.BasicAttack", "플레이어 기본 공격 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_FlameCraterSpread, "Ability.Combat.FlameCraterSpread", "보스 화염 분화구 살포 특수 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_FireFieldDamage, "Ability.Combat.FireFieldDamage", "화염 분화구 장판의 1회 피해 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern, "Ability.Combat.PizzaPattern", "보스 피자 패턴 계열을 식별하며 직접 부여하지 않습니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_OneExplosion, "Ability.Combat.PizzaPattern.OneExplosion", "한 번 폭발하는 피자 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_TwoExplosions, "Ability.Combat.PizzaPattern.TwoExplosions", "두 번 폭발하는 피자 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_SequentialSweepExplosion, "Ability.Combat.SequentialSweepExplosion", "보스 순차 스윕 폭발 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam, "Ability.Combat.TargetedSlam", "타기팅 내려찍기 패턴 계열을 식별하며 직접 부여하지 않습니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam_OneStrike, "Ability.Combat.TargetedSlam.OneStrike", "한 번 내려찍는 타기팅 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_TargetedSlam_TwoStrike, "Ability.Combat.TargetedSlam.TwoStrike", "두 번 내려찍는 타기팅 패턴 Ability를 식별합니다");
@@ -31,6 +37,7 @@ namespace RSGameplayTags
 
 	// GameplayEvent
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_HitCheck, "GameplayEvent.Combat.HitCheck", "Montage의 타격 시점에 공격 판정을 실행하도록 Ability에 알립니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_FireFieldDamage, "GameplayEvent.Combat.FireFieldDamage", "화염 분화구 장판이 찾은 플레이어에게 1회 피해를 적용하도록 화염 분화구 ASC에 알립니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_HitReact, "GameplayEvent.CrowdControl.HitReact", "공격이 대상에게 피격 경직을 요청하며 대상의 경직 Ability를 활성화합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_Knockdown, "GameplayEvent.CrowdControl.Knockdown", "공격이 대상에게 넉다운을 요청하며 대상의 넉다운 Ability를 활성화합니다");
 
@@ -59,6 +66,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_Damage, "State.Immunity.Damage", "현재 대상에게 대미지를 적용할 수 없는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_HitReact, "State.Immunity.HitReact", "현재 대상에게 피격 경직을 적용할 수 없는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Immunity_Knockback, "State.Immunity.Knockback", "현재 대상에게 넉백을 적용할 수 없는 상태입니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Hazard_FlameCrater_Vulnerable, "State.Hazard.FlameCrater.Vulnerable", "착지 후 충전 중인 화염 분화구가 플레이어의 개별 타격을 받을 수 있음을 나타냅니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Blocked, "State.Movement.Blocked", "Navigation 이동 요청과 진행 중인 경로 추종을 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Movement_Dashing, "State.Movement.Dashing", "대시 이동이 실행되는 동안 적용합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Recovery_QuickGetUpAvailable, "State.Recovery.QuickGetUpAvailable", "Land 시작부터 누움이 끝날 때까지 빠른 기상 입력을 허용합니다");

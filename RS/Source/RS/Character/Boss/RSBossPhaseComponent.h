@@ -7,11 +7,19 @@
 #include "RSBossPhaseComponent.generated.h"
 
 class APawn;
+class UAbilitySystemComponent;
+class UGameplayAbility;
 class URSBaseGameplayAbility;
 class URSBossPhaseData;
 class URSHealthComponent;
 
 struct FRSBossPhaseDefinition;
+
+/** 실제 특수 패턴 활성화 순번을 지속 오브젝트에 전달합니다 */
+DECLARE_MULTICAST_DELEGATE_OneParam(FRSSpecialPatternActivatedSignature, int32);
+
+/** 메인 패턴, 보스 사망과 Encounter 종료가 지속 오브젝트의 즉시 정리를 요청합니다 */
+DECLARE_MULTICAST_DELEGATE(FRSPersistentObjectCleanupRequestedSignature);
 
 /** 보스가 사용하는 패턴의 분류입니다 */
 UENUM(BlueprintType)
@@ -90,6 +98,18 @@ public:
 	/** 현재 페이즈의 한 사이클을 구성하는 행동 수를 반환합니다 */
 	int32 GetCycleLength() const;
 
+	/** 지금까지 실제로 활성화된 특수 패턴의 순번을 반환합니다 */
+	int32 GetSpecialPatternActivationSequence() const { return SpecialPatternActivationSequence; }
+
+	/** 실제 특수 패턴 활성화를 구독할 델리게이트를 반환합니다 */
+	FRSSpecialPatternActivatedSignature& OnSpecialPatternActivated() { return SpecialPatternActivatedEvent; }
+
+	/** 메인 패턴과 Encounter 수명 종료의 즉시 정리 요청을 구독할 델리게이트를 반환합니다 */
+	FRSPersistentObjectCleanupRequestedSignature& OnPersistentObjectCleanupRequested() { return PersistentObjectCleanupRequestedEvent; }
+
+	/** 보스 사망 또는 Encounter 종료가 모든 지속 오브젝트의 정리를 요청합니다 */
+	void RequestPersistentObjectCleanup();
+
 #pragma endregion
 
 #pragma region Phase
@@ -121,6 +141,9 @@ public:
 	/** 다음 페이즈를 활성화하고 사이클과 기믹 대기 상태를 초기화합니다 */
 	void AdvanceToNextPhase();
 
+	/** 현재 페이즈에 설정된 전투 지속형 Ability를 중복 없이 활성화합니다 */
+	bool EnterCurrentPhase();
+
 #pragma endregion
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -135,6 +158,9 @@ public:
 #endif
 
 private:
+	/** 실제로 활성화된 Ability를 현재 페이즈의 특수 패턴 또는 메인 패턴으로 분류합니다 */
+	void HandleAbilityActivated(UGameplayAbility* Ability);
+
 	/** 현재 페이즈의 정의를 반환하며 설정이 없으면 nullptr을 반환합니다 */
 	const FRSBossPhaseDefinition* GetCurrentPhase() const;
 
@@ -168,6 +194,10 @@ private:
 	UPROPERTY(Transient)
 	int32 CurrentCycleIndex = 0;
 
+	/** 실제로 활성화된 특수 패턴마다 증가하며 화염 분화구 묶음의 수명을 구분합니다 */
+	UPROPERTY(Transient)
+	int32 SpecialPatternActivationSequence = 0;
+
 	/** 현재 페이즈의 체력 기준 도달이 이미 발행되었는지 나타냅니다 */
 	UPROPERTY(Transient)
 	bool bPhaseTransitionPending = false;
@@ -179,4 +209,17 @@ private:
 	/** 체력 구독을 해제하기 위해 보관한 HealthComponent입니다 */
 	UPROPERTY(Transient)
 	TObjectPtr<URSHealthComponent> ObservedHealthComponent;
+
+	/** 실제 Ability 활성화 델리게이트 구독을 해제하기 위해 보관한 ASC입니다 */
+	UPROPERTY(Transient)
+	TObjectPtr<UAbilitySystemComponent> ObservedAbilitySystemComponent;
+
+	/** 보스 ASC의 Ability 활성화 델리게이트 구독 핸들입니다 */
+	FDelegateHandle AbilityActivatedDelegateHandle;
+
+	/** 화염 분화구 묶음이 수명 순번을 판단하는 특수 패턴 활성화 이벤트입니다 */
+	FRSSpecialPatternActivatedSignature SpecialPatternActivatedEvent;
+
+	/** 순번과 관계없이 모든 지속 오브젝트를 즉시 정리하는 이벤트입니다 */
+	FRSPersistentObjectCleanupRequestedSignature PersistentObjectCleanupRequestedEvent;
 };

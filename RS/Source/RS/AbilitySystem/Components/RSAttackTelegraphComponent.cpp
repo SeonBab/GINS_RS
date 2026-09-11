@@ -6,6 +6,15 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 
+namespace
+{
+	constexpr float RadialShapeMode = 0.0f;
+	constexpr float ConeShapeMode = 1.0f;
+	constexpr float AngularSectorShapeMode = 2.0f;
+	constexpr float RadialFillMode = 0.0f;
+	constexpr float AngularFillMode = 1.0f;
+}
+
 bool FRSAnnularSectorTelegraphDefinition::IsDataValid() const
 {
 	return FMath::IsFinite(InnerRadius)
@@ -42,7 +51,7 @@ void URSAttackTelegraphComponent::TickComponent(float DeltaTime, ELevelTick Tick
 
 int32 URSAttackTelegraphComponent::ShowAnnularSector(const FRSAnnularSectorTelegraphDefinition& Definition, const FTransform& LockedTransform)
 {
-	if (!AnnularSectorDecalMaterial || !Definition.IsDataValid() || LockedTransform.ContainsNaN())
+	if (!DecalMaterial || !Definition.IsDataValid() || LockedTransform.ContainsNaN())
 	{
 		return INDEX_NONE;
 	}
@@ -99,10 +108,15 @@ void URSAttackTelegraphComponent::OnUnregister()
 
 void URSAttackTelegraphComponent::ShowShape(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation)
 {
-	// 잘못된 Cone을 Clamp하거나 다른 형상처럼 표시하면 실제 판정과 예고가 달라지므로 표시하지 않습니다
-	if (Shape.Type == ERSCombatShapeType::Cone && !Shape.IsDataValid())
+	ShowShapeWithHandle(Shape, ShapeTransform, Presentation);
+}
+
+int32 URSAttackTelegraphComponent::ShowShapeWithHandle(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation)
+{
+	// 잘못된 Shape를 Clamp하거나 다른 형상처럼 표시하면 실제 판정과 예고가 달라지므로 표시하지 않습니다
+	if (!Shape.IsDataValid() || ShapeTransform.ContainsNaN())
 	{
-		return;
+		return INDEX_NONE;
 	}
 
 	// 머티리얼이 준비되기 전까지 개발 중에도 표시를 확인할 수 있도록 판정과 같은 형상 데이터로 대신 그립니다
@@ -111,10 +125,11 @@ void URSAttackTelegraphComponent::ShowShape(const FRSCombatShape& Shape, const F
 	{
 		URSCombatFunctionLibrary::DrawDebugCombatShape(GetWorld(), Shape, ShapeTransform, FColor::Yellow, Presentation.HoldDuration);
 
-		return;
+		return INDEX_NONE;
 	}
 
 	FRSTelegraphSlot& Slot = AcquireSlot();
+	Slot.Handle = CreateHandle();
 	Slot.Shape = Shape;
 	Slot.Presentation = Presentation;
 	Slot.ElapsedTime = 0.0f;
@@ -126,6 +141,37 @@ void URSAttackTelegraphComponent::ShowShape(const FRSCombatShape& Shape, const F
 	UpdateSlot(Slot, 0.0f);
 
 	RefreshTickEnabled();
+
+	return Slot.Handle;
+}
+
+int32 URSAttackTelegraphComponent::ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Opacity)
+{
+	if (!DecalMaterial || !Shape.IsDataValid() || ShapeTransform.ContainsNaN() || !FMath::IsFinite(Opacity) || Opacity < 0.0f || Opacity > 1.0f)
+	{
+		return INDEX_NONE;
+	}
+
+	FRSTelegraphSlot& Slot = AcquireSlot();
+	Slot.Handle = CreateHandle();
+	Slot.Shape = Shape;
+	Slot.ElapsedTime = 0.0f;
+	Slot.bIsActive = true;
+	Slot.bUsesExternalFill = true;
+
+	SetUpSlotDecal(Slot, ShapeTransform);
+	if (!Slot.MaterialInstance)
+	{
+		ReleaseSlot(Slot);
+
+		return INDEX_NONE;
+	}
+
+	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, Opacity);
+	Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, 0.0f);
+	RefreshTickEnabled();
+
+	return Slot.Handle;
 }
 
 void URSAttackTelegraphComponent::HideAllShapes()
@@ -203,9 +249,11 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 		: 1.0f;
 
 	// 슬롯의 MID는 다른 Shape가 재사용할 수 있으므로 Shape 관련 값을 항상 완전한 상태로 다시 씁니다
-	Slot.MaterialInstance->SetScalarParameterValue(UseConeMaskParameterName, bUseConeMask ? 1.0f : 0.0f);
+	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, bUseConeMask ? ConeShapeMode : RadialShapeMode);
+	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, RadialFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, InnerRatio);
 	Slot.MaterialInstance->SetScalarParameterValue(ConeHalfAngleCosParameterName, ConeHalfAngleCos);
+	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, 360.0f);
 
 	Slot.Decal->SetVisibility(true);
 }
@@ -227,7 +275,7 @@ bool URSAttackTelegraphComponent::SetUpAnnularSectorDecal(FRSTelegraphSlot& Slot
 		Slot.Decal->SetUsingAbsoluteRotation(true);
 	}
 
-	if (!SetUpSlotMaterial(Slot, AnnularSectorDecalMaterial))
+	if (!SetUpSlotMaterial(Slot, DecalMaterial))
 	{
 		return false;
 	}
@@ -239,7 +287,11 @@ bool URSAttackTelegraphComponent::SetUpAnnularSectorDecal(FRSTelegraphSlot& Slot
 	const FRotator GroundProjectionRotation(-90.0f, StartWorldYaw, 0.0f);
 	Slot.Decal->SetWorldLocationAndRotation(LockedTransform.GetLocation(), GroundProjectionRotation);
 
+	// 같은 MID 슬롯을 다른 형상이 재사용해도 이전 모드가 남지 않도록 전체 형상 계약을 다시 씁니다
+	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, AngularSectorShapeMode);
+	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, AngularFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, Definition.InnerRadius / Definition.OuterRadius);
+	Slot.MaterialInstance->SetScalarParameterValue(ConeHalfAngleCosParameterName, 1.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, Definition.SweepAngleDegrees);
 
 	return true;

@@ -104,6 +104,9 @@ public:
 	/** 이 캐릭터의 전투 참가자와 생명주기를 관리할 Encounter를 설정합니다 */
 	void SetBossEncounter(ARSBossEncounter* InBossEncounter);
 
+	/** Encounter가 Active가 되면 첫 페이즈의 공통 진입 처리를 실행합니다 */
+	void BeginEncounterCombat();
+
 	/** 보스는 생존시킨 채 진행 중인 공격과 이동을 정리하고 Encounter 전투 상태에서 이탈합니다 */
 	void EndEncounterCombat();
 

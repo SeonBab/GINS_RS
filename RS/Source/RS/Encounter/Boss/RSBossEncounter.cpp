@@ -177,6 +177,10 @@ void ARSBossEncounter::StartEncounter()
 	}
 
 	StartTimeLimit();
+	if (BossCharacter)
+	{
+		BossCharacter->BeginEncounterCombat();
+	}
 	NotifyControllerEncounterStarted();
 	BroadcastEncounterTransitionEvents(OldState);
 }

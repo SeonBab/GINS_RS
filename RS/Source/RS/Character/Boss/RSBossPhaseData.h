@@ -11,7 +11,7 @@ class URSBaseGameplayAbility;
 
 /**
  * 보스 페이즈 하나가 사용하는 패턴 후보와 진행 규칙입니다
- * 페이즈마다 다른 것은 후보 목록, 사이클 순서, 체력 트리거와 메인 기믹뿐입니다
+ * 페이즈마다 다른 후보 목록, 사이클 순서, 체력 트리거와 진입 시 지속형 Ability를 소유합니다
  */
 USTRUCT(BlueprintType)
 struct FRSBossPhaseDefinition
@@ -46,6 +46,10 @@ struct FRSBossPhaseDefinition
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
 	TSubclassOf<URSBaseGameplayAbility> MainGimmickAbility;
+
+	/** 이 페이즈에 처음 진입할 때 한 번 활성화할 전투 지속형 Ability이며 선택 사항입니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
+	TSubclassOf<URSBaseGameplayAbility> PersistentAbilityOnEnter;
 };
 
 /**

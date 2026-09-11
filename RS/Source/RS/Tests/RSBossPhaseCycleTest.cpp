@@ -37,6 +37,7 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	Phases.Add(MakeTestPhase(BasicPattern, SpecialPattern, nullptr, 0.0f));
 
 	PhaseComponent->SetPhasesForTest(Phases);
+	TestTrue(TEXT("Empty initial phase entry is a successful no-op"), PhaseComponent->EnterCurrentPhase());
 
 	ERSBossPatternType CurrentPatternType = ERSBossPatternType::Special;
 
@@ -91,6 +92,7 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	PhaseComponent->AdvancePatternCycle();
 	PhaseComponent->AdvanceToNextPhase();
 	TestEqual(TEXT("Phase advanced"), PhaseComponent->GetCurrentPhaseIndex(), 1);
+	TestTrue(TEXT("Empty later phase entry remains a successful no-op"), PhaseComponent->EnterCurrentPhase());
 	TestEqual(TEXT("Phase change resets cycle"), PhaseComponent->GetCurrentCycleIndex(), 0);
 	TestFalse(TEXT("Phase change clears pending transition"), PhaseComponent->IsPhaseTransitionPending());
 

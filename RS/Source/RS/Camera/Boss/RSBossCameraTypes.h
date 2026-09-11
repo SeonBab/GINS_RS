@@ -28,6 +28,18 @@ struct RS_API FRSBossCameraSettings
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (Units = "cm"))
 	float LookAtHeight = 150.0f;
 
+	/** 플레이어의 Pivot 기준 거리 중 카메라가 따라서 물러날 비율입니다. 0이면 고정 반지름으로 동작합니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float PivotFollowRatio = 0.3f;
+
+	/** 캐릭터가 화면을 채우지 않도록 카메라와 플레이어 사이에 유지할 최소 수평 거리입니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (ClampMin = "0.0", Units = "cm"))
+	float MinCameraToPlayerDistance = 1000.0f;
+
+	/** 카메라가 전투 공간 밖으로 밀려나가지 않도록 Pivot에서 벌어질 수 있는 최대 수평 거리입니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (ClampMin = "0.0", Units = "cm"))
+	float MaxOrbitRadius = 2400.0f;
+
 	/** 플레이어의 새 방위각을 따라갈 최대 회전 속도입니다 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Camera", meta = (ClampMin = "0.0", Units = "deg/s"))
 	float MaximumOrbitRotationSpeed = 180.0f;

@@ -4,6 +4,8 @@
 #include "RSBossPhaseComponent.h"
 
 #include "GameFramework/Pawn.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Abilities/RSBaseGameplayAbility.h"
 #include "RSBossPhaseData.h"
 #include "RSHealthComponent.h"
@@ -27,25 +29,44 @@ void URSBossPhaseComponent::BeginPlay()
 	Super::BeginPlay();
 
 	URSHealthComponent* HealthComponent = FindHealthComponent();
-	if (!HealthComponent)
+	if (HealthComponent)
+	{
+		ObservedHealthComponent = HealthComponent;
+		HealthComponent->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
+
+		// ASC 초기화가 이 시점보다 앞설 수 있으므로 구독 직후 현재 체력으로 한 번 평가합니다
+		EvaluateHealthTrigger(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
+	}
+	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 HealthComponent가 없어 페이즈 트리거를 감시할 수 없습니다"), *GetNameSafe(GetOwner()));
-
-		return;
 	}
 
-	ObservedHealthComponent = HealthComponent;
-	HealthComponent->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
+	ObservedAbilitySystemComponent = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+	if (ObservedAbilitySystemComponent)
+	{
+		AbilityActivatedDelegateHandle = ObservedAbilitySystemComponent->AbilityActivatedCallbacks.AddUObject(this, &ThisClass::HandleAbilityActivated);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 ASC가 없어 패턴 활성화 수명을 감시할 수 없습니다"), *GetNameSafe(GetOwner()));
+	}
 
 	// 첫 차례부터 후보가 없을 수 있으므로 전투 시작 전에 실행 가능한 차례로 맞춥니다
 	SkipUnusablePatternTurns();
-
-	// ASC 초기화가 이 시점보다 앞설 수 있으므로 구독 직후 현재 체력으로 한 번 평가합니다
-	EvaluateHealthTrigger(HealthComponent->GetHealth(), HealthComponent->GetMaxHealth());
 }
 
 void URSBossPhaseComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	RequestPersistentObjectCleanup();
+
+	if (ObservedAbilitySystemComponent && AbilityActivatedDelegateHandle.IsValid())
+	{
+		ObservedAbilitySystemComponent->AbilityActivatedCallbacks.Remove(AbilityActivatedDelegateHandle);
+		AbilityActivatedDelegateHandle.Reset();
+		ObservedAbilitySystemComponent = nullptr;
+	}
+
 	if (ObservedHealthComponent)
 	{
 		ObservedHealthComponent->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealthChanged);
@@ -175,6 +196,11 @@ int32 URSBossPhaseComponent::GetCycleLength() const
 	return CurrentPhase ? CurrentPhase->CycleSequence.Num() : 0;
 }
 
+void URSBossPhaseComponent::RequestPersistentObjectCleanup()
+{
+	PersistentObjectCleanupRequestedEvent.Broadcast();
+}
+
 #pragma endregion
 
 #pragma region Phase
@@ -247,6 +273,8 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Phase %d -> %d"), PreviousPhaseIndex, CurrentPhaseIndex);
 
+	EnterCurrentPhase();
+
 	// 새 페이즈의 첫 차례에 후보가 없을 수 있습니다
 	SkipUnusablePatternTurns();
 
@@ -255,6 +283,54 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 	{
 		EvaluateHealthTrigger(ObservedHealthComponent->GetHealth(), ObservedHealthComponent->GetMaxHealth());
 	}
+}
+
+bool URSBossPhaseComponent::EnterCurrentPhase()
+{
+	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
+	if (!CurrentPhase)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 %d번 페이즈 데이터가 없어 진입 처리를 실행할 수 없습니다"), *GetNameSafe(GetOwner()), CurrentPhaseIndex);
+
+		return false;
+	}
+
+	if (!CurrentPhase->PersistentAbilityOnEnter)
+	{
+		return true;
+	}
+
+	UAbilitySystemComponent* AbilitySystemComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+	if (!AbilitySystemComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 ASC가 없어 %s를 활성화할 수 없습니다"), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	FGameplayAbilitySpec* AbilitySpec = AbilitySystemComp->FindAbilitySpecFromClass(CurrentPhase->PersistentAbilityOnEnter);
+	if (!AbilitySpec)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 ASC에 %s Spec이 부여되지 않았습니다"), *GetNameSafe(GetOwner()), *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	if (AbilitySpec->IsActive())
+	{
+		return true;
+	}
+
+	if (!AbilitySystemComp->TryActivateAbility(AbilitySpec->Handle))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s의 %d번 페이즈 진입 Ability %s 활성화에 실패했습니다"), *GetNameSafe(GetOwner()), CurrentPhaseIndex, *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Enter phase %d persistent ability %s"), CurrentPhaseIndex, *GetNameSafe(CurrentPhase->PersistentAbilityOnEnter));
+
+	return true;
 }
 
 #pragma endregion
@@ -268,6 +344,7 @@ void URSBossPhaseComponent::SetPhasesForTest(const TArray<FRSBossPhaseDefinition
 	PhaseData = TestPhaseData;
 	CurrentPhaseIndex = 0;
 	CurrentCycleIndex = 0;
+	SpecialPatternActivationSequence = 0;
 	bPhaseTransitionPending = false;
 	MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 }
@@ -285,6 +362,31 @@ void URSBossPhaseComponent::SetGroggyAbilityForTest(TSubclassOf<URSBaseGameplayA
 	}
 }
 #endif
+
+void URSBossPhaseComponent::HandleAbilityActivated(UGameplayAbility* Ability)
+{
+	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
+	if (!Ability || !CurrentPhase)
+	{
+		return;
+	}
+
+	const UClass* AbilityClass = Ability->GetClass();
+	if (CurrentPhase->MainGimmickAbility && AbilityClass == CurrentPhase->MainGimmickAbility.Get())
+	{
+		RequestPersistentObjectCleanup();
+
+		return;
+	}
+
+	if (!CurrentPhase->SpecialPatterns.Contains(AbilityClass))
+	{
+		return;
+	}
+
+	++SpecialPatternActivationSequence;
+	SpecialPatternActivatedEvent.Broadcast(SpecialPatternActivationSequence);
+}
 
 const FRSBossPhaseDefinition* URSBossPhaseComponent::GetCurrentPhase() const
 {
