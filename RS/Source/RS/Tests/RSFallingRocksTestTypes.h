@@ -1,9 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Abilities/RSGameplayAbility_RandomFallingRocks.h"
+#include "Abilities/Boss/RSGameplayAbility_RandomFallingRocks.h"
 #include "RSFallingRocksTestTypes.generated.h"
 
 /** 페이즈 진입과 반복 예약 자동화에서 사용할 구체 낙석 Ability입니다 */

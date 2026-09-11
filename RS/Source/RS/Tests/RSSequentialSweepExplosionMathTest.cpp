@@ -1,8 +1,8 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
-#include "Abilities/RSGameplayAbility_SequentialSweepExplosion.h"
+#include "Abilities/Boss/RSGameplayAbility_SequentialSweepExplosion.h"
 #include "Combat/RSSequentialSweepExplosionMath.h"
 #include "RSGameplayTags.h"
 
@@ -39,6 +39,22 @@ bool FRSSequentialSweepExplosionDefinitionTest::RunTest(const FString& Parameter
 	InvalidDefinition = Definition;
 	InvalidDefinition.Damage = 10.5f;
 	TestFalse(TEXT("Fractional damage is invalid"), InvalidDefinition.IsDataValid());
+
+	InvalidDefinition = Definition;
+	InvalidDefinition.TelegraphHideLeadTime = -0.01f;
+	TestFalse(TEXT("Negative telegraph hide lead time is invalid"), InvalidDefinition.IsDataValid());
+
+	// 기본값의 경고 간격은 FirstExplosionDelay 1.5초를 SectorCount 6으로 나눈 0.25초입니다
+	InvalidDefinition = Definition;
+	InvalidDefinition.TelegraphHideLeadTime = 0.25f;
+	TestFalse(TEXT("Telegraph hide lead time at the warning interval is invalid"), InvalidDefinition.IsDataValid());
+
+	FRSSequentialSweepExplosionDefinition HideLeadDefinition = Definition;
+	HideLeadDefinition.TelegraphHideLeadTime = 0.24f;
+	TestTrue(TEXT("Telegraph hide lead time below the warning interval is valid"), HideLeadDefinition.IsDataValid());
+
+	HideLeadDefinition.TelegraphHideLeadTime = 0.0f;
+	TestTrue(TEXT("Hiding at the explosion frame stays valid"), HideLeadDefinition.IsDataValid());
 
 	return true;
 }

@@ -1,9 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
+#include "Components/RSAttackTelegraphComponent.h"
 #include "Engine/EngineTypes.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_TargetedSlam.generated.h"
 
 class ARSBossCharacter;
@@ -27,7 +28,7 @@ enum class ERSTargetedSlamState : uint8
  * Target과 Boss가 이후 움직여도 해당 Strike의 Telegraph와 판정은 공격 확정 시점의 같은 Transform을 사용합니다
  */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_TargetedSlam : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_TargetedSlam : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 
@@ -99,9 +100,13 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Animation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01"))
 	float MontagePlayRate = 1.0f;
 
-	/** Strike 시작부터 실제 판정까지의 시간이며 Telegraph Fill과 Hold가 같은 값을 사용합니다 */
+	/** Strike 시작부터 실제 판정까지의 시간이며 Telegraph의 두 선행 시간이 이 값을 기준으로 계산됩니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Timing", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ImpactDelay = 1.35f;
+
+	/** Telegraph의 Fill 완료와 표시 소멸이 판정보다 각각 얼마나 빠른지입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Timing", meta = (AllowPrivateAccess = "true"))
+	FRSTelegraphLeadTime TelegraphLeadTime;
 
 	/** Pre-Aim 동안 임시로 적용할 Boss Yaw 회전 속도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Aim", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "deg/s"))

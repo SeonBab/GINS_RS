@@ -1,10 +1,13 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "RSBossPhaseData.h"
 
 // TSubclassOf의 유효성 검사가 대상 클래스의 완전한 정의를 요구합니다
 #include "Abilities/RSBaseGameplayAbility.h"
+
+// 기믹 후보의 파훼 판정 유무를 CDO로 확인합니다
+#include "Abilities/Boss/RSBaseGameplayAbility_BossPattern.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -71,6 +74,22 @@ EDataValidationResult URSBossPhaseData::IsDataValid(FDataValidationContext& Cont
 		if (Phase.CycleSequence.Contains(ERSBossPatternType::Special) && !ValidatePatternCandidates(Phase.SpecialPatterns, PhaseIndex, TEXT("Special"), Context))
 		{
 			ValidationResult = EDataValidationResult::Invalid;
+		}
+
+		// 파훼 판정이 없는 패턴을 기믹으로 지정하면 그 페이즈가 로그도 없이 영원히 실패합니다
+		if (Phase.MainGimmickAbility)
+		{
+			const URSBaseGameplayAbility_BossPattern* GimmickDefault = Cast<URSBaseGameplayAbility_BossPattern>(Phase.MainGimmickAbility->GetDefaultObject());
+			if (!GimmickDefault)
+			{
+				Context.AddError(FText::FromString(FString::Printf(TEXT("%d번 페이즈의 MainGimmickAbility가 보스 패턴이 아니라 파훼 판정을 보고할 수 없습니다"), PhaseIndex)));
+				ValidationResult = EDataValidationResult::Invalid;
+			}
+			else if (!GimmickDefault->HasGimmickBreakCondition())
+			{
+				Context.AddError(FText::FromString(FString::Printf(TEXT("%d번 페이즈의 MainGimmickAbility에 파훼 판정이 없어 이 페이즈의 기믹이 항상 실패합니다"), PhaseIndex)));
+				ValidationResult = EDataValidationResult::Invalid;
+			}
 		}
 
 		// 페이즈는 배열 순서대로 진행하므로 마지막 원소에는 넘어갈 다음 페이즈가 없습니다

@@ -38,6 +38,9 @@ protected:
 	/** 다음 단계가 있다면 현재 Montage와 완료 후 유예 시간을 포함한 준비 상태를 적용합니다 */
 	bool ApplyNextComboState();
 
+	/** 현재 콤보 단계의 공격 Montage를 공용 판정 흐름에 제공합니다 */
+	virtual UAnimMontage* GetAttackMontage() const override;
+
 protected:
 	/** 현재 단계가 시작되면 미리 부여할 다음 준비 태그입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Basic Attack|Combo", meta = (Categories = "State.Combo.BasicAttack.Ready"))
@@ -50,6 +53,10 @@ protected:
 	/** 다음 준비 태그와 제한시간을 적용할 GameplayEffect입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Basic Attack|Combo")
 	TSubclassOf<UGameplayEffect> ComboStateEffectClass;
+
+	/** 현재 단계에서 재생할 공격 Montage입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Attack")
+	TObjectPtr<UAnimMontage> AttackMontage;
 
 	/** 현재 공격이 적용한 다음 콤보 준비 상태를 취소 시 정확히 회수하기 위한 핸들입니다 */
 	FActiveGameplayEffectHandle NextComboStateEffectHandle;

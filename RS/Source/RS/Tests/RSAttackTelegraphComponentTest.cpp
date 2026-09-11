@@ -40,7 +40,6 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 
 	FRSTelegraphPresentation Presentation;
 	Presentation.HoldDuration = 10.0f;
-	Presentation.Opacity = 0.4f;
 	Presentation.FillDuration = 2.0f;
 
 	FRSCombatShape Sphere;
@@ -63,7 +62,7 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("Telegraph uses a dynamic material instance"), MaterialInstance);
 		if (MaterialInstance)
 		{
-			TestEqual(TEXT("Presentation sets a fixed opacity without fading"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), Presentation.Opacity);
+			TestEqual(TEXT("Telegraph shows at full opacity without fading"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), 1.0f);
 			TestEqual(TEXT("Fill starts at the apex or center"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
 			TestEqual(TEXT("Sphere selects the radial shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 0.0f);
 			TestEqual(TEXT("Sphere selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
@@ -110,6 +109,38 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 		VisibleDecalCount += Decal && Decal->IsVisible() ? 1 : 0;
 	}
 	TestEqual(TEXT("Hide all releases every handled shape"), VisibleDecalCount, 0);
+
+	const FVector TrackingStart(25.0f, 50.0f, 10.0f);
+	const FVector TrackingDestination(250.0f, -125.0f, 15.0f);
+	const FVector StationaryLocation(-500.0f, 75.0f, 5.0f);
+	const int32 TrackingHandle = TelegraphComp->ShowShapeWithExternalFill(FirstHandledSphere, FTransform(TrackingStart));
+	const int32 StationaryHandle = TelegraphComp->ShowShapeWithExternalFill(SecondHandledSphere, FTransform(StationaryLocation));
+	TestTrue(TEXT("Tracking shape returns a valid handle"), TrackingHandle != INDEX_NONE);
+	TestTrue(TEXT("Stationary shape returns another valid handle"), StationaryHandle != INDEX_NONE && StationaryHandle != TrackingHandle);
+	TestTrue(TEXT("Active shape accepts a new world transform"), TelegraphComp->SetShapeTransform(TrackingHandle, FTransform(TrackingDestination)));
+
+	UDecalComponent* TrackingDecal = nullptr;
+	UDecalComponent* StationaryDecal = nullptr;
+	for (UDecalComponent* Decal : Decals)
+	{
+		if (Decal && Decal->IsVisible() && Decal->GetComponentLocation().Equals(TrackingDestination))
+		{
+			TrackingDecal = Decal;
+		}
+		else if (Decal && Decal->IsVisible() && Decal->GetComponentLocation().Equals(StationaryLocation))
+		{
+			StationaryDecal = Decal;
+		}
+	}
+	TestNotNull(TEXT("Tracking shape uses a visible pooled decal"), TrackingDecal);
+	TestNotNull(TEXT("Moving one handle preserves the other shape"), StationaryDecal);
+	TestTrue(TEXT("Tracking shape moves without changing its radius"), TrackingDecal && TrackingDecal->GetComponentLocation().Equals(TrackingDestination));
+	TestEqual(TEXT("Tracking shape preserves its fixed radius"), TrackingDecal ? TrackingDecal->DecalSize.Y : 0.0, static_cast<double>(FirstHandledSphere.Radius));
+	TestTrue(TEXT("Transform updates do not prevent external fill"), TelegraphComp->SetExternalFill(TrackingHandle, 0.75f));
+
+	TelegraphComp->HideShape(TrackingHandle);
+	TestFalse(TEXT("Released handle cannot move a reused slot"), TelegraphComp->SetShapeTransform(TrackingHandle, FTransform::Identity));
+	TelegraphComp->HideShape(StationaryHandle);
 
 	FRSCombatShape Cone;
 	Cone.Type = ERSCombatShapeType::Cone;

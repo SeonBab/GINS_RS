@@ -1,9 +1,9 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
 #include "AbilitySystemComponent.h"
-#include "Abilities/RSGameplayAbility_FlameCraterSpread.h"
+#include "Abilities/Boss/RSGameplayAbility_FlameCraterSpread.h"
 #include "Actors/RSBossFlameCrater.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"

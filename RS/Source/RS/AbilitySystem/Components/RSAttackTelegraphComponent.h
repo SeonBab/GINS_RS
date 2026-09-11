@@ -24,16 +24,46 @@ struct FRSTelegraphPresentation
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float HoldDuration = 1.0f;
 
-	/** 표시되는 동안 유지할 불투명도이며 Fade 없이 즉시 이 값으로 나타납니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float Opacity = 1.0f;
-
 	/**
 	 * 표시가 채워지는 데 걸릴 시간이며 0이면 채우지 않고 완성 상태로 표시합니다
 	 * 판정 순간에 정확히 1이 되도록 이 값을 계산하는 것은 요청자의 책임입니다
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float FillDuration = 0.0f;
+};
+
+/**
+ * 판정 시각을 기준으로 Fill 완료와 표시 소멸이 각각 얼마나 빠른지를 저술하는 값입니다
+ * 판정 시각을 아는 쪽은 요청 Ability뿐이므로 표시 컴포넌트는 이 값을 읽지 않습니다
+ * Fill은 항상 끝까지 진행하므로 Fill 완료, 표시 소멸, 판정 순서가 언제나 유지됩니다
+ */
+USTRUCT(BlueprintType)
+struct FRSTelegraphLeadTime
+{
+	GENERATED_BODY()
+
+	/** Fill이 판정보다 이만큼 먼저 1에 도달하며 플레이어가 완성된 범위를 읽을 시간입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float FillLeadTime = 0.15f;
+
+	/**
+	 * 표시가 판정보다 이만큼 먼저 사라지며 판정 순간에는 바닥에 표시가 남지 않습니다
+	 * 표시가 사라진 뒤 판정까지의 빈 구간이므로 길어지면 예고가 거짓말처럼 읽힙니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float HideLeadTime = 0.05f;
+
+	/** 표시 시작부터 Fill이 1에 도달하기까지의 시간이며 소멸보다 늦어지지 않습니다 */
+	float GetFillDuration(float ImpactDelay) const;
+
+	/** 표시 시작부터 표시가 사라지기까지의 시간입니다 */
+	float GetHideTime(float ImpactDelay) const;
+
+	/** 시간 기반 표시가 읽는 두 절대 시간으로 변환합니다 */
+	FRSTelegraphPresentation MakePresentation(float ImpactDelay) const;
+
+	/** 세 시점이 Fill 완료, 표시 소멸, 판정 순서를 지킬 수 있는 값인지 검사합니다 */
+	bool IsDataValid(float ImpactDelay, FString* OutValidationError = nullptr) const;
 };
 
 /** 외부 진행률로 채우는 환형 부채꼴 Telegraph의 공간 데이터입니다 */
@@ -83,6 +113,7 @@ struct FRSTelegraphSlot
 	int32 Handle = INDEX_NONE;
 	bool bIsActive = false;
 	bool bUsesExternalFill = false;
+	float ProjectionYawOffset = 0.0f;
 };
 
 /**
@@ -116,7 +147,7 @@ public:
 	int32 ShowShapeWithHandle(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FRSTelegraphPresentation& Presentation);
 
 	/** 형상을 월드에 고정하고 외부 진행률 0으로 표시합니다 */
-	int32 ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Opacity);
+	int32 ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform);
 
 	/**
 	 * 환형 부채꼴을 월드에 고정하고 외부 진행률 0으로 표시합니다
@@ -126,6 +157,9 @@ public:
 
 	/** 외부 수명 표시의 채움 진행률을 갱신합니다 */
 	bool SetExternalFill(int32 Handle, float Fill);
+
+	/** 표시의 고정 형상은 유지하고 월드 Transform만 갱신합니다 */
+	bool SetShapeTransform(int32 Handle, const FTransform& ShapeTransform);
 
 	/** 지정한 표시를 즉시 회수합니다 */
 	void HideShape(int32 Handle);

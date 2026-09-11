@@ -14,6 +14,8 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ConcentricRings);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_FlameCraterSpread);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_FireFieldDamage);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MeteorHazard);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MeteorHazardDamage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PizzaPattern);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PizzaPattern_OneExplosion);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_PizzaPattern_TwoExplosions);
@@ -39,6 +41,7 @@ namespace RSGameplayTags
 	// GameplayEvent
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_HitCheck);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_FireFieldDamage);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_MeteorHazardDamage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_Knockdown);
 
@@ -56,6 +59,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 
 	// State
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_BasicAttackLocked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_Locked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Combo_BasicAttack_Ready_Step02);

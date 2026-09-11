@@ -41,6 +41,12 @@ protected:
 	 */
 	void StartAttackMontage();
 
+	/** 파생 공격이 사용하는 Montage를 반환합니다 */
+	virtual UAnimMontage* GetAttackMontage() const;
+
+	/** 파생 공격이 사용하는 Montage 재생 속도를 반환합니다 */
+	virtual float GetAttackMontagePlayRate() const;
+
 	/** 공격 Montage가 정상 완료되면 어빌리티를 종료합니다 */
 	UFUNCTION()
 	virtual void HandleAttackMontageCompleted();
@@ -65,10 +71,6 @@ protected:
 	void HandleHitCheckEvent(FGameplayEventData Payload);
 
 protected:
-	/** 이 공격이 재생할 Montage입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Attack")
-	TObjectPtr<UAnimMontage> AttackMontage;
-
 	/** 이 공격이 실행할 타격 목록이며 Montage 타임라인의 판정 Notify 순서와 같은 순서로 나열합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Attack|Hit")
 	TArray<FRSHitCheckDefinition> HitChecks;

@@ -13,6 +13,8 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_ConcentricRings, "Ability.Combat.ConcentricRings", "보스 동심원 링 순서 암기 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_FlameCraterSpread, "Ability.Combat.FlameCraterSpread", "보스 화염 분화구 살포 특수 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_FireFieldDamage, "Ability.Combat.FireFieldDamage", "화염 분화구 장판의 1회 피해 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_MeteorHazard, "Ability.Combat.MeteorHazard", "플레이어를 추적한 뒤 지속 장판을 남기는 운석 특수 패턴 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_MeteorHazardDamage, "Ability.Combat.MeteorHazardDamage", "운석 장판의 1회 피해 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern, "Ability.Combat.PizzaPattern", "보스 피자 패턴 계열을 식별하며 직접 부여하지 않습니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_OneExplosion, "Ability.Combat.PizzaPattern.OneExplosion", "한 번 폭발하는 피자 패턴 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Combat_PizzaPattern_TwoExplosions, "Ability.Combat.PizzaPattern.TwoExplosions", "두 번 폭발하는 피자 패턴 Ability를 식별합니다");
@@ -38,6 +40,7 @@ namespace RSGameplayTags
 	// GameplayEvent
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_HitCheck, "GameplayEvent.Combat.HitCheck", "Montage의 타격 시점에 공격 판정을 실행하도록 Ability에 알립니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_FireFieldDamage, "GameplayEvent.Combat.FireFieldDamage", "화염 분화구 장판이 찾은 플레이어에게 1회 피해를 적용하도록 화염 분화구 ASC에 알립니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_MeteorHazardDamage, "GameplayEvent.Combat.MeteorHazardDamage", "운석 장판이 찾은 플레이어에게 1회 피해를 적용하도록 보스 ASC에 알립니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_HitReact, "GameplayEvent.CrowdControl.HitReact", "공격이 대상에게 피격 경직을 요청하며 대상의 경직 Ability를 활성화합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_Knockdown, "GameplayEvent.CrowdControl.Knockdown", "공격이 대상에게 넉다운을 요청하며 대상의 넉다운 Ability를 활성화합니다");
 
@@ -55,6 +58,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Damage, "SetByCaller.Damage", "타격마다 다른 피해량을 공용 대미지 GameplayEffect에 전달합니다");
 
 	// State
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Action_BasicAttackLocked, "State.Action.BasicAttackLocked", "기본 공격의 활성화만 차단하는 상태이며 State.Action.Locked의 하위 태그로 만들면 다른 행동까지 함께 막히므로 형제 태그로 둡니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Action_Locked, "State.Action.Locked", "Montage의 행동 잠금 구간처럼 다른 Ability의 활성화를 차단하는 상태입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready, "State.Combo.BasicAttack.Ready", "기본 공격 콤보 준비 단계 태그의 상위 태그이며 직접 부여하지 않습니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Combo_BasicAttack_Ready_Step02, "State.Combo.BasicAttack.Ready.Step02", "다음 기본 공격 입력으로 2타를 시작할 수 있는 상태입니다");

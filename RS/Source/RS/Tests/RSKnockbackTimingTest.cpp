@@ -1,8 +1,8 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
-#include "Abilities/RSGameplayAbility_Knockdown.h"
+#include "Abilities/Player/RSGameplayAbility_Knockdown.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSKnockbackTimingTest, "RS.Combat.KnockbackTiming", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

@@ -8,6 +8,10 @@
 #include "ScalableFloat.h"
 #include "RSCombatFunctionLibrary.generated.h"
 
+class UCameraShakeBase;
+class UNiagaraSystem;
+class USoundBase;
+
 #if WITH_EDITOR
 class FDataValidationContext;
 #endif
@@ -173,6 +177,52 @@ struct FRSHitReactionDefinition
 	float KnockbackDuration = 0.5f;
 };
 
+/** 카메라 셰이크를 언제 흔들지 정합니다 */
+UENUM(BlueprintType)
+enum class ERSCameraShakeTiming : uint8
+{
+	OnHit		UMETA(DisplayName = "On Hit",		ToolTip = "적중한 대상이 있을 때만 흔듭니다."),
+	OnHitCheck	UMETA(DisplayName = "On Hit Check",	ToolTip = "적중 여부와 무관하게 판정하는 순간마다 흔듭니다.")
+};
+
+/**
+ * 한 번의 타격이 만드는 연출이며 전부 선택적입니다
+ * 반응과 마찬가지로 공격이 소유하므로 같은 공격의 1타와 2타에 다른 연출을 줄 수 있습니다
+ */
+USTRUCT(BlueprintType)
+struct FRSHitFeedbackDefinition
+{
+	GENERATED_BODY()
+
+	/** 적중한 대상마다 그 자리에서 재생할 Niagara입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
+	TObjectPtr<UNiagaraSystem> ImpactNiagara;
+
+	/** 적중했을 때 첫 대상 위치에서 한 번 재생할 Sound입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
+	TObjectPtr<USoundBase> ImpactSound;
+
+	/** 보는 사람의 카메라를 흔들 Camera Shake입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
+	TSubclassOf<UCameraShakeBase> CameraShake;
+
+	/** 카메라 셰이크를 흔들 시점이며 플레이어 공격은 적중 시, 보스 패턴은 판정마다 흔듭니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (EditCondition = "CameraShake != nullptr"))
+	ERSCameraShakeTiming CameraShakeTiming = ERSCameraShakeTiming::OnHit;
+
+	/** 셰이크 에셋의 진폭에 곱할 배율이며 같은 에셋으로 타격마다 세기를 다르게 합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", UIMin = "0.0", EditCondition = "CameraShake != nullptr"))
+	float CameraShakeScale = 1.0f;
+
+	/** 적중했을 때 공격자를 멈칫하게 할 시간이며 0이면 히트스톱이 없습니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float HitStopDuration = 0.0f;
+
+	/** 멈칫하는 동안 공격자에게 적용할 시간 배율이며 작을수록 더 강하게 멈춥니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.01", ClampMax = "1.0", UIMin = "0.01", UIMax = "1.0", EditCondition = "HitStopDuration > 0.0"))
+	float HitStopTimeDilation = 0.1f;
+};
+
 /**
  * 한 번의 공격 판정이 사용할 범위와 피해량입니다
  * 하나의 공격이 여러 타격을 가질 수 있으므로 Ability는 이 정의를 배열로 소유하고 타격 순서대로 소비합니다
@@ -197,6 +247,10 @@ struct FRSHitCheckDefinition
 	/** 이 타격이 대상에게 요청할 피격 반응입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Reaction")
 	FRSHitReactionDefinition Reaction;
+
+	/** 이 타격이 재생할 연출입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
+	FRSHitFeedbackDefinition Feedback;
 };
 
 #if !UE_BUILD_SHIPPING
@@ -235,6 +289,17 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition);
+
+	/**
+	 * 이번 타격의 연출을 재생하며 적중한 대상이 없어도 호출할 수 있습니다
+	 * 보스 패턴의 카메라 셰이크는 빗나간 판정에서도 흔들려야 하므로 빈 대상 배열을 그대로 받습니다
+	 * 항목마다 재생 횟수가 달라 대상 하나가 아니라 이번 판정에 걸린 대상 전체를 받습니다
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
+	static void PlayHitFeedback(AActor* Attacker, const TArray<AActor*>& HitTargets, const FRSHitFeedbackDefinition& Feedback);
+
+	/** 이번 판정에서 카메라를 흔들어야 하는지 시점 설정과 적중 여부로 판단합니다 */
+	static bool ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets);
 
 	/** 지정한 월드 방향을 사용하는 넉백 반응을 대상에게 요청합니다 */
 	static void SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection);

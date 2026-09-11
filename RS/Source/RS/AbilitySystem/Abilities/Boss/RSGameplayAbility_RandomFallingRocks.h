@@ -1,10 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
-#include "RSBaseGameplayAbility.h"
+#include "Components/RSAttackTelegraphComponent.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_RandomFallingRocks.generated.h"
 
 class UGameplayEffect;
@@ -35,6 +36,10 @@ struct FRSRandomFallingRocksDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ImpactDelay = 2.0f;
 
+	/** Telegraph의 Fill 완료와 표시 소멸이 판정보다 각각 얼마나 빠른지입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Timing")
+	FRSTelegraphLeadTime TelegraphLeadTime;
+
 	/** Impact 전에 낙하 Niagara를 시작할 시간입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float FallEffectLeadTime = 1.0f;
@@ -57,12 +62,19 @@ struct FRSRandomFallingRocksDefinition
 
 /** 보스 주변에 예약형 낙석을 반복 생성하는 전투 지속형 어빌리티입니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_RandomFallingRocks : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_RandomFallingRocks : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 
 public:
 	URSGameplayAbility_RandomFallingRocks();
+
+	/**
+	 * 이 패턴은 파훼 판정을 두지 않습니다
+	 * 페이즈 내내 유지되는 전투 지속형이라 실행 구간이 페이즈 전체와 겹쳐 판정의 단위가 성립하지 않고,
+	 * 낙석 위치가 무작위라 피격 여부가 실력이 아니라 운을 재게 됩니다
+	 */
+	virtual bool HasGimmickBreakCondition() const override { return false; }
 
 #if WITH_DEV_AUTOMATION_TESTS
 	/** 자동 테스트가 현재 Pending Rock 수를 확인할 수 있게 합니다 */
@@ -129,10 +141,6 @@ protected:
 	/** 판정 시점에 재생할 Impact Sound이며 비어 있으면 소리를 재생하지 않습니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")
 	TObjectPtr<USoundBase> ImpactSound;
-
-	/** Telegraph가 표시되는 동안 사용할 불투명도입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float TelegraphOpacity = 1.0f;
 
 private:
 	/** 다음 낙석 예약을 기다리는 Task입니다 */

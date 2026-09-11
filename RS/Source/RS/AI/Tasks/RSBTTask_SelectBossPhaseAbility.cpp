@@ -40,7 +40,7 @@ EBTNodeResult::Type URSBTTask_SelectBossPhaseAbility::ExecuteTask(UBehaviorTreeC
 	Blackboard->SetValue<UBlackboardKeyType_Class>(SelectedAbilityKey.GetSelectedKeyID(), nullptr);
 
 	const AAIController* Controller = OwnerComp.GetAIOwner();
-	const URSBossPhaseComponent* PhaseComponent = URSBossPhaseComponent::FindPhaseComponent(Controller ? Controller->GetPawn() : nullptr);
+	URSBossPhaseComponent* PhaseComponent = URSBossPhaseComponent::FindPhaseComponent(Controller ? Controller->GetPawn() : nullptr);
 	if (!PhaseComponent)
 	{
 		return EBTNodeResult::Failed;
@@ -59,6 +59,12 @@ EBTNodeResult::Type URSBTTask_SelectBossPhaseAbility::ExecuteTask(UBehaviorTreeC
 	}
 
 	Blackboard->SetValue<UBlackboardKeyType_Class>(SelectedAbilityKey.GetSelectedKeyID(), SelectedAbilityClass.Get());
+
+	// 메인 기믹 정리는 다음 Activate Ability Task가 실패해도 되돌리지 않도록 선택 직후 먼저 요청합니다
+	if (AbilitySlot == ERSBossPhaseAbilitySlot::MainGimmick)
+	{
+		PhaseComponent->NotifyAbilityActivationRequested(SelectedAbilityClass);
+	}
 
 	return EBTNodeResult::Succeeded;
 }

@@ -151,6 +151,27 @@ public:
 
 public:
 	/**
+	 * 이 ASC의 AvatarActor만 잠시 느리게 만들어 타격이 꽂히는 순간의 멈칫함을 만듭니다
+	 * 복원 타이머 핸들을 소유할 액터 단위 지점이 필요해 정적 함수가 아니라 ASC가 가집니다
+	 * 연타로 다시 들어오면 이전 예약을 버리고 새 값과 새 지속 시간으로 다시 시작합니다
+	 */
+	void ApplyHitStop(float Duration, float TimeDilation);
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+	/** 타이머를 기다리지 않고 복원 콜백을 바로 실행합니다 */
+	void FinishHitStopForTest() { FinishHitStop(); }
+
+	/** 복원 예약이 남아 있는지 반환합니다 */
+	bool IsHitStopActiveForTest() const;
+
+	/** 복원까지 남은 시간을 반환하며 예약이 없으면 0입니다 */
+	float GetHitStopRemainingForTest() const;
+
+#endif
+
+public:
+	/**
 	 * 이 ASC가 시작한 피해가 대상에게 적용될 때 발생합니다
 	 * TargetLocation은 표현 오프셋이 적용되지 않은 대상 AvatarActor의 원좌표이며, 표시 위치는 구독자가 결정합니다
 	 */
@@ -186,6 +207,15 @@ private:
 
 	/** 보관한 입력을 제거합니다 */
 	void ClearBufferedAbilityInput();
+
+	/** AvatarActor의 시간 배율을 기본 속도로 되돌리고 예약을 비웁니다 */
+	void FinishHitStop();
+
+	/** 히트스톱이 끝나면 되돌릴 기본 시간 배율입니다 */
+	static constexpr float DefaultTimeDilation = 1.0f;
+
+	/** 진행 중인 히트스톱의 복원 예약이며 연타로 재적용하면 이 하나를 다시 설정합니다 */
+	FTimerHandle HitStopTimerHandle;
 
 	/** 애니메이션과 Notify 실행별로 공용 상태 태그의 수명을 소유하는 Effect 핸들입니다 */
 	TMap<FRSAnimationGameplayStateKey, FActiveGameplayEffectHandle> AnimationGameplayStateEffectHandles;

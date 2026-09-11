@@ -8,7 +8,11 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 
 #if WITH_EDITOR
@@ -349,6 +353,73 @@ void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const F
 void URSCombatFunctionLibrary::SendHitReaction(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition)
 {
 	SendHitReactionInternal(Instigator, TargetActor, ReactionDefinition, false, FVector::ZeroVector);
+}
+
+bool URSCombatFunctionLibrary::ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets)
+{
+	if (!Feedback.CameraShake)
+	{
+		return false;
+	}
+
+	return Feedback.CameraShakeTiming == ERSCameraShakeTiming::OnHitCheck || bHasHitTargets;
+}
+
+void URSCombatFunctionLibrary::PlayHitFeedback(AActor* Attacker, const TArray<AActor*>& HitTargets, const FRSHitFeedbackDefinition& Feedback)
+{
+	if (!Attacker)
+	{
+		return;
+	}
+
+	UWorld* World = Attacker->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const bool bHasHitTargets = !HitTargets.IsEmpty();
+
+	// 셰이크는 보는 사람의 카메라를 흔드는 것이므로 공격자가 아니라 로컬 플레이어의 컨트롤러로 보냅니다
+	// 보스는 AI 컨트롤러라 공격자를 따라가면 흔들 카메라가 없습니다
+	if (ShouldPlayCameraShake(Feedback, bHasHitTargets))
+	{
+		if (APlayerController* ViewerController = UGameplayStatics::GetPlayerController(World, 0))
+		{
+			ViewerController->ClientStartCameraShake(Feedback.CameraShake, Feedback.CameraShakeScale);
+		}
+	}
+
+	if (!bHasHitTargets)
+	{
+		return;
+	}
+
+	// 이펙트는 맞은 대상마다 나지만 소리는 한 타격에 하나여야 광역기에서 겹쳐 울리지 않습니다
+	if (Feedback.ImpactNiagara)
+	{
+		for (const AActor* HitTarget : HitTargets)
+		{
+			if (HitTarget)
+			{
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Feedback.ImpactNiagara, HitTarget->GetActorLocation());
+			}
+		}
+	}
+
+	if (Feedback.ImpactSound)
+	{
+		if (const AActor* FirstHitTarget = HitTargets[0])
+		{
+			UGameplayStatics::PlaySoundAtLocation(World, Feedback.ImpactSound, FirstHitTarget->GetActorLocation());
+		}
+	}
+
+	// 히트스톱은 공격자의 시간만 늦추며, 값을 비워 둔 공격은 ApplyHitStop이 그대로 무시합니다
+	if (URSAbilitySystemComponent* AttackerAbilitySystemComp = Cast<URSAbilitySystemComponent>(UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Attacker)))
+	{
+		AttackerAbilitySystemComp->ApplyHitStop(Feedback.HitStopDuration, Feedback.HitStopTimeDilation);
+	}
 }
 
 void URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection)

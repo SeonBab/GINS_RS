@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/EngineTypes.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_SequentialSweepExplosion.generated.h"
 
 class ARSBossCharacter;
@@ -44,6 +44,13 @@ struct FRSSequentialSweepExplosionDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float SectorExplosionInterval = 0.15f;
 
+	/**
+	 * 부채꼴 Telegraph가 그 부채꼴의 폭발보다 이만큼 먼저 사라집니다
+	 * 폭발 순간에 바닥에 표시가 남지 않게 하며 경고 간격보다 길면 아직 뜨지도 않은 조각을 지우게 됩니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float TelegraphHideLeadTime = 0.05f;
+
 	/** 모든 부채꼴이 공유할 피해량입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit")
 	FScalableFloat Damage = 10.0f;
@@ -66,7 +73,7 @@ enum class ERSSequentialSweepExplosionState : uint8
 
 /** Target Aim 뒤 고정한 부채꼴을 누적 예고하고 시계 방향으로 하나씩 폭발시킵니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_SequentialSweepExplosion : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_SequentialSweepExplosion : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 
@@ -117,7 +124,10 @@ private:
 	/** 지정한 부채꼴 Telegraph를 완성 상태로 표시합니다 */
 	bool ShowWarningSector(int32 SectorIndex);
 
-	/** 지정한 부채꼴을 판정하고 대응 Telegraph를 제거합니다 */
+	/** 지정한 부채꼴의 Telegraph를 폭발보다 먼저 회수합니다 */
+	bool HideWarningSector(int32 SectorIndex);
+
+	/** 지정한 부채꼴을 판정합니다 */
 	bool ExecuteSectorExplosion(int32 SectorIndex);
 
 	/** 현재 Ability가 만든 모든 Telegraph Handle을 회수합니다 */
@@ -172,6 +182,7 @@ private:
 	FTransform LockedAttackTransform = FTransform::Identity;
 	float PreAimStartTime = 0.0f;
 	int32 NextWarningSectorIndex = 0;
+	int32 NextHideSectorIndex = 0;
 	int32 NextExplosionSectorIndex = 0;
 	TArray<int32> WarningSectorHandles;
 	TSet<TWeakObjectPtr<AActor>> HitActors;

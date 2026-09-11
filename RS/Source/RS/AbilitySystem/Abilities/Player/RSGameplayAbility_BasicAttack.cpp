@@ -16,6 +16,10 @@ URSGameplayAbility_BasicAttack::URSGameplayAbility_BasicAttack()
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_BasicAttack);
 	SetAssetTags(AssetTags);
 
+	// 다른 행동은 그대로 두고 기본 공격만 막아야 하는 구간을 위한 차단입니다
+	// 기반 클래스가 검사하는 State.Action.Locked와 형제 태그라 두 잠금은 서로 영향을 주지 않습니다
+	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_BasicAttackLocked);
+
 	// 잠금이 끝난 뒤 새 공격이 진행 중인 대시를 교체하게 합니다
 	CancelAbilitiesWithTag.AddTag(RSGameplayTags::Ability_Movement_Dash);
 }
@@ -151,4 +155,9 @@ bool URSGameplayAbility_BasicAttack::ApplyNextComboState()
 	NextComboStateEffectHandle = ApplyGameplayEffectSpecToOwner(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, ComboStateSpecHandle);
 
 	return NextComboStateEffectHandle.IsValid();
+}
+
+UAnimMontage* URSGameplayAbility_BasicAttack::GetAttackMontage() const
+{
+	return AttackMontage;
 }

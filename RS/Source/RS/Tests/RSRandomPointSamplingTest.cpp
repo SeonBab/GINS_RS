@@ -1,8 +1,8 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
-#include "Abilities/RSGameplayAbility_RandomFallingRocks.h"
+#include "Abilities/Boss/RSGameplayAbility_RandomFallingRocks.h"
 #include "Combat/RSRandomPointSampling.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSFallingRocksDefinitionTest, "RS.Combat.FallingRocks.Definition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

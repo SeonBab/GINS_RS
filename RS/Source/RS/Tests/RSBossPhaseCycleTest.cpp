@@ -1,10 +1,13 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 #include "RSBossPhaseComponent.h"
 #include "RSBossPhaseData.h"
 #include "RSGameplayAbility_ConcentricRings.h"
 #include "RSGameplayAbility_TargetedSlam.h"
+
+// 보고자는 추상 클래스라 인스턴스를 만들 수 없으므로 CDO를 사용합니다
+#include "RSBaseGameplayAbility_BossPattern.h"
 
 namespace
 {
@@ -72,6 +75,42 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Special selection succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Special, SelectedAbilityClass));
 	TestEqual(TEXT("Special selection uses special list"), SelectedAbilityClass.Get(), SpecialPattern.Get());
 
+	// 지속 오브젝트의 수명은 Ability 성공 콜백이 아니라 활성화 시도 직전 통지로 진행합니다
+	URSBossPhaseComponent* LifetimePhaseComponent = NewObject<URSBossPhaseComponent>();
+	LifetimePhaseComponent->SetPhasesForTest(Phases);
+
+	int32 SpecialPatternRequestCount = 0;
+	int32 LastSpecialPatternSequence = 0;
+	int32 PersistentCleanupRequestCount = 0;
+	LifetimePhaseComponent->OnSpecialPatternActivationRequested().AddLambda([&SpecialPatternRequestCount, &LastSpecialPatternSequence](int32 Sequence)
+	{
+		++SpecialPatternRequestCount;
+		LastSpecialPatternSequence = Sequence;
+	});
+	LifetimePhaseComponent->OnPersistentObjectCleanupRequested().AddLambda([&PersistentCleanupRequestCount]()
+	{
+		++PersistentCleanupRequestCount;
+	});
+
+	LifetimePhaseComponent->NotifyAbilityActivationRequested(BasicPattern);
+	TestEqual(TEXT("Basic pattern request does not advance persistent lifetime"), SpecialPatternRequestCount, 0);
+	TestEqual(TEXT("Basic pattern request does not clean persistent objects"), PersistentCleanupRequestCount, 0);
+
+	LifetimePhaseComponent->NotifyAbilityActivationRequested(SpecialPattern);
+	LifetimePhaseComponent->NotifyAbilityActivationRequested(SpecialPattern);
+	TestEqual(TEXT("Each special pattern request is broadcast before activation"), SpecialPatternRequestCount, 2);
+	TestEqual(TEXT("Special pattern request sequence is not rolled back"), LastSpecialPatternSequence, 2);
+	TestEqual(TEXT("Phase component keeps the requested special sequence"), LifetimePhaseComponent->GetSpecialPatternActivationSequence(), 2);
+
+	// 같은 Class가 특수 후보와 메인 기믹에 모두 있어도 전환 대기에서는 메인 정리를 우선합니다
+	LifetimePhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
+	LifetimePhaseComponent->NotifyAbilityActivationRequested(SpecialPattern);
+	TestEqual(TEXT("Main gimmick request immediately cleans persistent objects"), PersistentCleanupRequestCount, 1);
+	TestEqual(TEXT("Main gimmick request does not advance the special sequence"), LifetimePhaseComponent->GetSpecialPatternActivationSequence(), 2);
+
+	LifetimePhaseComponent->NotifyAbilityActivationRequested(nullptr);
+	TestEqual(TEXT("Missing optional ability sends no lifetime event"), PersistentCleanupRequestCount, 1);
+
 	PhaseComponent->AdvancePatternCycle();
 	PhaseComponent->ResetPatternCycle();
 	TestEqual(TEXT("Reset returns to start"), PhaseComponent->GetCurrentCycleIndex(), 0);
@@ -109,14 +148,33 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	PhaseComponent->SetGroggyAbilityForTest(URSGameplayAbility_TargetedSlam::StaticClass());
 	PhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
 
+	// 모든 보스 패턴이 보고하므로 이번 페이즈의 기믹이 낸 보고만 수락하는지 함께 확인합니다
+	const UGameplayAbility* GimmickReporter = GetDefault<URSGameplayAbility_ConcentricRings>();
+	const UGameplayAbility* OtherPatternReporter = GetDefault<URSGameplayAbility_TargetedSlam>();
+
 	TSubclassOf<URSBaseGameplayAbility> PendingGroggy;
 	TestEqual(TEXT("Outcome starts as none"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::None);
 	TestFalse(TEXT("No groggy before judgement"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
 
-	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::NotBroken);
+	// 기믹이 아닌 패턴의 보고는 판정을 차지하지 않습니다
+	PhaseComponent->ReportMainGimmickOutcome(OtherPatternReporter, ERSBossMainGimmickOutcome::Broken);
+	TestEqual(TEXT("Non-gimmick pattern report is ignored"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::None);
+
+	PhaseComponent->ReportMainGimmickOutcome(GimmickReporter, ERSBossMainGimmickOutcome::NotBroken);
+	TestEqual(TEXT("Gimmick report is accepted"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::NotBroken);
 	TestFalse(TEXT("No groggy when gimmick was not broken"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
 
-	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::Broken);
+	// 한 페이즈의 판정은 한 번만 정해지므로 뒤따르는 보고가 덮어쓰지 않습니다
+	PhaseComponent->ReportMainGimmickOutcome(GimmickReporter, ERSBossMainGimmickOutcome::Broken);
+	TestEqual(TEXT("Second report does not overwrite"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::NotBroken);
+	TestFalse(TEXT("Overwrite attempt grants no groggy"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
+	// 파훼를 보고한 페이즈에서는 무력화가 재생됩니다
+	// SetPhasesForTest가 PhaseData를 새로 만들므로 공용 무력화도 다시 지정합니다
+	PhaseComponent->SetPhasesForTest(GroggyPhases);
+	PhaseComponent->SetGroggyAbilityForTest(URSGameplayAbility_TargetedSlam::StaticClass());
+	PhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
+	PhaseComponent->ReportMainGimmickOutcome(GimmickReporter, ERSBossMainGimmickOutcome::Broken);
 	TestTrue(TEXT("Groggy plays when gimmick was broken"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
 	TestEqual(TEXT("Groggy uses the shared ability"), PendingGroggy.Get(), URSGameplayAbility_TargetedSlam::StaticClass());
 
@@ -129,8 +187,13 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 	PhaseComponent->SetPhasesForTest(GroggyPhases);
 	PhaseComponent->SetGroggyAbilityForTest(nullptr);
 	PhaseComponent->EvaluateHealthTriggerForTest(40.0f, 100.0f);
-	PhaseComponent->ReportMainGimmickOutcome(ERSBossMainGimmickOutcome::Broken);
+	PhaseComponent->ReportMainGimmickOutcome(GimmickReporter, ERSBossMainGimmickOutcome::Broken);
 	TestFalse(TEXT("No groggy without a configured ability"), PhaseComponent->TryGetPendingGroggy(PendingGroggy));
+
+	// 전환 대기 중이 아니면 기믹 차례가 아니므로 일반 사이클의 보고로 보고 버립니다
+	PhaseComponent->SetPhasesForTest(GroggyPhases);
+	PhaseComponent->ReportMainGimmickOutcome(GimmickReporter, ERSBossMainGimmickOutcome::Broken);
+	TestEqual(TEXT("Report outside a pending transition is ignored"), PhaseComponent->GetMainGimmickOutcome(), ERSBossMainGimmickOutcome::None);
 
 	// 메인 기믹이 없어도 체력 기준만으로 다음 페이즈로 넘어갈 수 있습니다
 	TArray<FRSBossPhaseDefinition> GimmicklessPhases;
