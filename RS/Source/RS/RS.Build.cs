@@ -40,6 +40,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "UI", "Layout"),
 			Path.Combine(ModuleDirectory, "UI", "ViewModel"),
 			Path.Combine(ModuleDirectory, "UI", "Widget"),
+			Path.Combine(ModuleDirectory, "World"),
 		});
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "AIModule", "NavigationSystem", "InputCore", "EnhancedInput", "Niagara", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "SlateCore", "FieldNotification", "ModelViewViewModel" });
