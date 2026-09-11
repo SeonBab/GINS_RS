@@ -41,7 +41,7 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
 	{
 		// 음수 피해는 허용하지 않습니다
-		const float LocalDamage = FMath::Max(GetDamage(), 0.0f);
+		float LocalDamage = FMath::Max(GetDamage(), 0.0f);
 
 		// Damage는 일회성 전달 값이므로 처리 전에 초기화합니다
 		SetDamage(0.0f);
@@ -55,6 +55,12 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 		if (LocalDamage <= 0.0f)
 		{
 			return;
+		}
+
+		// 화염 분화구는 공격 자체의 피해량과 관계없이 유효한 한 타마다 체력을 1만 잃습니다
+		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable))
+		{
+			LocalDamage = 1.0f;
 		}
 
 		const float OldHealth = GetHealth();

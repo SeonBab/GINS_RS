@@ -109,13 +109,18 @@ void URSBaseGameplayAbility::ApplyCooldown(const FGameplayAbilitySpecHandle Hand
 
 void URSBaseGameplayAbility::ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount)
 {
-	if (!TargetActor || !DamageEffectClass || !CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid())
+	if (!TargetActor || !CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid())
 	{
 		return;
 	}
 
 	UAbilitySystemComponent* TargetAbilitySystemComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(TargetActor);
 	if (!TargetAbilitySystemComp)
+	{
+		return;
+	}
+
+	if (!DamageEffectClass)
 	{
 		return;
 	}

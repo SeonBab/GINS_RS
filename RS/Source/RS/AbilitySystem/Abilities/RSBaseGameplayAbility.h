@@ -66,6 +66,7 @@ protected:
 
 	/**
 	 * 판정에 걸린 대상 하나에게 공용 대미지 GameplayEffect를 적용합니다
+	 * 대상별 피해 수용 규칙은 대상의 AttributeSet에서 처리합니다
 	 * `MakeOutgoingGameplayEffectSpec`이 UGameplayAbility의 protected 멤버라 함수 라이브러리로는 옮길 수 없습니다
 	 */
 	void ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount);

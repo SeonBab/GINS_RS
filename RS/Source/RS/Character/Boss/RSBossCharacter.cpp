@@ -88,6 +88,11 @@ void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 		return;
 	}
 
+	if (BossPhaseComp)
+	{
+		BossPhaseComp->RequestPersistentObjectCleanup();
+	}
+
 	// State.Dead는 새 Ability의 활성화만 막으므로 실행 중인 Ability는 직접 취소합니다
 	if (AbilitySystemComp)
 	{
@@ -123,6 +128,11 @@ void ARSBossCharacter::BeginEncounterCombat()
 
 void ARSBossCharacter::EndEncounterCombat()
 {
+	if (BossPhaseComp)
+	{
+		BossPhaseComp->RequestPersistentObjectCleanup();
+	}
+
 	// Failed에서도 보스는 죽지 않지만 이미 실행 중인 공격은 Encounter 수명과 함께 끝냅니다
 	if (AbilitySystemComp)
 	{
