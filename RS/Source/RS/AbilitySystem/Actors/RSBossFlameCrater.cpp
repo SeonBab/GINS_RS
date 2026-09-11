@@ -152,7 +152,7 @@ void ARSBossFlameCrater::BeginPlay()
 	if (FireFieldNiagaraComp)
 	{
 		FireFieldNiagaraComp->SetAsset(FireFieldNiagaraSystem);
-		FireFieldNiagaraComp->SetVariableFloat(FireFieldRadiusParameterName, FlameCraterDefinition.FireFieldRadius);
+		UpdateFireFieldNiagaraScale();
 	}
 
 	if (ChargeWidgetComp)
@@ -211,6 +211,12 @@ EDataValidationResult ARSBossFlameCrater::IsDataValid(FDataValidationContext& Co
 	if (!ChargeWidgetClass)
 	{
 		Context.AddError(FText::FromString(TEXT("ChargeWidgetClass is not configured.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
+	{
+		Context.AddError(FText::FromString(TEXT("FireFieldNiagaraBaseRadius must be a finite value greater than zero.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -399,7 +405,7 @@ void ARSBossFlameCrater::BeginFireField()
 	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable);
 	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
-	FireFieldNiagaraComp->SetVariableFloat(FireFieldRadiusParameterName, FlameCraterDefinition.FireFieldRadius);
+	UpdateFireFieldNiagaraScale();
 
 	if (FireFieldNiagaraSystem)
 	{
@@ -411,6 +417,17 @@ void ARSBossFlameCrater::BeginFireField()
 		World->GetTimerManager().SetTimer(FireFieldDamageTimerHandle, this, &ThisClass::ApplyFireFieldDamage, FlameCraterDefinition.DamageInterval, true, FlameCraterDefinition.DamageInterval);
 		World->GetTimerManager().SetTimer(FireFieldLifetimeTimerHandle, this, &ThisClass::RequestCleanup, FlameCraterDefinition.FireFieldDuration, false);
 	}
+}
+
+void ARSBossFlameCrater::UpdateFireFieldNiagaraScale()
+{
+	if (!FireFieldNiagaraComp || !FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
+	{
+		return;
+	}
+
+	const float HorizontalScale = FlameCraterDefinition.FireFieldRadius / FireFieldNiagaraBaseRadius;
+	FireFieldNiagaraComp->SetRelativeScale3D(FVector(HorizontalScale, HorizontalScale, 1.0f));
 }
 
 void ARSBossFlameCrater::ApplyFireFieldDamage()

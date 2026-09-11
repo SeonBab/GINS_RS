@@ -194,6 +194,10 @@ private:
 #pragma region Presentation And Collision
 
 private:
+	/** 장판 판정 반경을 기준으로 Niagara Component의 수평 Scale을 갱신합니다 */
+	void UpdateFireFieldNiagaraScale();
+
+private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|FlameCrater", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCapsuleComponent> CapsuleComp;
 
@@ -221,9 +225,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Presentation", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<URSFlameCraterChargeWidget> ChargeWidgetClass;
 
-	/** 장판 반경을 Niagara에 전달할 User Parameter 이름입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Presentation", meta = (AllowPrivateAccess = "true"))
-	FName FireFieldRadiusParameterName = TEXT("FieldRadius");
+	/** Niagara System을 XY Scale 1로 재생했을 때 표현하는 기준 반경입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Presentation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
+	float FireFieldNiagaraBaseRadius = 100.0f;
 
 	/** 장판이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Hit", meta = (AllowPrivateAccess = "true"))
