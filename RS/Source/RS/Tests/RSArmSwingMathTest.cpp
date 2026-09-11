@@ -2,6 +2,8 @@
 
 #include "Misc/AutomationTest.h"
 
+#include <limits>
+
 #include "Combat/RSArmSwingMath.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSArmSwingMathTest, "RS.Combat.ArmSwing.Math", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -92,6 +94,35 @@ bool FRSArmSwingMathTest::RunTest(const FString& Parameters)
 	FRSArmSwingTelegraphBounds FullCircleBounds;
 	TestTrue(TEXT("Pivot touching box telegraph bounds are calculated"), FRSArmSwingMath::TryCalculateTelegraphBounds(PivotTouchingBox, WidePath, FullCircleBounds));
 	TestTrue(TEXT("Padded telegraph sweep is capped at a full circle"), FMath::IsNearlyEqual(FullCircleBounds.SweepAngleDegrees, 360.0f));
+
+	const TArray<float> LinearProgress = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+	TestTrue(TEXT("Linear progress samples are valid"), FRSArmSwingMath::IsProgressSampleSequenceValid(LinearProgress));
+
+	const TArray<float> EasedProgress = { 0.0f, 0.05f, 0.1f, 0.6f, 0.95f, 1.0f };
+	TestTrue(TEXT("Accelerating progress samples are valid"), FRSArmSwingMath::IsProgressSampleSequenceValid(EasedProgress));
+
+	const TArray<float> HeldProgress = { 0.0f, 0.0f, 0.0f, 0.5f, 1.0f, 1.0f };
+	TestTrue(TEXT("Progress samples may hold still"), FRSArmSwingMath::IsProgressSampleSequenceValid(HeldProgress));
+
+	FString ProgressValidationError;
+	const TArray<float> OffsetStartProgress = { 0.2f, 0.5f, 1.0f };
+	TestFalse(TEXT("Progress must start at zero"), FRSArmSwingMath::IsProgressSampleSequenceValid(OffsetStartProgress, &ProgressValidationError));
+	TestFalse(TEXT("Offset start reports an error"), ProgressValidationError.IsEmpty());
+
+	const TArray<float> ShortEndProgress = { 0.0f, 0.5f, 0.8f };
+	TestFalse(TEXT("Progress must end at one"), FRSArmSwingMath::IsProgressSampleSequenceValid(ShortEndProgress));
+
+	const TArray<float> RewindingProgress = { 0.0f, 0.6f, 0.3f, 1.0f };
+	TestFalse(TEXT("Progress must not rewind"), FRSArmSwingMath::IsProgressSampleSequenceValid(RewindingProgress));
+
+	const TArray<float> MissingCurveProgress = { 0.0f, 0.0f, 0.0f };
+	TestFalse(TEXT("A curve that never advances is invalid"), FRSArmSwingMath::IsProgressSampleSequenceValid(MissingCurveProgress));
+
+	const TArray<float> SingleProgress = { 0.0f };
+	TestFalse(TEXT("A single progress sample is invalid"), FRSArmSwingMath::IsProgressSampleSequenceValid(SingleProgress));
+
+	const TArray<float> NonFiniteProgress = { 0.0f, std::numeric_limits<float>::infinity(), 1.0f };
+	TestFalse(TEXT("Non-finite progress samples are invalid"), FRSArmSwingMath::IsProgressSampleSequenceValid(NonFiniteProgress));
 
 	return true;
 }

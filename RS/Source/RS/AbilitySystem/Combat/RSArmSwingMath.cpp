@@ -9,6 +9,8 @@ namespace
 	constexpr float MaximumOuterArcStep = 25.0f;
 	constexpr int32 MaximumSubstepCount = 16;
 	constexpr float TelegraphSmallDistance = 1.0f;
+	constexpr float ProgressEndpointTolerance = 0.01f;
+	constexpr int32 MinimumProgressSampleCount = 2;
 
 	bool IsFinite(float Value)
 	{
@@ -172,6 +174,58 @@ bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition
 	OutBounds.StartYawOffset = PathDefinition.StartYawOffset - SweepSign * AngularPadding;
 	const float PaddedSweepAngleDegrees = FMath::Abs(PathDefinition.SweepAngleDegrees) + AngularPadding * 2.0f;
 	OutBounds.SweepAngleDegrees = SweepSign * FMath::Min(PaddedSweepAngleDegrees, 360.0f);
+
+	return true;
+}
+
+bool FRSArmSwingMath::IsProgressSampleSequenceValid(const TArray<float>& ProgressSamples, FString* OutValidationError)
+{
+	if (OutValidationError)
+	{
+		OutValidationError->Reset();
+	}
+
+	if (ProgressSamples.Num() < MinimumProgressSampleCount)
+	{
+		SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률은 최소 두 개 Sample이 필요합니다"));
+
+		return false;
+	}
+
+	for (const float ProgressSample : ProgressSamples)
+	{
+		if (!IsFinite(ProgressSample))
+		{
+			SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률 Sample은 유한해야 합니다"));
+
+			return false;
+		}
+	}
+
+	if (!FMath::IsNearlyZero(ProgressSamples[0], ProgressEndpointTolerance))
+	{
+		SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률은 Attack Window 시작에서 0이어야 합니다"));
+
+		return false;
+	}
+
+	if (!FMath::IsNearlyEqual(ProgressSamples.Last(), 1.0f, ProgressEndpointTolerance))
+	{
+		SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률은 Attack Window 끝에서 1이어야 합니다"));
+
+		return false;
+	}
+
+	for (int32 SampleIndex = 1; SampleIndex < ProgressSamples.Num(); ++SampleIndex)
+	{
+		// 진행률이 되돌아가면 Box가 역회전하고 접선 방향 부호가 뒤집혀 넉백 방향이 반대가 됩니다
+		if (ProgressSamples[SampleIndex] < ProgressSamples[SampleIndex - 1] - ProgressEndpointTolerance)
+		{
+			SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률은 되돌아가지 않고 단조 증가해야 합니다"));
+
+			return false;
+		}
+	}
 
 	return true;
 }

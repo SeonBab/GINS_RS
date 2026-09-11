@@ -20,6 +20,14 @@
 #include "Misc/DataValidation.h"
 #endif
 
+namespace
+{
+	/** 진행률 Curve의 단조 증가와 양끝 값을 검사할 때 Attack Window를 나눌 구간 수입니다 */
+	constexpr int32 SweepCurveValidationSampleCount = 32;
+}
+
+const FName URSGameplayAbility_ArmSwing::SweepProgressCurveName(TEXT("ArmSwingSweepProgress"));
+
 FRSArmSwingPathDefinition FRSArmSwingVariantDefinition::GetPathDefinition() const
 {
 	FRSArmSwingPathDefinition PathDefinition;
@@ -58,6 +66,8 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 		|| !FMath::IsFinite(Reaction.KnockbackDistance)
 		|| !FMath::IsFinite(Reaction.KnockbackHeight)
 		|| !FMath::IsFinite(Reaction.KnockbackDuration)
+		|| !FMath::IsFinite(MontagePlayRate)
+		|| MontagePlayRate <= 0.0f
 		|| Reaction.KnockbackDistance < 0.0f
 		|| Reaction.KnockbackHeight < 0.0f
 		|| Reaction.KnockbackDuration <= 0.0f
@@ -274,7 +284,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 		return;
 	}
 
-	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, SelectedVariant->AttackMontage);
+	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, SelectedVariant->AttackMontage, MontagePlayRate);
 	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleAttackMontageCompleted);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
@@ -288,7 +298,6 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	UAnimInstance* AnimInstance = CurrentActorInfo ? CurrentActorInfo->GetAnimInstance() : nullptr;
-	float AttackWindowEndPosition = 0.0f;
 	FRSArmSwingTelegraphBounds TelegraphBounds;
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !AnimInstance
@@ -374,7 +383,10 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowBegan()
 	HitActors.Reset();
 	bIsAttackWindowActive = true;
 	bHasReportedSubstepLimit = false;
-	if (!ExecuteAttackBoxSample(0.0f))
+
+	// 진행률 Curve는 Window 시작에서 0으로 검증되므로 여기서도 같은 경로로 시작 Box를 구합니다
+	float WindowStartSweepProgress = 0.0f;
+	if (!TryEvaluateSweepProgress(0.0f, WindowStartSweepProgress) || !ExecuteAttackBoxSample(WindowStartSweepProgress))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 	}
@@ -394,8 +406,18 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowAdvanced(float PreviousAlpha
 		return;
 	}
 
+	// Substep은 Curve를 통과한 실제 회전 각도로 계획해야 가속 구간에서 Box가 대상을 관통하지 않습니다
+	float PreviousSweepProgress = 0.0f;
+	float CurrentSweepProgress = 0.0f;
+	if (!TryEvaluateSweepProgress(PreviousAlpha, PreviousSweepProgress) || !TryEvaluateSweepProgress(CurrentAlpha, CurrentSweepProgress))
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
 	FRSArmSwingSubstepPlan SubstepPlan;
-	if (!FRSArmSwingMath::TryCalculateSubstepPlan(AttackBox, SelectedVariant->GetPathDefinition(), PreviousAlpha, CurrentAlpha, SubstepPlan))
+	if (!FRSArmSwingMath::TryCalculateSubstepPlan(AttackBox, SelectedVariant->GetPathDefinition(), PreviousSweepProgress, CurrentSweepProgress, SubstepPlan))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -410,8 +432,8 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowAdvanced(float PreviousAlpha
 
 	for (int32 StepIndex = 1; StepIndex <= SubstepPlan.StepCount; ++StepIndex)
 	{
-		const float StepAlpha = FMath::Lerp(PreviousAlpha, CurrentAlpha, static_cast<float>(StepIndex) / static_cast<float>(SubstepPlan.StepCount));
-		if (!ExecuteAttackBoxSample(StepAlpha))
+		const float StepSweepProgress = FMath::Lerp(PreviousSweepProgress, CurrentSweepProgress, static_cast<float>(StepIndex) / static_cast<float>(SubstepPlan.StepCount));
+		if (!ExecuteAttackBoxSample(StepSweepProgress))
 		{
 			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -450,7 +472,29 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowInvalidated()
 	}
 }
 
-bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float Alpha)
+bool URSGameplayAbility_ArmSwing::TryEvaluateSweepProgress(float WindowAlpha, float& OutSweepProgress) const
+{
+	OutSweepProgress = 0.0f;
+
+	const UAnimMontage* AttackMontage = SelectedVariant ? SelectedVariant->AttackMontage.Get() : nullptr;
+	if (!AttackMontage || !FMath::IsFinite(WindowAlpha) || AttackWindowEndPosition - AttackWindowStartPosition <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const float MontagePosition = FMath::Lerp(AttackWindowStartPosition, AttackWindowEndPosition, FMath::Clamp(WindowAlpha, 0.0f, 1.0f));
+	const float RawSweepProgress = AttackMontage->EvaluateCurveData(SweepProgressCurveName, FAnimExtractContext(static_cast<double>(MontagePosition)));
+	if (!FMath::IsFinite(RawSweepProgress))
+	{
+		return false;
+	}
+
+	OutSweepProgress = FMath::Clamp(RawSweepProgress, 0.0f, 1.0f);
+
+	return true;
+}
+
+bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float SweepProgress)
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
@@ -460,7 +504,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float Alpha)
 	}
 
 	FRSArmSwingBoxSample BoxSample;
-	if (!FRSArmSwingMath::TryCalculateBoxSample(LockedAttackTransform, AttackBox, SelectedVariant->GetPathDefinition(), Alpha, BoxSample))
+	if (!FRSArmSwingMath::TryCalculateBoxSample(LockedAttackTransform, AttackBox, SelectedVariant->GetPathDefinition(), SweepProgress, BoxSample))
 	{
 		return false;
 	}
@@ -544,7 +588,51 @@ bool URSGameplayAbility_ArmSwing::IsVariantRuntimeValid(const FRSArmSwingVariant
 	return Variant.AttackMontage
 		&& Variant.GetPathDefinition().IsDataValid()
 		&& bHasValidAttackWindow
-		&& WindowStartPosition > KINDA_SMALL_NUMBER;
+		&& WindowStartPosition > KINDA_SMALL_NUMBER
+		// Curve가 없으면 EvaluateCurveData가 조용히 0을 돌려주어 Box가 전혀 회전하지 않습니다
+		&& Variant.AttackMontage->HasCurveData(SweepProgressCurveName);
+}
+
+bool URSGameplayAbility_ArmSwing::IsVariantSweepCurveValid(const FRSArmSwingVariantDefinition& Variant, FString* OutValidationError) const
+{
+	if (OutValidationError)
+	{
+		OutValidationError->Reset();
+	}
+
+	const UAnimMontage* AttackMontage = Variant.AttackMontage.Get();
+	float WindowStartPosition = 0.0f;
+	float WindowEndPosition = 0.0f;
+	if (!AttackMontage || !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(AttackMontage, WindowStartPosition, WindowEndPosition))
+	{
+		if (OutValidationError)
+		{
+			*OutValidationError = TEXT("Montage와 Attack Window가 있어야 회전 진행률 Curve를 검사할 수 있습니다");
+		}
+
+		return false;
+	}
+
+	if (!AttackMontage->HasCurveData(SweepProgressCurveName))
+	{
+		if (OutValidationError)
+		{
+			*OutValidationError = FString::Printf(TEXT("Montage에 %s Curve가 없습니다"), *SweepProgressCurveName.ToString());
+		}
+
+		return false;
+	}
+
+	TArray<float> ProgressSamples;
+	ProgressSamples.Reserve(SweepCurveValidationSampleCount + 1);
+	for (int32 SampleIndex = 0; SampleIndex <= SweepCurveValidationSampleCount; ++SampleIndex)
+	{
+		const float SampleAlpha = static_cast<float>(SampleIndex) / static_cast<float>(SweepCurveValidationSampleCount);
+		const float SamplePosition = FMath::Lerp(WindowStartPosition, WindowEndPosition, SampleAlpha);
+		ProgressSamples.Add(AttackMontage->EvaluateCurveData(SweepProgressCurveName, FAnimExtractContext(static_cast<double>(SamplePosition))));
+	}
+
+	return FRSArmSwingMath::IsProgressSampleSequenceValid(ProgressSamples, OutValidationError);
 }
 
 void URSGameplayAbility_ArmSwing::ResetTransientState()
@@ -567,6 +655,7 @@ void URSGameplayAbility_ArmSwing::ResetTransientState()
 	ActiveTelegraphHandle = INDEX_NONE;
 	TelegraphStartPosition = 0.0f;
 	AttackWindowStartPosition = 0.0f;
+	AttackWindowEndPosition = 0.0f;
 	HitActors.Reset();
 	ObserveFacingTask = nullptr;
 	MontageTask = nullptr;
@@ -582,13 +671,27 @@ EDataValidationResult URSGameplayAbility_ArmSwing::IsDataValid(FDataValidationCo
 	int32 RightAttackWindowCount = 0;
 	if (!IsVariantRuntimeValid(LeftVariant, &LeftAttackWindowCount))
 	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("LeftVariant requires a valid path, Montage, and exactly one Attack Window that begins after the Montage start, but it has %d Windows."), LeftAttackWindowCount)));
+		Context.AddError(FText::FromString(FString::Printf(TEXT("LeftVariant requires a valid path, Montage, a %s Curve, and exactly one Attack Window that begins after the Montage start, but it has %d Windows."), *SweepProgressCurveName.ToString(), LeftAttackWindowCount)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	if (!IsVariantRuntimeValid(RightVariant, &RightAttackWindowCount))
 	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("RightVariant requires a valid path, Montage, and exactly one Attack Window that begins after the Montage start, but it has %d Windows."), RightAttackWindowCount)));
+		Context.AddError(FText::FromString(FString::Printf(TEXT("RightVariant requires a valid path, Montage, a %s Curve, and exactly one Attack Window that begins after the Montage start, but it has %d Windows."), *SweepProgressCurveName.ToString(), RightAttackWindowCount)));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	FString LeftSweepCurveValidationError;
+	if (!IsVariantSweepCurveValid(LeftVariant, &LeftSweepCurveValidationError))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("LeftVariant sweep progress curve is invalid: %s"), *LeftSweepCurveValidationError)));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	FString RightSweepCurveValidationError;
+	if (!IsVariantSweepCurveValid(RightVariant, &RightSweepCurveValidationError))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("RightVariant sweep progress curve is invalid: %s"), *RightSweepCurveValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -608,6 +711,12 @@ EDataValidationResult URSGameplayAbility_ArmSwing::IsDataValid(FDataValidationCo
 	if (!DamageEffectClass)
 	{
 		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f)
+	{
+		Context.AddError(FText::FromString(TEXT("MontagePlayRate must be finite and greater than zero.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

@@ -56,6 +56,9 @@ class RS_API URSGameplayAbility_ArmSwing : public URSBaseGameplayAbility
 public:
 	URSGameplayAbility_ArmSwing();
 
+	/** Attack Window 구간의 Box 회전 진행률을 정의하는 Montage 내부 Curve 이름입니다 */
+	static const FName SweepProgressCurveName;
+
 protected:
 	/** 필수 Variant와 Boss Target을 검증하고 Left 또는 Right를 선택해 Pre-Aim을 시작합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
@@ -99,8 +102,11 @@ private:
 	UFUNCTION()
 	void HandleAttackWindowInvalidated();
 
-	/** 한 Alpha의 회전 Box를 조회하고 처음 검출된 대상에게 Damage와 Knockdown을 요청합니다 */
-	bool ExecuteAttackBoxSample(float Alpha);
+	/** Attack Window의 0~1 진행률을 Montage Curve가 정의한 회전 진행률로 변환합니다 */
+	bool TryEvaluateSweepProgress(float WindowAlpha, float& OutSweepProgress) const;
+
+	/** 한 회전 진행률의 Box를 조회하고 처음 검출된 대상에게 Damage와 Knockdown을 요청합니다 */
+	bool ExecuteAttackBoxSample(float SweepProgress);
 
 	/** 선택한 Montage가 정상 완료되면 Ability를 성공 종료합니다 */
 	UFUNCTION()
@@ -116,6 +122,9 @@ private:
 	/** Variant의 Montage·경로와 Attack Window 구성이 유효한지 검사합니다 */
 	bool IsVariantRuntimeValid(const FRSArmSwingVariantDefinition& Variant, int32* OutAttackWindowCount = nullptr) const;
 
+	/** Variant Montage의 진행률 Curve가 Attack Window 구간에서 0에서 1까지 단조 증가하는지 검사합니다 */
+	bool IsVariantSweepCurveValid(const FRSArmSwingVariantDefinition& Variant, FString* OutValidationError = nullptr) const;
+
 	/** 재사용되는 Ability 인스턴스의 실행 상태를 초기화합니다 */
 	void ResetTransientState();
 
@@ -127,6 +136,10 @@ private:
 	/** 이 GA가 무작위로 선택할 오른쪽 휘두르기입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Variant", meta = (AllowPrivateAccess = "true"))
 	FRSArmSwingVariantDefinition RightVariant;
+
+	/** 선택한 Montage의 재생 속도이며 Slow와 Fast GA를 구분하는 값입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Animation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01"))
+	float MontagePlayRate = 1.0f;
 
 	/** Left와 Right가 공유하는 회전형 공격 Box 크기입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
@@ -218,6 +231,9 @@ private:
 
 	/** Telegraph가 1이 되고 판정이 시작되는 Attack Window Position입니다 */
 	float AttackWindowStartPosition = 0.0f;
+
+	/** 판정과 회전 진행률이 끝나는 Attack Window Position입니다 */
+	float AttackWindowEndPosition = 0.0f;
 
 	/** 현재 Window에서 이미 Damage와 Knockdown을 요청한 Actor 집합입니다 */
 	TSet<TWeakObjectPtr<AActor>> HitActors;

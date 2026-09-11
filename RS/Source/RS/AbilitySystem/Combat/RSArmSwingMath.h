@@ -95,4 +95,7 @@ struct RS_API FRSArmSwingMath
 	/** 회전형 Box의 전체 수평 경로를 빠짐없이 감싸는 Telegraph 경계를 계산합니다 */
 	static bool TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingTelegraphBounds& OutBounds);
 
+	/** Attack Window 구간에서 Sample한 회전 진행률이 0에서 1까지 단조 증가하는지 검사합니다 */
+	static bool IsProgressSampleSequenceValid(const TArray<float>& ProgressSamples, FString* OutValidationError = nullptr);
+
 };
