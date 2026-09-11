@@ -15,6 +15,61 @@ namespace
 	constexpr float AngularFillMode = 1.0f;
 }
 
+float FRSTelegraphLeadTime::GetFillDuration(float ImpactDelay) const
+{
+	// Fill은 언제나 끝까지 진행하므로 저술 값이 역전되어도 소멸보다 늦게 끝나지 않습니다
+	return FMath::Clamp(ImpactDelay - FillLeadTime, 0.0f, GetHideTime(ImpactDelay));
+}
+
+float FRSTelegraphLeadTime::GetHideTime(float ImpactDelay) const
+{
+	return FMath::Clamp(ImpactDelay - HideLeadTime, 0.0f, FMath::Max(ImpactDelay, 0.0f));
+}
+
+FRSTelegraphPresentation FRSTelegraphLeadTime::MakePresentation(float ImpactDelay) const
+{
+	FRSTelegraphPresentation Presentation;
+	Presentation.HoldDuration = GetHideTime(ImpactDelay);
+	Presentation.FillDuration = GetFillDuration(ImpactDelay);
+
+	return Presentation;
+}
+
+bool FRSTelegraphLeadTime::IsDataValid(float ImpactDelay, FString* OutValidationError) const
+{
+	if (!FMath::IsFinite(FillLeadTime) || !FMath::IsFinite(HideLeadTime) || FillLeadTime < 0.0f || HideLeadTime < 0.0f)
+	{
+		if (OutValidationError)
+		{
+			*OutValidationError = TEXT("FillLeadTime and HideLeadTime must be finite and zero or greater.");
+		}
+
+		return false;
+	}
+
+	if (FillLeadTime < HideLeadTime)
+	{
+		if (OutValidationError)
+		{
+			*OutValidationError = TEXT("FillLeadTime must be greater than or equal to HideLeadTime so the fill completes before the telegraph hides.");
+		}
+
+		return false;
+	}
+
+	if (!FMath::IsFinite(ImpactDelay) || ImpactDelay <= FillLeadTime)
+	{
+		if (OutValidationError)
+		{
+			*OutValidationError = TEXT("The impact delay must be longer than FillLeadTime so the telegraph has time to fill.");
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
 bool FRSAnnularSectorTelegraphDefinition::IsDataValid() const
 {
 	return FMath::IsFinite(InnerRadius)
@@ -69,7 +124,6 @@ int32 URSAttackTelegraphComponent::ShowAnnularSector(const FRSAnnularSectorTeleg
 		return INDEX_NONE;
 	}
 
-	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, 1.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, 0.0f);
 	Slot.Decal->SetVisibility(true);
 	RefreshTickEnabled();
@@ -86,6 +140,21 @@ bool URSAttackTelegraphComponent::SetExternalFill(int32 Handle, float Fill)
 	}
 
 	Slot->MaterialInstance->SetScalarParameterValue(FillParameterName, FMath::Clamp(Fill, 0.0f, 1.0f));
+
+	return true;
+}
+
+bool URSAttackTelegraphComponent::SetShapeTransform(int32 Handle, const FTransform& ShapeTransform)
+{
+	FRSTelegraphSlot* Slot = FindSlot(Handle);
+	if (!Slot || !Slot->Decal || ShapeTransform.ContainsNaN())
+	{
+		return false;
+	}
+
+	const float ProjectionYaw = ShapeTransform.GetRotation().Rotator().Yaw + Slot->ProjectionYawOffset;
+	const FRotator GroundProjectionRotation(-90.0f, ProjectionYaw, 0.0f);
+	Slot->Decal->SetWorldLocationAndRotation(ShapeTransform.GetLocation(), GroundProjectionRotation);
 
 	return true;
 }
@@ -145,9 +214,9 @@ int32 URSAttackTelegraphComponent::ShowShapeWithHandle(const FRSCombatShape& Sha
 	return Slot.Handle;
 }
 
-int32 URSAttackTelegraphComponent::ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Opacity)
+int32 URSAttackTelegraphComponent::ShowShapeWithExternalFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform)
 {
-	if (!DecalMaterial || !Shape.IsDataValid() || ShapeTransform.ContainsNaN() || !FMath::IsFinite(Opacity) || Opacity < 0.0f || Opacity > 1.0f)
+	if (!DecalMaterial || !Shape.IsDataValid() || ShapeTransform.ContainsNaN())
 	{
 		return INDEX_NONE;
 	}
@@ -167,7 +236,6 @@ int32 URSAttackTelegraphComponent::ShowShapeWithExternalFill(const FRSCombatShap
 		return INDEX_NONE;
 	}
 
-	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, Opacity);
 	Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, 0.0f);
 	RefreshTickEnabled();
 
@@ -239,6 +307,7 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 	// 직접 만든 DecalComponent는 회전을 처리하지 않으므로 바닥을 향하도록 직접 눕힙니다
 	const FRotator GroundProjectionRotation(-90.0f, ShapeTransform.GetRotation().Rotator().Yaw, 0.0f);
 	Slot.Decal->SetWorldLocationAndRotation(ShapeTransform.GetLocation(), GroundProjectionRotation);
+	Slot.ProjectionYawOffset = 0.0f;
 
 	const bool bUseConeMask = Slot.Shape.Type == ERSCombatShapeType::Cone;
 	const float InnerRatio = Slot.Shape.Type == ERSCombatShapeType::Sphere && Slot.Shape.Radius > 0.0f
@@ -249,6 +318,7 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 		: 1.0f;
 
 	// 슬롯의 MID는 다른 Shape가 재사용할 수 있으므로 Shape 관련 값을 항상 완전한 상태로 다시 씁니다
+	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, 1.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, bUseConeMask ? ConeShapeMode : RadialShapeMode);
 	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, RadialFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, InnerRatio);
@@ -286,8 +356,10 @@ bool URSAttackTelegraphComponent::SetUpAnnularSectorDecal(FRSTelegraphSlot& Slot
 	const float StartWorldYaw = LockedTransform.GetRotation().Rotator().Yaw + Definition.StartYawOffset;
 	const FRotator GroundProjectionRotation(-90.0f, StartWorldYaw, 0.0f);
 	Slot.Decal->SetWorldLocationAndRotation(LockedTransform.GetLocation(), GroundProjectionRotation);
+	Slot.ProjectionYawOffset = Definition.StartYawOffset;
 
 	// 같은 MID 슬롯을 다른 형상이 재사용해도 이전 모드가 남지 않도록 전체 형상 계약을 다시 씁니다
+	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, 1.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, AngularSectorShapeMode);
 	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, AngularFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, Definition.InnerRadius / Definition.OuterRadius);
@@ -357,7 +429,6 @@ void URSAttackTelegraphComponent::UpdateSlot(FRSTelegraphSlot& Slot, float Delta
 
 	if (Slot.MaterialInstance)
 	{
-		Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, FMath::Clamp(Presentation.Opacity, 0.0f, 1.0f));
 		Slot.MaterialInstance->SetScalarParameterValue(FillParameterName, Fill);
 	}
 }
@@ -368,6 +439,7 @@ void URSAttackTelegraphComponent::ReleaseSlot(FRSTelegraphSlot& Slot)
 	Slot.bUsesExternalFill = false;
 	Slot.ElapsedTime = 0.0f;
 	Slot.Handle = INDEX_NONE;
+	Slot.ProjectionYawOffset = 0.0f;
 
 	// 데칼과 Dynamic Material Instance는 다음 표시에서 재사용하므로 숨기기만 합니다
 	if (Slot.Decal)
