@@ -59,12 +59,17 @@ void ARSBossBattleCamera::UpdateCamera(float DeltaTime, bool bSnapToTarget)
 	}
 
 	const FVector PivotLocation = PivotComponent->GetComponentLocation();
-	UpdateOrbitYaw(PivotLocation, TargetPlayer->GetActorLocation(), DeltaTime, bSnapToTarget);
+	const FVector TargetPlayerLocation = TargetPlayer->GetActorLocation();
+	UpdateOrbitYaw(PivotLocation, TargetPlayerLocation, DeltaTime, bSnapToTarget);
 
-	// 위치를 따로 보간하면 이동 중에 궤도 안쪽을 가로질러 반지름이 흔들리므로 방위각에서 직접 계산합니다
+	// 위치를 따로 보간하면 이동 중에 궤도 안쪽을 가로질러 반지름이 흔들리므로 방위각과 반지름에서 직접 계산합니다
+	const float OrbitRadius = CalculateOrbitRadius(PivotLocation, TargetPlayerLocation);
 	const FVector OrbitDirection = FRotator(0.0f, CurrentOrbitYaw, 0.0f).Vector();
-	const FVector CameraLocation = PivotLocation + OrbitDirection * CameraContext.Settings.OrbitRadius + FVector::UpVector * CameraContext.Settings.CameraHeight;
-	const FVector LookAtLocation = PivotLocation + FVector::UpVector * CameraContext.Settings.LookAtHeight;
+	const FVector CameraLocation = PivotLocation + OrbitDirection * OrbitRadius + FVector::UpVector * CameraContext.Settings.CameraHeight;
+
+	// 카메라가 물러난 만큼 바라보는 지점도 함께 밀어야 플레이어가 화면에서 같은 자리에 남습니다
+	const float FollowDistance = OrbitRadius - CameraContext.Settings.OrbitRadius;
+	const FVector LookAtLocation = PivotLocation + OrbitDirection * FollowDistance + FVector::UpVector * CameraContext.Settings.LookAtHeight;
 
 	SetActorLocationAndRotation(CameraLocation, (LookAtLocation - CameraLocation).Rotation());
 }
@@ -100,6 +105,24 @@ void ARSBossBattleCamera::UpdateOrbitYaw(const FVector& PivotLocation, const FVe
 	const float DeltaYaw = FMath::FindDeltaAngleDegrees(CurrentOrbitYaw, TargetOrbitYaw);
 	const float MaximumYawStep = CameraContext.Settings.MaximumOrbitRotationSpeed * DeltaTime;
 	CurrentOrbitYaw = FMath::UnwindDegrees(CurrentOrbitYaw + FMath::Clamp(DeltaYaw, -MaximumYawStep, MaximumYawStep));
+}
+
+float ARSBossBattleCamera::CalculateOrbitRadius(const FVector& PivotLocation, const FVector& TargetPlayerLocation) const
+{
+	const FRSBossCameraSettings& Settings = CameraContext.Settings;
+
+	FVector PivotToPlayer = TargetPlayerLocation - PivotLocation;
+	PivotToPlayer.Z = 0.0f;
+	const float PlayerDistance = PivotToPlayer.Size();
+
+	// 플레이어가 멀어진 거리의 일부만 따라가므로 전투 중심을 화면에 유지하면서도 카메라가 앞뒤로 움직입니다
+	float OrbitRadius = Settings.OrbitRadius + PlayerDistance * Settings.PivotFollowRatio;
+
+	// 비율이 1보다 작으면 플레이어가 카메라 쪽으로 계속 가까워지므로 하한으로 최소 거리를 확보합니다
+	OrbitRadius = FMath::Max(OrbitRadius, PlayerDistance + Settings.MinCameraToPlayerDistance);
+
+	// 전투 공간을 벗어나는 것이 구도보다 치명적이므로 상한을 마지막에 적용합니다
+	return FMath::Min(OrbitRadius, Settings.MaxOrbitRadius);
 }
 
 void ARSBossBattleCamera::ApplyTargetPlayerCameraSettings()
