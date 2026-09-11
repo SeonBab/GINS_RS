@@ -6,6 +6,7 @@
 
 class ARSBossMeteorHazard;
 class UAnimMontage;
+enum class ERSBossMeteorHazardPreparationResult : uint8;
 
 /** 포효 뒤 플레이어를 추적하는 운석 예고 하나를 생성하는 특수 패턴입니다 */
 UCLASS(Abstract, Blueprintable)
@@ -40,7 +41,7 @@ private:
 	void HandleStartDelayFinished();
 
 	/** 운석 예고가 장판으로 전환되면 정상 종료하고 조기 정리되면 취소 종료합니다 */
-	void HandlePreparationFinished(bool bInHazardActivated);
+	void HandlePreparationFinished(ERSBossMeteorHazardPreparationResult PreparationResult);
 
 	/** 포효 Montage의 완료, 실패 또는 중단을 표현 종료로 처리합니다 */
 	UFUNCTION()

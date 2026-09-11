@@ -11,7 +11,7 @@ class UCurveFloat;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class URSAbilitySystemComponent;
-class URSBossPhaseComponent;
+class URSBossPersistentObjectLifetimeComponent;
 class URSFlameCraterChargeWidget;
 class URSHealthComponent;
 class URSHealthSet;
@@ -79,8 +79,6 @@ struct FRSBossFlameCraterDefinition
 	/** 런타임에서 상태와 Timer를 안전하게 구성할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 
-	/** 생성 순번으로부터 설정된 특수 패턴 횟수가 지났는지 판정합니다 */
-	bool ShouldCleanupForSpecialPattern(int32 SpawnSequence, int32 ActiveSequence) const;
 };
 
 /** 낙하, 충전, 피격 횟수와 장판 수명을 하나의 Actor로 관리하는 보스 화염 분화구입니다 */
@@ -175,22 +173,6 @@ private:
 
 #pragma endregion
 
-#pragma region Pattern Lifetime
-
-private:
-	void BindPatternLifetime();
-	void UnbindPatternLifetime();
-	void HandleSpecialPatternActivationRequested(int32 ActiveSequence);
-	void HandlePersistentObjectCleanupRequested();
-
-private:
-	TWeakObjectPtr<URSBossPhaseComponent> BossPhaseComp;
-	FDelegateHandle SpecialPatternActivationRequestedDelegateHandle;
-	FDelegateHandle PersistentObjectCleanupDelegateHandle;
-	int32 SpawnSpecialPatternSequence = 0;
-
-#pragma endregion
-
 #pragma region Presentation And Collision
 
 private:
@@ -215,6 +197,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|FlameCrater", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UWidgetComponent> ChargeWidgetComp;
+
+	/** 보스 패턴 순번과 공용 정리 이벤트를 이 Actor의 정리 요청으로 변환합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|FlameCrater|Lifetime", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSBossPersistentObjectLifetimeComponent> PersistentObjectLifetimeComp;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraSystem> FallingNiagaraSystem;

@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/Boss/RSGameplayAbility_FlameCraterSpread.h"
 #include "Actors/RSBossFlameCrater.h"
+#include "Components/RSBossPersistentObjectLifetimeComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
@@ -107,9 +108,9 @@ bool FRSFlameCraterSpreadPlacementTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("A zero horizontal direction is rejected"), Definition.TryGenerateLandingLocations(Center, FVector::UpVector, SecondRandomStream, SecondLocations));
 
 	FRSBossFlameCraterDefinition FlameCraterDefinition;
-	TestFalse(TEXT("The next special pattern keeps the previous batch"), FlameCraterDefinition.ShouldCleanupForSpecialPattern(7, 8));
-	TestTrue(TEXT("The second following special pattern cleans the previous batch"), FlameCraterDefinition.ShouldCleanupForSpecialPattern(7, 9));
-	TestFalse(TEXT("A newer batch is not cleaned by an older sequence"), FlameCraterDefinition.ShouldCleanupForSpecialPattern(9, 9));
+	TestFalse(TEXT("The next special pattern keeps the previous batch"), URSBossPersistentObjectLifetimeComponent::ShouldCleanupForSpecialPattern(7, 8, FlameCraterDefinition.SpecialPatternCleanupOffset));
+	TestTrue(TEXT("The second following special pattern cleans the previous batch"), URSBossPersistentObjectLifetimeComponent::ShouldCleanupForSpecialPattern(7, 9, FlameCraterDefinition.SpecialPatternCleanupOffset));
+	TestFalse(TEXT("A newer batch is not cleaned by an older sequence"), URSBossPersistentObjectLifetimeComponent::ShouldCleanupForSpecialPattern(9, 9, FlameCraterDefinition.SpecialPatternCleanupOffset));
 
 	return true;
 }

@@ -162,14 +162,14 @@ void URSGameplayAbility_MeteorHazard::HandleStartDelayFinished()
 	UGameplayStatics::FinishSpawningActor(MeteorHazard, SpawnTransform);
 }
 
-void URSGameplayAbility_MeteorHazard::HandlePreparationFinished(bool bInHazardActivated)
+void URSGameplayAbility_MeteorHazard::HandlePreparationFinished(ERSBossMeteorHazardPreparationResult PreparationResult)
 {
 	if (!IsActive())
 	{
 		return;
 	}
 
-	if (!bInHazardActivated)
+	if (PreparationResult == ERSBossMeteorHazardPreparationResult::CleanedUp)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 

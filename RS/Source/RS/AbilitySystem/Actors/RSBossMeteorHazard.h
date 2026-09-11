@@ -10,7 +10,7 @@ class UNiagaraComponent;
 class UNiagaraSystem;
 class USceneComponent;
 class URSAttackTelegraphComponent;
-class URSBossPhaseComponent;
+class URSBossPersistentObjectLifetimeComponent;
 #if WITH_EDITOR
 class FDataValidationContext;
 #endif
@@ -23,6 +23,13 @@ enum class ERSBossMeteorHazardState : uint8
 	Locked,
 	Hazard,
 	Cleanup
+};
+
+/** 운석 예고가 장판 전환과 조기 정리 중 어떤 결과로 끝났는지 나타냅니다 */
+enum class ERSBossMeteorHazardPreparationResult : uint8
+{
+	HazardActivated,
+	CleanedUp
 };
 
 /** 운석 예고, 장판과 수명에 필요한 설정입니다 */
@@ -57,12 +64,10 @@ struct FRSBossMeteorHazardDefinition
 	/** 낙하 Niagara가 Telegraph 시작 후 재생을 시작할 시간을 반환합니다 */
 	float GetFallEffectStartTime() const;
 
-	/** 생성 순번으로부터 설정된 특수 패턴 횟수가 지났는지 판정합니다 */
-	bool ShouldCleanupForSpecialPattern(int32 SpawnSequence, int32 ActiveSequence) const;
 };
 
 /** 예고 단계가 장판 전환 또는 조기 정리로 끝났음을 알립니다 */
-DECLARE_MULTICAST_DELEGATE_OneParam(FRSMeteorHazardPreparationFinishedSignature, bool);
+DECLARE_MULTICAST_DELEGATE_OneParam(FRSMeteorHazardPreparationFinishedSignature, ERSBossMeteorHazardPreparationResult);
 
 /** 플레이어를 추적한 뒤 고정 위치에 주기 피해 장판을 남기는 운석 Actor입니다 */
 UCLASS(Blueprintable)
@@ -112,6 +117,12 @@ public:
 
 	/** 자동 테스트가 첫 피해가 즉시 실행되지 않고 Timer로 예약됐는지 확인합니다 */
 	bool IsDamageTimerActiveForTest() const;
+
+	/** 자동 테스트가 첫 피해까지 남은 시간이 설정한 한 주기인지 확인합니다 */
+	float GetDamageTimerRemainingForTest() const;
+
+	/** 자동 테스트가 전역 Frame을 조작하지 않고 한 장판의 주기 피해 콜백을 실행합니다 */
+	void ApplyHazardDamageForTest();
 #endif
 
 private:
@@ -133,18 +144,6 @@ private:
 	/** 현재 장판 안의 플레이어마다 1회 피해 Gameplay Event를 보냅니다 */
 	void ApplyHazardDamage();
 
-	/** 보스 Phase Component의 지속 오브젝트 수명 이벤트를 구독합니다 */
-	void BindPatternLifetime();
-
-	/** 지속 오브젝트 수명 이벤트 구독을 해제합니다 */
-	void UnbindPatternLifetime();
-
-	/** 특수 패턴 활성화 요청 순번이 수명에 도달하면 정리합니다 */
-	void HandleSpecialPatternActivationRequested(int32 ActiveSequence);
-
-	/** 메인 기믹, 보스 사망 또는 Encounter 종료 정리 요청을 처리합니다 */
-	void HandlePersistentObjectCleanupRequested();
-
 	/** Telegraph Handle만 회수합니다 */
 	void HideTelegraph();
 
@@ -152,7 +151,7 @@ private:
 	void ClearTimers();
 
 	/** 예고가 장판 또는 조기 정리로 끝났음을 한 번만 알립니다 */
-	void BroadcastPreparationFinished(bool bHazardActivated);
+	void BroadcastPreparationFinished(ERSBossMeteorHazardPreparationResult PreparationResult);
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
@@ -163,6 +162,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> HazardNiagaraComp;
+
+	/** 보스 패턴 순번과 공용 정리 이벤트를 이 Actor의 정리 요청으로 변환합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard|Lifetime", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSBossPersistentObjectLifetimeComponent> PersistentObjectLifetimeComp;
 
 	/** 운석 예고와 장판의 시간, 범위와 수명 설정입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
@@ -190,16 +193,12 @@ private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<URSAttackTelegraphComponent> TelegraphComp;
 
-	TWeakObjectPtr<URSBossPhaseComponent> BossPhaseComp;
-	FDelegateHandle SpecialPatternActivationRequestedDelegateHandle;
-	FDelegateHandle PersistentObjectCleanupDelegateHandle;
 	FRSMeteorHazardPreparationFinishedSignature PreparationFinishedEvent;
 	FTimerHandle HazardDamageTimerHandle;
 	FVector CurrentTargetLocation = FVector::ZeroVector;
 	FVector LockedImpactLocation = FVector::ZeroVector;
 	float TelegraphElapsedTime = 0.0f;
 	int32 TelegraphHandle = INDEX_NONE;
-	int32 SpawnSpecialPatternSequence = 0;
 	ERSBossMeteorHazardState MeteorHazardState = ERSBossMeteorHazardState::Tracking;
 	bool bFallingEffectStarted = false;
 	bool bPreparationFinishedBroadcast = false;

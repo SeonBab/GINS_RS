@@ -12,7 +12,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "RSAbilitySystemComponent.h"
-#include "RSBossPhaseComponent.h"
+#include "RSBossPersistentObjectLifetimeComponent.h"
 #include "RSFlameCraterChargeWidget.h"
 #include "RSGameplayTags.h"
 #include "RSHealthComponent.h"
@@ -70,13 +70,6 @@ bool FRSBossFlameCraterDefinition::IsDataValid(FString* OutValidationError) cons
 	return true;
 }
 
-bool FRSBossFlameCraterDefinition::ShouldCleanupForSpecialPattern(int32 SpawnSequence, int32 ActiveSequence) const
-{
-	const int64 CleanupSequence = static_cast<int64>(SpawnSequence) + SpecialPatternCleanupOffset;
-
-	return SpawnSequence >= 0 && SpecialPatternCleanupOffset > 0 && ActiveSequence >= CleanupSequence;
-}
-
 ARSBossFlameCrater::ARSBossFlameCrater()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -115,6 +108,7 @@ ARSBossFlameCrater::ARSBossFlameCrater()
 	AbilitySystemComp = CreateDefaultSubobject<URSAbilitySystemComponent>(TEXT("RSAbilitySystemComponent"));
 	HealthSet = CreateDefaultSubobject<URSHealthSet>(TEXT("RSHealthSet"));
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
+	PersistentObjectLifetimeComp = CreateDefaultSubobject<URSBossPersistentObjectLifetimeComponent>(TEXT("PersistentObjectLifetimeComponent"));
 }
 
 void ARSBossFlameCrater::Tick(float DeltaSeconds)
@@ -142,7 +136,11 @@ void ARSBossFlameCrater::BeginPlay()
 	Super::BeginPlay();
 
 	InitializeAbilitySystem();
-	BindPatternLifetime();
+	if (PersistentObjectLifetimeComp)
+	{
+		PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
+		PersistentObjectLifetimeComp->StartObserving(GetOwner(), FlameCraterDefinition.SpecialPatternCleanupOffset);
+	}
 
 	if (FallingNiagaraComp)
 	{
@@ -173,7 +171,11 @@ void ARSBossFlameCrater::BeginPlay()
 void ARSBossFlameCrater::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	ClearTimers();
-	UnbindPatternLifetime();
+	if (PersistentObjectLifetimeComp)
+	{
+		PersistentObjectLifetimeComp->OnCleanupRequired().RemoveAll(this);
+		PersistentObjectLifetimeComp->StopObserving();
+	}
 
 	if (AbilitySystemComp)
 	{
@@ -484,46 +486,4 @@ void ARSBossFlameCrater::ClearTimers()
 	ChargeCompletionTimerHandle.Invalidate();
 	FireFieldDamageTimerHandle.Invalidate();
 	FireFieldLifetimeTimerHandle.Invalidate();
-}
-
-void ARSBossFlameCrater::BindPatternLifetime()
-{
-	AActor* OwnerActor = GetOwner();
-	URSBossPhaseComponent* PhaseComponent = OwnerActor ? OwnerActor->FindComponentByClass<URSBossPhaseComponent>() : nullptr;
-	if (!PhaseComponent)
-	{
-		return;
-	}
-
-	BossPhaseComp = PhaseComponent;
-	SpawnSpecialPatternSequence = PhaseComponent->GetSpecialPatternActivationSequence();
-	SpecialPatternActivationRequestedDelegateHandle = PhaseComponent->OnSpecialPatternActivationRequested().AddUObject(this, &ThisClass::HandleSpecialPatternActivationRequested);
-	PersistentObjectCleanupDelegateHandle = PhaseComponent->OnPersistentObjectCleanupRequested().AddUObject(this, &ThisClass::HandlePersistentObjectCleanupRequested);
-}
-
-void ARSBossFlameCrater::UnbindPatternLifetime()
-{
-	URSBossPhaseComponent* PhaseComponent = BossPhaseComp.Get();
-	if (PhaseComponent)
-	{
-		PhaseComponent->OnSpecialPatternActivationRequested().Remove(SpecialPatternActivationRequestedDelegateHandle);
-		PhaseComponent->OnPersistentObjectCleanupRequested().Remove(PersistentObjectCleanupDelegateHandle);
-	}
-
-	SpecialPatternActivationRequestedDelegateHandle.Reset();
-	PersistentObjectCleanupDelegateHandle.Reset();
-	BossPhaseComp.Reset();
-}
-
-void ARSBossFlameCrater::HandleSpecialPatternActivationRequested(int32 ActiveSequence)
-{
-	if (FlameCraterDefinition.ShouldCleanupForSpecialPattern(SpawnSpecialPatternSequence, ActiveSequence))
-	{
-		RequestCleanup();
-	}
-}
-
-void ARSBossFlameCrater::HandlePersistentObjectCleanupRequested()
-{
-	RequestCleanup();
 }

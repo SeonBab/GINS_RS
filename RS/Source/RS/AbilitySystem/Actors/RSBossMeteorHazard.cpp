@@ -10,7 +10,7 @@
 #include "GameFramework/Character.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
-#include "RSBossPhaseComponent.h"
+#include "RSBossPersistentObjectLifetimeComponent.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerCharacter.h"
 
@@ -74,13 +74,6 @@ float FRSBossMeteorHazardDefinition::GetFallEffectStartTime() const
 	return FMath::Max(TelegraphDuration - FallEffectLeadTime, 0.0f);
 }
 
-bool FRSBossMeteorHazardDefinition::ShouldCleanupForSpecialPattern(int32 SpawnSequence, int32 ActiveSequence) const
-{
-	const int64 CleanupSequence = static_cast<int64>(SpawnSequence) + SpecialPatternCleanupOffset;
-
-	return SpawnSequence >= 0 && SpecialPatternCleanupOffset > 0 && ActiveSequence >= CleanupSequence;
-}
-
 ARSBossMeteorHazard::ARSBossMeteorHazard()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -98,6 +91,8 @@ ARSBossMeteorHazard::ARSBossMeteorHazard()
 	HazardNiagaraComp->SetupAttachment(SceneRoot);
 	HazardNiagaraComp->SetUsingAbsoluteLocation(true);
 	HazardNiagaraComp->SetAutoActivate(false);
+
+	PersistentObjectLifetimeComp = CreateDefaultSubobject<URSBossPersistentObjectLifetimeComponent>(TEXT("PersistentObjectLifetimeComponent"));
 }
 
 void ARSBossMeteorHazard::Tick(float DeltaSeconds)
@@ -160,7 +155,11 @@ void ARSBossMeteorHazard::BeginPlay()
 {
 	Super::BeginPlay();
 
-	BindPatternLifetime();
+	if (PersistentObjectLifetimeComp)
+	{
+		PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
+		PersistentObjectLifetimeComp->StartObserving(GetOwner(), MeteorHazardDefinition.SpecialPatternCleanupOffset);
+	}
 
 	if (FallingNiagaraComp)
 	{
@@ -206,7 +205,11 @@ void ARSBossMeteorHazard::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	SetActorTickEnabled(false);
 	HideTelegraph();
 	ClearTimers();
-	UnbindPatternLifetime();
+	if (PersistentObjectLifetimeComp)
+	{
+		PersistentObjectLifetimeComp->OnCleanupRequired().RemoveAll(this);
+		PersistentObjectLifetimeComp->StopObserving();
+	}
 
 	if (FallingNiagaraComp)
 	{
@@ -255,6 +258,18 @@ bool ARSBossMeteorHazard::IsDamageTimerActiveForTest() const
 
 	return World && World->GetTimerManager().IsTimerActive(HazardDamageTimerHandle);
 }
+
+float ARSBossMeteorHazard::GetDamageTimerRemainingForTest() const
+{
+	UWorld* World = GetWorld();
+
+	return World ? World->GetTimerManager().GetTimerRemaining(HazardDamageTimerHandle) : -1.0f;
+}
+
+void ARSBossMeteorHazard::ApplyHazardDamageForTest()
+{
+	ApplyHazardDamage();
+}
 #endif
 
 void ARSBossMeteorHazard::RequestCleanup()
@@ -279,7 +294,7 @@ void ARSBossMeteorHazard::RequestCleanup()
 		HazardNiagaraComp->DeactivateImmediate();
 	}
 
-	BroadcastPreparationFinished(false);
+	BroadcastPreparationFinished(ERSBossMeteorHazardPreparationResult::CleanedUp);
 	Destroy();
 }
 
@@ -380,7 +395,7 @@ void ARSBossMeteorHazard::BeginHazard()
 		World->GetTimerManager().SetTimer(HazardDamageTimerHandle, this, &ThisClass::ApplyHazardDamage, MeteorHazardDefinition.DamageInterval, true, MeteorHazardDefinition.DamageInterval);
 	}
 
-	BroadcastPreparationFinished(true);
+	BroadcastPreparationFinished(ERSBossMeteorHazardPreparationResult::HazardActivated);
 }
 
 void ARSBossMeteorHazard::ApplyHazardDamage()
@@ -418,48 +433,6 @@ void ARSBossMeteorHazard::ApplyHazardDamage()
 	}
 }
 
-void ARSBossMeteorHazard::BindPatternLifetime()
-{
-	AActor* OwnerActor = GetOwner();
-	URSBossPhaseComponent* PhaseComponent = OwnerActor ? OwnerActor->FindComponentByClass<URSBossPhaseComponent>() : nullptr;
-	if (!PhaseComponent)
-	{
-		return;
-	}
-
-	BossPhaseComp = PhaseComponent;
-	SpawnSpecialPatternSequence = PhaseComponent->GetSpecialPatternActivationSequence();
-	SpecialPatternActivationRequestedDelegateHandle = PhaseComponent->OnSpecialPatternActivationRequested().AddUObject(this, &ThisClass::HandleSpecialPatternActivationRequested);
-	PersistentObjectCleanupDelegateHandle = PhaseComponent->OnPersistentObjectCleanupRequested().AddUObject(this, &ThisClass::HandlePersistentObjectCleanupRequested);
-}
-
-void ARSBossMeteorHazard::UnbindPatternLifetime()
-{
-	URSBossPhaseComponent* PhaseComponent = BossPhaseComp.Get();
-	if (PhaseComponent)
-	{
-		PhaseComponent->OnSpecialPatternActivationRequested().Remove(SpecialPatternActivationRequestedDelegateHandle);
-		PhaseComponent->OnPersistentObjectCleanupRequested().Remove(PersistentObjectCleanupDelegateHandle);
-	}
-
-	SpecialPatternActivationRequestedDelegateHandle.Reset();
-	PersistentObjectCleanupDelegateHandle.Reset();
-	BossPhaseComp.Reset();
-}
-
-void ARSBossMeteorHazard::HandleSpecialPatternActivationRequested(int32 ActiveSequence)
-{
-	if (MeteorHazardDefinition.ShouldCleanupForSpecialPattern(SpawnSpecialPatternSequence, ActiveSequence))
-	{
-		RequestCleanup();
-	}
-}
-
-void ARSBossMeteorHazard::HandlePersistentObjectCleanupRequested()
-{
-	RequestCleanup();
-}
-
 void ARSBossMeteorHazard::HideTelegraph()
 {
 	if (URSAttackTelegraphComponent* ActiveTelegraphComp = TelegraphComp.Get())
@@ -481,7 +454,7 @@ void ARSBossMeteorHazard::ClearTimers()
 	HazardDamageTimerHandle.Invalidate();
 }
 
-void ARSBossMeteorHazard::BroadcastPreparationFinished(bool bHazardActivated)
+void ARSBossMeteorHazard::BroadcastPreparationFinished(ERSBossMeteorHazardPreparationResult PreparationResult)
 {
 	if (bPreparationFinishedBroadcast)
 	{
@@ -489,5 +462,5 @@ void ARSBossMeteorHazard::BroadcastPreparationFinished(bool bHazardActivated)
 	}
 
 	bPreparationFinishedBroadcast = true;
-	PreparationFinishedEvent.Broadcast(bHazardActivated);
+	PreparationFinishedEvent.Broadcast(PreparationResult);
 }
