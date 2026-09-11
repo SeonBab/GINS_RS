@@ -2,7 +2,9 @@
 
 #include "RSGameplayAbility_ConcentricRings.h"
 
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
+#include "Animation/AnimMontage.h"
 #include "Engine/World.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
@@ -51,6 +53,7 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	ActiveSequence.Reset();
 	RingCenterTransform = FTransform::Identity;
 	StepIndex = 0;
+	MontageTask = nullptr;
 
 	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
 	if (!AvatarActor || Rings.IsEmpty() || SequencePool.IsEmpty())
@@ -87,6 +90,9 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	const FVector RingCenterLocation = AvatarActor->GetActorLocation() - FVector(0.0f, 0.0f, AvatarActor->GetSimpleCollisionHalfHeight());
 	RingCenterTransform = FTransform(RingCenterLocation);
 
+	// 조기 종료 경로를 모두 지난 뒤에 요청해 실행되지 않을 패턴의 Montage가 재생되지 않게 합니다
+	RequestAttackMontage();
+
 	RunCurrentStep();
 }
 
@@ -103,7 +109,23 @@ void URSGameplayAbility_ConcentricRings::EndAbility(const FGameplayAbilitySpecHa
 		}
 	}
 
+	// Montage가 중단되면 Notify State의 End가 오지 않아 상태 태그가 남으므로 여기서 회수합니다
+	EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
+	MontageTask = nullptr;
+
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void URSGameplayAbility_ConcentricRings::RequestAttackMontage()
+{
+	if (!AttackMontage)
+	{
+		return;
+	}
+
+	// Task의 완료·실패·중단 결과를 패턴 흐름에 연결하지 않아 애니메이션이 패턴 수명을 정하지 않게 합니다
+	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage);
+	MontageTask->ReadyForActivation();
 }
 
 void URSGameplayAbility_ConcentricRings::RunCurrentStep()

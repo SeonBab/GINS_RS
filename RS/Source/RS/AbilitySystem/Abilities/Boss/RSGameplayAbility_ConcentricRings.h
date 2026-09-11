@@ -8,6 +8,9 @@
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_ConcentricRings.generated.h"
 
+class UAbilityTask_PlayMontageAndWait;
+class UAnimMontage;
+
 /**
  * 한 번의 패턴에서 링이 공격될 순서이며 각 항목은 Rings 배열의 인덱스입니다
  * TArray를 직접 중첩할 수 없어 후보 목록을 만들기 위한 래퍼입니다
@@ -39,10 +42,10 @@ public:
 	URSGameplayAbility_ConcentricRings();
 
 protected:
-	/** 이번 실행의 시퀀스와 링 중심을 확정하고 첫 예고 스텝을 시작합니다 */
+	/** 이번 실행의 시퀀스와 링 중심을 확정하고 Montage를 요청한 뒤 첫 예고 스텝을 시작합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
-	/** 어빌리티가 어떤 경로로 끝나도 남아 있는 예고 표시를 회수합니다 */
+	/** 어빌리티가 어떤 경로로 끝나도 남아 있는 예고 표시와 애니메이션 상태를 회수합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 #if WITH_EDITOR
@@ -51,6 +54,9 @@ protected:
 #endif
 
 private:
+	/** 설정된 Montage를 한 번 요청하며 재생 실패와 중단은 패턴 진행에 영향을 주지 않습니다 */
+	void RequestAttackMontage();
+
 	/**
 	 * 현재 StepIndex의 스텝을 실행하고 다음 스텝을 예약합니다
 	 * 단계를 따로 저장하지 않고 StepIndex에서 파생하므로 예고와 실행이 같은 시퀀스를 두 번 순회합니다
@@ -117,6 +123,13 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Reaction", meta = (AllowPrivateAccess = "true"))
 	FRSHitReactionDefinition Reaction;
 
+	/**
+	 * 어빌리티 활성화와 동시에 한 번만 재생을 요청할 선택적 Montage입니다
+	 * 이 패턴은 판정 시점을 직접 소유하므로 Montage 길이는 예고와 실행 타이밍에 영향을 주지 않습니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Animation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UAnimMontage> AttackMontage;
+
 private:
 	/** 이번 활성화에서 확정한 공격 순서이며 예고와 실행이 같은 배열을 읽습니다 */
 	UPROPERTY(Transient)
@@ -136,4 +149,11 @@ private:
 	 */
 	UPROPERTY(Transient)
 	int32 StepIndex = 0;
+
+	/**
+	 * Montage 재생 요청의 Task입니다
+	 * 완료·중단 콜백을 패턴 흐름에 연결하지 않으므로 Task는 수명 관리를 위해서만 보관합니다
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
 };
