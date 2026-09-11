@@ -5,7 +5,10 @@
 
 #include "Abilities/RSBaseGameplayAbility.h"
 #include "Effects/RSGameplayEffect_AnimationState.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "RSGameplayTags.h"
+#include "TimerManager.h"
 
 void URSAbilitySystemComponent::BeginAnimationGameplayState(UObject* Source, int32 MontageInstanceIdentifier, int32 NotifyInstanceIdentifier, const FGameplayTagContainer& StateTags)
 {
@@ -524,3 +527,65 @@ void URSAbilitySystemComponent::NotifyDamageDealt(float AppliedDamage, const FVe
 {
 	OnDamageDealt.Broadcast(AppliedDamage, TargetLocation);
 }
+
+void URSAbilitySystemComponent::ApplyHitStop(float Duration, float TimeDilation)
+{
+	// 히트스톱을 쓰지 않는 공격은 값을 비워 두므로 기본값이 그대로 꺼진 상태가 됩니다
+	// 배율 0은 복원이 실패하면 공격자가 영원히 멈추므로 받지 않습니다
+	if (Duration <= 0.0f || TimeDilation <= 0.0f)
+	{
+		return;
+	}
+
+	AActor* HitStopAvatarActor = GetAvatarActor();
+	UWorld* World = GetWorld();
+	if (!HitStopAvatarActor || !World)
+	{
+		return;
+	}
+
+	// 연타로 다시 들어오면 이전 예약을 버립니다
+	// 남겨 두면 1타의 타이머가 만료되면서 아직 진행 중인 2타의 히트스톱을 먼저 풀어 버립니다
+	World->GetTimerManager().ClearTimer(HitStopTimerHandle);
+
+	HitStopAvatarActor->CustomTimeDilation = TimeDilation;
+
+	// 복원은 월드 타이머로 예약하므로 느려진 AvatarActor 자신의 시간에 영향을 받지 않습니다
+	World->GetTimerManager().SetTimer(HitStopTimerHandle, this, &URSAbilitySystemComponent::FinishHitStop, Duration, false);
+}
+
+void URSAbilitySystemComponent::FinishHitStop()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(HitStopTimerHandle);
+	}
+
+	// 액터가 사라진 뒤에도 예약만 비우고 끝내야 하므로 Avatar 확인은 복원 직전에 합니다
+	if (AActor* HitStopAvatarActor = GetAvatarActor())
+	{
+		HitStopAvatarActor->CustomTimeDilation = DefaultTimeDilation;
+	}
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+bool URSAbilitySystemComponent::IsHitStopActiveForTest() const
+{
+	const UWorld* World = GetWorld();
+
+	return World && World->GetTimerManager().IsTimerActive(HitStopTimerHandle);
+}
+
+float URSAbilitySystemComponent::GetHitStopRemainingForTest() const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return 0.0f;
+	}
+
+	return FMath::Max(World->GetTimerManager().GetTimerRemaining(HitStopTimerHandle), 0.0f);
+}
+
+#endif
