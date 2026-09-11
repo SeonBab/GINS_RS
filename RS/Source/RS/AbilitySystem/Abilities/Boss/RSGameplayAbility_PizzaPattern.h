@@ -1,9 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
+#include "Components/RSAttackTelegraphComponent.h"
 #include "Engine/EngineTypes.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_PizzaPattern.generated.h"
 
 class UAbilityTask_PlayMontageAndWait;
@@ -36,9 +37,13 @@ struct FRSPizzaPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float AttackStartDelay = 0.0f;
 
-	/** 각 Telegraph가 Fill 0에서 1까지 진행한 뒤 폭발할 시간입니다 */
+	/** 각 Telegraph가 나타난 뒤 폭발할 때까지의 시간입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float TelegraphDuration = 0.0f;
+
+	/** Telegraph의 Fill 완료와 표시 소멸이 폭발보다 각각 얼마나 빠른지입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Timing")
+	FRSTelegraphLeadTime TelegraphLeadTime;
 
 	/** 폭발 하나가 대상에게 가할 피해량입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit")
@@ -54,7 +59,7 @@ struct FRSPizzaPatternDefinition
 
 /** 보스를 중심으로 고정한 A/B 피자 조각을 설정 횟수만큼 교대로 폭발시키는 Ability입니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_PizzaPattern : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_PizzaPattern : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 
@@ -89,7 +94,7 @@ private:
 
 	/** 현재 폭발의 모든 조각 Telegraph Fill을 같은 값으로 갱신합니다 */
 	UFUNCTION()
-	void HandleTelegraphFillUpdated(float Fill);
+	void HandleTelegraphFillUpdated(float Progress);
 
 	/** Fill을 1로 확정한 뒤 현재 그룹을 폭발시키고 다음 그룹 또는 정상 종료로 진행합니다 */
 	UFUNCTION()
@@ -131,10 +136,6 @@ protected:
 	/** 폭발마다 패턴 중심에서 한 번 재생할 선택적 Sound입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Presentation")
 	TObjectPtr<USoundBase> ExplosionSound;
-
-	/** Telegraph가 표시되는 동안 사용할 불투명도입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Presentation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float TelegraphOpacity = 1.0f;
 
 private:
 	/** 공격 시작 시점에 한 번 캡처해 모든 Telegraph와 HitCheck가 공유하는 Transform입니다 */

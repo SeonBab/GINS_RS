@@ -12,6 +12,8 @@ public class RS : ModuleRules
 		PublicIncludePaths.AddRange(new string[] {
 			Path.Combine(ModuleDirectory, "AbilitySystem"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities"),
+			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities", "Boss"),
+			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities", "Player"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Attributes"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Components"),
 			Path.Combine(ModuleDirectory, "AI"),

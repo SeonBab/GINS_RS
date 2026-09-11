@@ -53,6 +53,12 @@ EBTNodeResult::Type URSBTTask_SelectBossPattern::ExecuteTask(UBehaviorTreeCompon
 
 	Blackboard->SetValue<UBlackboardKeyType_Class>(SelectedAbilityKey.GetSelectedKeyID(), SelectedAbilityClass.Get());
 
+	// 다음 Activate Ability Task의 성공 여부와 무관하게 특수 패턴 진입 시점에서 지속 오브젝트 수명을 먼저 진행합니다
+	if (PatternType == ERSBossPatternType::Special)
+	{
+		PhaseComponent->NotifyAbilityActivationRequested(SelectedAbilityClass);
+	}
+
 	return EBTNodeResult::Succeeded;
 }
 

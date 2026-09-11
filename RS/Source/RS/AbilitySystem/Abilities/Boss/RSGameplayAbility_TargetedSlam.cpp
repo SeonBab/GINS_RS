@@ -313,9 +313,7 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 		return;
 	}
 
-	FRSTelegraphPresentation Presentation;
-	Presentation.HoldDuration = ImpactDelay;
-	Presentation.FillDuration = ImpactDelay;
+	const FRSTelegraphPresentation Presentation = TelegraphLeadTime.MakePresentation(ImpactDelay);
 	BossCharacter->GetAttackTelegraphComponent()->ShowShape(AttackShape, LockedAttackTransform, Presentation);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
@@ -494,6 +492,13 @@ EDataValidationResult URSGameplayAbility_TargetedSlam::IsDataValid(FDataValidati
 	if (!FMath::IsFinite(ImpactDelay) || ImpactDelay <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("ImpactDelay must be finite and greater than zero.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	FString TelegraphLeadValidationError;
+	if (!TelegraphLeadTime.IsDataValid(ImpactDelay, &TelegraphLeadValidationError))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("TelegraphLeadTime is invalid: %s"), *TelegraphLeadValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

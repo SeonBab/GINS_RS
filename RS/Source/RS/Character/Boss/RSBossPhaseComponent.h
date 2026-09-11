@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,7 +7,6 @@
 #include "RSBossPhaseComponent.generated.h"
 
 class APawn;
-class UAbilitySystemComponent;
 class UGameplayAbility;
 class URSBaseGameplayAbility;
 class URSBossPhaseData;
@@ -15,8 +14,8 @@ class URSHealthComponent;
 
 struct FRSBossPhaseDefinition;
 
-/** 실제 특수 패턴 활성화 순번을 지속 오브젝트에 전달합니다 */
-DECLARE_MULTICAST_DELEGATE_OneParam(FRSSpecialPatternActivatedSignature, int32);
+/** 특수 패턴 활성화 시도 순번을 지속 오브젝트에 전달합니다 */
+DECLARE_MULTICAST_DELEGATE_OneParam(FRSSpecialPatternActivationRequestedSignature, int32);
 
 /** 메인 패턴, 보스 사망과 Encounter 종료가 지속 오브젝트의 즉시 정리를 요청합니다 */
 DECLARE_MULTICAST_DELEGATE(FRSPersistentObjectCleanupRequestedSignature);
@@ -98,11 +97,14 @@ public:
 	/** 현재 페이즈의 한 사이클을 구성하는 행동 수를 반환합니다 */
 	int32 GetCycleLength() const;
 
-	/** 지금까지 실제로 활성화된 특수 패턴의 순번을 반환합니다 */
+	/** 지금까지 활성화를 요청한 특수 패턴의 순번을 반환합니다 */
 	int32 GetSpecialPatternActivationSequence() const { return SpecialPatternActivationSequence; }
 
-	/** 실제 특수 패턴 활성화를 구독할 델리게이트를 반환합니다 */
-	FRSSpecialPatternActivatedSignature& OnSpecialPatternActivated() { return SpecialPatternActivatedEvent; }
+	/** 특수 패턴 활성화 시도를 구독할 델리게이트를 반환합니다 */
+	FRSSpecialPatternActivationRequestedSignature& OnSpecialPatternActivationRequested() { return SpecialPatternActivationRequestedEvent; }
+
+	/** Ability 활성화 직전에 현재 페이즈 기준으로 특수 패턴 순번 또는 메인 기믹 정리를 발행합니다 */
+	void NotifyAbilityActivationRequested(TSubclassOf<URSBaseGameplayAbility> AbilityClass);
 
 	/** 메인 패턴과 Encounter 수명 종료의 즉시 정리 요청을 구독할 델리게이트를 반환합니다 */
 	FRSPersistentObjectCleanupRequestedSignature& OnPersistentObjectCleanupRequested() { return PersistentObjectCleanupRequestedEvent; }
@@ -132,8 +134,12 @@ public:
 	 */
 	bool TryGetPendingGroggy(TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
 
-	/** 메인 기믹이 종료되기 전에 플레이어의 대응 결과를 기록합니다 */
-	void ReportMainGimmickOutcome(ERSBossMainGimmickOutcome Outcome);
+	/**
+	 * 보스 패턴이 종료되기 전에 자신의 파훼 판정 결과를 보고합니다
+	 * 모든 패턴이 보고하므로 이번 페이즈의 메인 기믹이 낸 보고만 수락하고 나머지는 버립니다
+	 * 보고자가 자신이 기믹인지 알 필요가 없도록 판별을 이 함수 하나로 모읍니다
+	 */
+	void ReportMainGimmickOutcome(const UGameplayAbility* Reporter, ERSBossMainGimmickOutcome Outcome);
 
 	/** 현재 페이즈 기믹에 대한 판정 결과를 반환합니다 */
 	ERSBossMainGimmickOutcome GetMainGimmickOutcome() const { return MainGimmickOutcome; }
@@ -158,9 +164,6 @@ public:
 #endif
 
 private:
-	/** 실제로 활성화된 Ability를 현재 페이즈의 특수 패턴 또는 메인 패턴으로 분류합니다 */
-	void HandleAbilityActivated(UGameplayAbility* Ability);
-
 	/** 현재 페이즈의 정의를 반환하며 설정이 없으면 nullptr을 반환합니다 */
 	const FRSBossPhaseDefinition* GetCurrentPhase() const;
 
@@ -194,7 +197,7 @@ private:
 	UPROPERTY(Transient)
 	int32 CurrentCycleIndex = 0;
 
-	/** 실제로 활성화된 특수 패턴마다 증가하며 화염 분화구 묶음의 수명을 구분합니다 */
+	/** 활성화를 요청한 특수 패턴마다 증가하며 지속 오브젝트 묶음의 수명을 구분합니다 */
 	UPROPERTY(Transient)
 	int32 SpecialPatternActivationSequence = 0;
 
@@ -210,15 +213,8 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<URSHealthComponent> ObservedHealthComponent;
 
-	/** 실제 Ability 활성화 델리게이트 구독을 해제하기 위해 보관한 ASC입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<UAbilitySystemComponent> ObservedAbilitySystemComponent;
-
-	/** 보스 ASC의 Ability 활성화 델리게이트 구독 핸들입니다 */
-	FDelegateHandle AbilityActivatedDelegateHandle;
-
-	/** 화염 분화구 묶음이 수명 순번을 판단하는 특수 패턴 활성화 이벤트입니다 */
-	FRSSpecialPatternActivatedSignature SpecialPatternActivatedEvent;
+	/** 지속 오브젝트가 수명 순번을 판단하는 특수 패턴 활성화 요청 이벤트입니다 */
+	FRSSpecialPatternActivationRequestedSignature SpecialPatternActivationRequestedEvent;
 
 	/** 순번과 관계없이 모든 지속 오브젝트를 즉시 정리하는 이벤트입니다 */
 	FRSPersistentObjectCleanupRequestedSignature PersistentObjectCleanupRequestedEvent;

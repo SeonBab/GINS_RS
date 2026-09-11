@@ -66,6 +66,14 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
+	FString TelegraphLeadValidationError;
+	if (!TelegraphLeadTime.IsDataValid(TelegraphDuration, &TelegraphLeadValidationError))
+	{
+		SetValidationError(*TelegraphLeadValidationError);
+
+		return false;
+	}
+
 	const float DamageValue = Damage.GetValueAtLevel(1.0f);
 	constexpr float DamageIntegerTolerance = 0.01f;
 	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
@@ -226,7 +234,7 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 	ActiveTelegraphHandles.Reserve(ActiveSliceTransforms.Num());
 	for (const FTransform& SliceTransform : ActiveSliceTransforms)
 	{
-		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(SliceShape, SliceTransform, TelegraphOpacity);
+		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(SliceShape, SliceTransform);
 		if (TelegraphHandle == INDEX_NONE)
 		{
 			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -243,13 +251,29 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 	TelegraphFillTask->ReadyForActivation();
 }
 
-void URSGameplayAbility_PizzaPattern::HandleTelegraphFillUpdated(float Fill)
+void URSGameplayAbility_PizzaPattern::HandleTelegraphFillUpdated(float Progress)
 {
 	if (bIsCleaningUp || !IsActive())
 	{
 		return;
 	}
 
+	// Task는 폭발까지의 진행률을 전달하므로 표시의 두 시점은 선행 시간을 반영해 다시 계산합니다
+	const float TelegraphDuration = PizzaPatternDefinition.TelegraphDuration;
+	const FRSTelegraphLeadTime& TelegraphLeadTime = PizzaPatternDefinition.TelegraphLeadTime;
+	const float ElapsedTime = Progress * TelegraphDuration;
+	if (ElapsedTime >= TelegraphLeadTime.GetHideTime(TelegraphDuration))
+	{
+		if (!ActiveTelegraphHandles.IsEmpty())
+		{
+			HideActiveTelegraphs();
+		}
+
+		return;
+	}
+
+	const float FillDuration = TelegraphLeadTime.GetFillDuration(TelegraphDuration);
+	const float Fill = FillDuration > 0.0f ? FMath::Min(ElapsedTime / FillDuration, 1.0f) : 1.0f;
 	if (!SetActiveTelegraphFill(Fill))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -264,14 +288,7 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 		return;
 	}
 
-	// 프레임 누적 오차와 무관하게 판정 직전에 모든 조각을 완성 상태로 확정합니다
-	if (!SetActiveTelegraphFill(1.0f))
-	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-		return;
-	}
-
+	// 표시는 진행률 갱신 경로에서 폭발보다 먼저 사라지므로 여기서는 남은 것만 회수합니다
 	HideActiveTelegraphs();
 	if (!ExecuteCurrentExplosion())
 	{
@@ -398,12 +415,6 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	if (!DamageEffectClass)
 	{
 		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!FMath::IsFinite(TelegraphOpacity) || TelegraphOpacity < 0.0f || TelegraphOpacity > 1.0f)
-	{
-		Context.AddError(FText::FromString(TEXT("TelegraphOpacity must be finite and satisfy 0 <= TelegraphOpacity <= 1.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

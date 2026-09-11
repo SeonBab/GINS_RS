@@ -1,11 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/EngineTypes.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_ConcentricRings.generated.h"
 
 /**
@@ -30,7 +30,7 @@ struct FRSRingAttackSequence
  * URSBaseGameplayAbility_Attack을 상속하지 않고 타이밍을 이 어빌리티가 직접 소유합니다
  */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_ConcentricRings : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_ConcentricRings : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 

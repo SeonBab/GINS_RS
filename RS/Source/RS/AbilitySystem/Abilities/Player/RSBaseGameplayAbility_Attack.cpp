@@ -24,7 +24,7 @@ URSBaseGameplayAbility_Attack::URSBaseGameplayAbility_Attack()
 
 void URSBaseGameplayAbility_Attack::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !ActorInfo->AvatarActor.IsValid() || !AttackMontage)
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !ActorInfo->AvatarActor.IsValid() || !GetAttackMontage() || !FMath::IsFinite(GetAttackMontagePlayRate()) || GetAttackMontagePlayRate() <= 0.0f)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 
@@ -45,7 +45,7 @@ void URSBaseGameplayAbility_Attack::ActivateAbility(const FGameplayAbilitySpecHa
 
 void URSBaseGameplayAbility_Attack::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
-	EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
+	EndAnimationGameplayStatesForMontage(ActorInfo, GetAttackMontage());
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
@@ -64,6 +64,7 @@ EDataValidationResult URSBaseGameplayAbility_Attack::IsDataValid(FDataValidation
 		}
 	}
 
+	const UAnimMontage* AttackMontage = GetAttackMontage();
 	if (!AttackMontage)
 	{
 		return ValidationResult;
@@ -92,7 +93,8 @@ EDataValidationResult URSBaseGameplayAbility_Attack::IsDataValid(FDataValidation
 
 void URSBaseGameplayAbility_Attack::StartAttackMontage()
 {
-	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage);
+	UAnimMontage* AttackMontage = GetAttackMontage();
+	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, GetAttackMontagePlayRate());
 	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleAttackMontageCompleted);
 	MontageTask->OnBlendOut.AddDynamic(this, &ThisClass::HandleAttackMontageBlendedOut);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
@@ -107,6 +109,16 @@ void URSBaseGameplayAbility_Attack::StartAttackMontage()
 	UAbilityTask_WaitGameplayEvent* HitCheckTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, RSGameplayTags::GameplayEvent_Combat_HitCheck, nullptr, false);
 	HitCheckTask->EventReceived.AddDynamic(this, &ThisClass::HandleHitCheckEvent);
 	HitCheckTask->ReadyForActivation();
+}
+
+UAnimMontage* URSBaseGameplayAbility_Attack::GetAttackMontage() const
+{
+	return nullptr;
+}
+
+float URSBaseGameplayAbility_Attack::GetAttackMontagePlayRate() const
+{
+	return 1.0f;
 }
 
 void URSBaseGameplayAbility_Attack::HandleAttackMontageCompleted()
@@ -131,6 +143,8 @@ void URSBaseGameplayAbility_Attack::HandleAttackMontageCancelled()
 
 void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Payload)
 {
+	const UAnimMontage* AttackMontage = GetAttackMontage();
+
 	if (!HitChecks.IsValidIndex(NextHitCheckIndex))
 	{
 		// 설정이 어긋난 상태이므로 판정 디버그 여부와 상관없이 항상 알립니다
@@ -162,6 +176,9 @@ void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Paylo
 
 	TArray<AActor*> HitTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, HitCheckShape, HitCheckTransform, HitTargets);
+
+	// 연출은 빗나간 판정에서도 흔들려야 하는 카메라 셰이크를 포함하므로 빈 대상 반환보다 먼저 재생합니다
+	URSCombatFunctionLibrary::PlayHitFeedback(AvatarActor, HitTargets, HitCheck.Feedback);
 
 	if (HitTargets.IsEmpty())
 	{

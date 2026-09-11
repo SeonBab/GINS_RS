@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "RSBossPhaseComponent.h"
@@ -42,16 +42,6 @@ void URSBossPhaseComponent::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 HealthComponent가 없어 페이즈 트리거를 감시할 수 없습니다"), *GetNameSafe(GetOwner()));
 	}
 
-	ObservedAbilitySystemComponent = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
-	if (ObservedAbilitySystemComponent)
-	{
-		AbilityActivatedDelegateHandle = ObservedAbilitySystemComponent->AbilityActivatedCallbacks.AddUObject(this, &ThisClass::HandleAbilityActivated);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[BossPhase] %s에 ASC가 없어 패턴 활성화 수명을 감시할 수 없습니다"), *GetNameSafe(GetOwner()));
-	}
-
 	// 첫 차례부터 후보가 없을 수 있으므로 전투 시작 전에 실행 가능한 차례로 맞춥니다
 	SkipUnusablePatternTurns();
 }
@@ -59,13 +49,6 @@ void URSBossPhaseComponent::BeginPlay()
 void URSBossPhaseComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	RequestPersistentObjectCleanup();
-
-	if (ObservedAbilitySystemComponent && AbilityActivatedDelegateHandle.IsValid())
-	{
-		ObservedAbilitySystemComponent->AbilityActivatedCallbacks.Remove(AbilityActivatedDelegateHandle);
-		AbilityActivatedDelegateHandle.Reset();
-		ObservedAbilitySystemComponent = nullptr;
-	}
 
 	if (ObservedHealthComponent)
 	{
@@ -201,6 +184,31 @@ void URSBossPhaseComponent::RequestPersistentObjectCleanup()
 	PersistentObjectCleanupRequestedEvent.Broadcast();
 }
 
+void URSBossPhaseComponent::NotifyAbilityActivationRequested(TSubclassOf<URSBaseGameplayAbility> AbilityClass)
+{
+	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
+	if (!AbilityClass || !CurrentPhase)
+	{
+		return;
+	}
+
+	// 같은 Class가 일반 후보와 메인 기믹에 함께 있어도 전환 대기 중인 요청만 메인 기믹으로 봅니다
+	if (bPhaseTransitionPending && CurrentPhase->MainGimmickAbility && AbilityClass == CurrentPhase->MainGimmickAbility)
+	{
+		RequestPersistentObjectCleanup();
+
+		return;
+	}
+
+	if (!CurrentPhase->SpecialPatterns.Contains(AbilityClass))
+	{
+		return;
+	}
+
+	++SpecialPatternActivationSequence;
+	SpecialPatternActivationRequestedEvent.Broadcast(SpecialPatternActivationSequence);
+}
+
 #pragma endregion
 
 #pragma region Phase
@@ -246,11 +254,30 @@ bool URSBossPhaseComponent::TryGetPendingGroggy(TSubclassOf<URSBaseGameplayAbili
 	return true;
 }
 
-void URSBossPhaseComponent::ReportMainGimmickOutcome(ERSBossMainGimmickOutcome Outcome)
+void URSBossPhaseComponent::ReportMainGimmickOutcome(const UGameplayAbility* Reporter, ERSBossMainGimmickOutcome Outcome)
 {
+	if (!Reporter)
+	{
+		return;
+	}
+
+	// 전환 대기 중이 아니면 기믹 차례가 아니므로 일반 사이클의 보고입니다
+	TSubclassOf<URSBaseGameplayAbility> PendingGimmickClass;
+	if (!TryGetPendingMainGimmick(PendingGimmickClass) || Reporter->GetClass() != PendingGimmickClass)
+	{
+		return;
+	}
+
+	// 한 페이즈의 기믹 판정은 한 번만 정해집니다
+	// 같은 패턴이 이어서 실행되더라도 먼저 확정된 판정을 덮어쓰지 않습니다
+	if (MainGimmickOutcome != ERSBossMainGimmickOutcome::None)
+	{
+		return;
+	}
+
 	MainGimmickOutcome = Outcome;
 
-	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Gimmick outcome phase %d %s"), CurrentPhaseIndex, *UEnum::GetDisplayValueAsText(Outcome).ToString());
+	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Gimmick outcome phase %d %s by %s"), CurrentPhaseIndex, *UEnum::GetDisplayValueAsText(Outcome).ToString(), *GetNameSafe(Reporter));
 }
 
 void URSBossPhaseComponent::AdvanceToNextPhase()
@@ -362,31 +389,6 @@ void URSBossPhaseComponent::SetGroggyAbilityForTest(TSubclassOf<URSBaseGameplayA
 	}
 }
 #endif
-
-void URSBossPhaseComponent::HandleAbilityActivated(UGameplayAbility* Ability)
-{
-	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
-	if (!Ability || !CurrentPhase)
-	{
-		return;
-	}
-
-	const UClass* AbilityClass = Ability->GetClass();
-	if (CurrentPhase->MainGimmickAbility && AbilityClass == CurrentPhase->MainGimmickAbility.Get())
-	{
-		RequestPersistentObjectCleanup();
-
-		return;
-	}
-
-	if (!CurrentPhase->SpecialPatterns.Contains(AbilityClass))
-	{
-		return;
-	}
-
-	++SpecialPatternActivationSequence;
-	SpecialPatternActivatedEvent.Broadcast(SpecialPatternActivationSequence);
-}
 
 const FRSBossPhaseDefinition* URSBossPhaseComponent::GetCurrentPhase() const
 {

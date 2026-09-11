@@ -73,6 +73,15 @@ bool FRSSequentialSweepExplosionDefinition::IsDataValid(FString* OutValidationEr
 		return false;
 	}
 
+	// 경고 간격 안에 들어가야 아직 표시되지도 않은 부채꼴을 지우는 순서 역전이 생기지 않습니다
+	const float WarningInterval = FirstExplosionDelay / static_cast<float>(SectorCount);
+	if (!FMath::IsFinite(TelegraphHideLeadTime) || TelegraphHideLeadTime < 0.0f || TelegraphHideLeadTime >= WarningInterval)
+	{
+		SetValidationError(TEXT("TelegraphHideLeadTime must be finite, zero or greater, and shorter than the warning interval."));
+
+		return false;
+	}
+
 	const float DamageValue = Damage.GetValueAtLevel(1.0f);
 	constexpr float DamageIntegerTolerance = 0.01f;
 	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
@@ -215,6 +224,7 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 	LockedAttackTransform = FTransform::Identity;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
+	NextHideSectorIndex = 0;
 	NextExplosionSectorIndex = 0;
 	HitActors.Reset();
 	bHasSavedRotationSettings = false;
@@ -408,7 +418,21 @@ void URSGameplayAbility_SequentialSweepExplosion::HandleTimelineElapsedTimeUpdat
 		++NextWarningSectorIndex;
 	}
 
-	const int32 RequiredExplosionCount = RSSequentialSweepExplosionMath::CalculateRequiredExplosionCount(ElapsedTime, PatternDefinition.FirstExplosionDelay, PatternDefinition.SectorExplosionInterval, PatternDefinition.SectorCount);
+	// 회수는 폭발을 TelegraphHideLeadTime만큼 앞당긴 것과 같으므로 같은 계산에 시간만 더해 씁니다
+	const int32 RequiredHideCount = FMath::Min(RSSequentialSweepExplosionMath::CalculateRequiredExplosionCount(ElapsedTime + PatternDefinition.TelegraphHideLeadTime, PatternDefinition.FirstExplosionDelay, PatternDefinition.SectorExplosionInterval, PatternDefinition.SectorCount), NextWarningSectorIndex);
+	while (NextHideSectorIndex < RequiredHideCount)
+	{
+		if (!HideWarningSector(NextHideSectorIndex))
+		{
+			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+			return;
+		}
+
+		++NextHideSectorIndex;
+	}
+
+	const int32 RequiredExplosionCount = FMath::Min(RSSequentialSweepExplosionMath::CalculateRequiredExplosionCount(ElapsedTime, PatternDefinition.FirstExplosionDelay, PatternDefinition.SectorExplosionInterval, PatternDefinition.SectorCount), NextHideSectorIndex);
 	while (NextExplosionSectorIndex < RequiredExplosionCount)
 	{
 		if (!ExecuteSectorExplosion(NextExplosionSectorIndex))
@@ -452,7 +476,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 	TelegraphTransform.SetRotation(FRotator(0.0f, TelegraphCenterYaw, 0.0f).Quaternion());
 
 	URSAttackTelegraphComponent* TelegraphComp = BossCharacter->GetAttackTelegraphComponent();
-	const int32 TelegraphHandle = TelegraphComp ? TelegraphComp->ShowShapeWithExternalFill(TelegraphShape, TelegraphTransform, 1.0f) : INDEX_NONE;
+	const int32 TelegraphHandle = TelegraphComp ? TelegraphComp->ShowShapeWithExternalFill(TelegraphShape, TelegraphTransform) : INDEX_NONE;
 	if (TelegraphHandle == INDEX_NONE || !TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f))
 	{
 		if (TelegraphComp && TelegraphHandle != INDEX_NONE)
@@ -468,7 +492,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 	return true;
 }
 
-bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 SectorIndex)
+bool URSGameplayAbility_SequentialSweepExplosion::HideWarningSector(int32 SectorIndex)
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
@@ -482,6 +506,18 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		TelegraphComp->HideShape(WarningSectorHandles[SectorIndex]);
 	}
 	WarningSectorHandles[SectorIndex] = INDEX_NONE;
+
+	return true;
+}
+
+bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 SectorIndex)
+{
+	ARSBossCharacter* BossCharacter = nullptr;
+	ARSBossController* BossController = nullptr;
+	if (!GetBossContext(BossCharacter, BossController) || !WarningSectorHandles.IsValidIndex(SectorIndex))
+	{
+		return false;
+	}
 
 	const float DamageAmount = PatternDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	if (!FMath::IsFinite(DamageAmount) || DamageAmount < 0.0f)
@@ -546,6 +582,7 @@ void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()
 	LockedAttackTransform = FTransform::Identity;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
+	NextHideSectorIndex = 0;
 	NextExplosionSectorIndex = 0;
 	WarningSectorHandles.Reset();
 	HitActors.Reset();

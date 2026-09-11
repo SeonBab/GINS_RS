@@ -1,9 +1,9 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
-#include "Abilities/RSGameplayAbility_Dash.h"
-#include "Abilities/RSGameplayAbility_GetUpQuick.h"
+#include "Abilities/Player/RSGameplayAbility_Dash.h"
+#include "Abilities/Player/RSGameplayAbility_GetUpQuick.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
 

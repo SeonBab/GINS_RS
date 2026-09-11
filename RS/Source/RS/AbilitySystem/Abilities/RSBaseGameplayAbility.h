@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -68,8 +68,9 @@ protected:
 	 * 판정에 걸린 대상 하나에게 공용 대미지 GameplayEffect를 적용합니다
 	 * 대상별 피해 수용 규칙은 대상의 AttributeSet에서 처리합니다
 	 * `MakeOutgoingGameplayEffectSpec`이 UGameplayAbility의 protected 멤버라 함수 라이브러리로는 옮길 수 없습니다
+	 * 보스 패턴이 판정에 걸린 대상을 세기 위해 이 지점을 가로채므로 virtual입니다
 	 */
-	void ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount);
+	virtual void ApplyDamageToTarget(AActor* TargetActor, TSubclassOf<UGameplayEffect> DamageEffectClass, float DamageAmount);
 
 	/**
 	 * 이 어빌리티가 재생한 Montage가 남긴 공용 게임플레이 상태를 회수합니다

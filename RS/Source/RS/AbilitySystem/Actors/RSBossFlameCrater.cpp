@@ -497,7 +497,7 @@ void ARSBossFlameCrater::BindPatternLifetime()
 
 	BossPhaseComp = PhaseComponent;
 	SpawnSpecialPatternSequence = PhaseComponent->GetSpecialPatternActivationSequence();
-	SpecialPatternActivatedDelegateHandle = PhaseComponent->OnSpecialPatternActivated().AddUObject(this, &ThisClass::HandleSpecialPatternActivated);
+	SpecialPatternActivationRequestedDelegateHandle = PhaseComponent->OnSpecialPatternActivationRequested().AddUObject(this, &ThisClass::HandleSpecialPatternActivationRequested);
 	PersistentObjectCleanupDelegateHandle = PhaseComponent->OnPersistentObjectCleanupRequested().AddUObject(this, &ThisClass::HandlePersistentObjectCleanupRequested);
 }
 
@@ -506,16 +506,16 @@ void ARSBossFlameCrater::UnbindPatternLifetime()
 	URSBossPhaseComponent* PhaseComponent = BossPhaseComp.Get();
 	if (PhaseComponent)
 	{
-		PhaseComponent->OnSpecialPatternActivated().Remove(SpecialPatternActivatedDelegateHandle);
+		PhaseComponent->OnSpecialPatternActivationRequested().Remove(SpecialPatternActivationRequestedDelegateHandle);
 		PhaseComponent->OnPersistentObjectCleanupRequested().Remove(PersistentObjectCleanupDelegateHandle);
 	}
 
-	SpecialPatternActivatedDelegateHandle.Reset();
+	SpecialPatternActivationRequestedDelegateHandle.Reset();
 	PersistentObjectCleanupDelegateHandle.Reset();
 	BossPhaseComp.Reset();
 }
 
-void ARSBossFlameCrater::HandleSpecialPatternActivated(int32 ActiveSequence)
+void ARSBossFlameCrater::HandleSpecialPatternActivationRequested(int32 ActiveSequence)
 {
 	if (FlameCraterDefinition.ShouldCleanupForSpecialPattern(SpawnSpecialPatternSequence, ActiveSequence))
 	{

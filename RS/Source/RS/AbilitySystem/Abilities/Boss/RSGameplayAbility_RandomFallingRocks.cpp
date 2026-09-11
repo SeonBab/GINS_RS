@@ -57,6 +57,14 @@ bool FRSRandomFallingRocksDefinition::IsDataValid(FString* OutValidationError) c
 		return false;
 	}
 
+	FString TelegraphLeadValidationError;
+	if (!TelegraphLeadTime.IsDataValid(ImpactDelay, &TelegraphLeadValidationError))
+	{
+		SetValidationError(*TelegraphLeadValidationError);
+
+		return false;
+	}
+
 	if (AttackShape.Type != ERSCombatShapeType::Sphere || AttackShape.InnerRadius != 0.0f || !AttackShape.IsDataValid())
 	{
 		SetValidationError(TEXT("AttackShape must be a valid Sphere with InnerRadius equal to zero."));
@@ -158,10 +166,7 @@ void URSGameplayAbility_RandomFallingRocks::ReserveRock()
 	}
 	const FVector ImpactLocation = SpawnCenter + FVector(ImpactOffset, 0.0f);
 
-	FRSTelegraphPresentation TelegraphPresentation;
-	TelegraphPresentation.HoldDuration = FallingRocksDefinition.ImpactDelay;
-	TelegraphPresentation.FillDuration = FallingRocksDefinition.ImpactDelay;
-	TelegraphPresentation.Opacity = TelegraphOpacity;
+	const FRSTelegraphPresentation TelegraphPresentation = FallingRocksDefinition.TelegraphLeadTime.MakePresentation(FallingRocksDefinition.ImpactDelay);
 
 	const FTransform ImpactTransform(ImpactLocation);
 	const float FallEffectStartDelay = FallingRocksDefinition.ImpactDelay - FallingRocksDefinition.FallEffectLeadTime;
@@ -233,12 +238,6 @@ EDataValidationResult URSGameplayAbility_RandomFallingRocks::IsDataValid(FDataVa
 	if (!DamageEffectClass)
 	{
 		Context.AddError(FText::FromString(TEXT("DamageEffectClass is not configured.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!FMath::IsFinite(TelegraphOpacity) || TelegraphOpacity < 0.0f || TelegraphOpacity > 1.0f)
-	{
-		Context.AddError(FText::FromString(TEXT("TelegraphOpacity must be finite and satisfy 0 <= TelegraphOpacity <= 1.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

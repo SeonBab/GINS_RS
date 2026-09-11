@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -6,7 +6,7 @@
 #include "Combat/RSArmSwingMath.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/EngineTypes.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_ArmSwing.generated.h"
 
 class ARSBossCharacter;
@@ -49,7 +49,7 @@ enum class ERSArmSwingState : uint8
 
 /** 플레이어를 향해 회전한 뒤 선택한 Left 또는 Right Arm Swing Montage를 고정 방향으로 재생합니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_ArmSwing : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_ArmSwing : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 

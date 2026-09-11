@@ -180,12 +180,12 @@ private:
 private:
 	void BindPatternLifetime();
 	void UnbindPatternLifetime();
-	void HandleSpecialPatternActivated(int32 ActiveSequence);
+	void HandleSpecialPatternActivationRequested(int32 ActiveSequence);
 	void HandlePersistentObjectCleanupRequested();
 
 private:
 	TWeakObjectPtr<URSBossPhaseComponent> BossPhaseComp;
-	FDelegateHandle SpecialPatternActivatedDelegateHandle;
+	FDelegateHandle SpecialPatternActivationRequestedDelegateHandle;
 	FDelegateHandle PersistentObjectCleanupDelegateHandle;
 	int32 SpawnSpecialPatternSequence = 0;
 

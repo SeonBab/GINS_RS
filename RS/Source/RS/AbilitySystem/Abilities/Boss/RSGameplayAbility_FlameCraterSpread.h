@@ -1,7 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_FlameCraterSpread.generated.h"
 
 class ARSBossFlameCrater;
@@ -45,12 +45,19 @@ struct FRSFlameCraterSpreadDefinition
 
 /** 플레이어 방향의 180도를 네 구역으로 나눠 화염 분화구 네 개를 동시에 투하하는 특수 패턴입니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_FlameCraterSpread : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_FlameCraterSpread : public URSBaseGameplayAbility_BossPattern
 {
 	GENERATED_BODY()
 
 public:
 	URSGameplayAbility_FlameCraterSpread();
+
+	/**
+	 * 이 패턴은 파훼 판정을 두지 않습니다
+	 * 분화구를 배치하기만 하고 피해는 장판이 FireFieldDamage라는 별개의 어빌리티로 적용하므로
+	 * 자기 실행 중에 누가 판정에 걸렸는지 알 수 없습니다
+	 */
+	virtual bool HasGimmickBreakCondition() const override { return false; }
 
 protected:
 	/** 플레이어 방향과 네 착지점을 한 번 확정하고 포효·투하 대기를 시작합니다 */
