@@ -50,6 +50,10 @@ bool FRSRandomPointSamplingAnnulusTest::RunTest(const FString& Parameters)
 	constexpr float MaxRadius = 1000.0f;
 	constexpr int32 SampleCount = 10000;
 	FRandomStream RandomStream(12345);
+	FRandomStream RadiusRandomStream(12345);
+	float SampledRadius = 0.0f;
+	TestTrue(TEXT("Valid annulus generates an area-uniform radius"), RSRandomPointSampling::TrySampleRadiusInAnnulus(MinRadius, MaxRadius, RadiusRandomStream, SampledRadius));
+	TestTrue(TEXT("Sampled radius stays inside annulus"), SampledRadius >= MinRadius && SampledRadius <= MaxRadius);
 
 	double NormalizedRadiusSquaredSum = 0.0;
 	for (int32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
@@ -76,6 +80,9 @@ bool FRSRandomPointSamplingAnnulusTest::RunTest(const FString& Parameters)
 
 	FVector2D InvalidOffset(1.0f, 1.0f);
 	FRandomStream InvalidRandomStream(12345);
+	SampledRadius = 1.0f;
+	TestFalse(TEXT("Invalid annulus radius sampling fails"), RSRandomPointSampling::TrySampleRadiusInAnnulus(MaxRadius, MinRadius, InvalidRandomStream, SampledRadius));
+	TestEqual(TEXT("Failed radius sampling clears output"), SampledRadius, 0.0f);
 	TestFalse(TEXT("Invalid annulus fails"), RSRandomPointSampling::TrySamplePointInAnnulus(MaxRadius, MinRadius, InvalidRandomStream, InvalidOffset));
 	TestTrue(TEXT("Failed sampling clears output"), InvalidOffset.IsZero());
 
