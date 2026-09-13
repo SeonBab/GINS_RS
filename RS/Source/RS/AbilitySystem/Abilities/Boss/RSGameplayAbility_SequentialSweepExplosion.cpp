@@ -532,7 +532,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 	CandidateShape.InnerRadius = 0.0f;
 
 	TArray<AActor*> CandidateTargets;
-	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
+	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
@@ -547,6 +547,16 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		HitActors.Add(TargetPointer);
 		ApplyDamageToTarget(CandidateTarget, DamageEffectClass, DamageAmount);
 		URSCombatFunctionLibrary::SendHitReaction(BossCharacter, CandidateTarget, PatternDefinition.Reaction);
+	}
+
+	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
+	{
+		float SectorStartAngleDegrees = 0.0f;
+		float SectorSweepAngleDegrees = 0.0f;
+		if (RSSequentialSweepExplosionMath::TryCalculateSectorAngles(PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, SectorStartAngleDegrees, SectorSweepAngleDegrees))
+		{
+			URSCombatFunctionLibrary::DrawDebugCombatSector(BossCharacter->GetWorld(), LockedAttackTransform, PatternDefinition.OuterRadius, SectorStartAngleDegrees, SectorSweepAngleDegrees, HitActors.IsEmpty() ? FColor::Silver : FColor::Red, 1.0f);
+		}
 	}
 
 	return true;
