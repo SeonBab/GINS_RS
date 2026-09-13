@@ -8,10 +8,23 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "RSHitFlashComponent.h"
+#include "RSHitFlashUtilities.h"
 #include "RSHealthComponent.h"
 #include "UObject/UnrealType.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSHitFlashAmountTest, "RS.Combat.HitFlash.Amount", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSHitFlashComponentTest, "RS.Combat.HitFlash.Component", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSHitFlashAmountTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Hit flash starts at full brightness"), RSHitFlash::CalculateAmount(0.0f), 1.0f);
+	TestEqual(TEXT("Squared ease out reaches quarter brightness halfway"), RSHitFlash::CalculateAmount(0.5f), 0.25f);
+	TestEqual(TEXT("Hit flash reaches zero at the end"), RSHitFlash::CalculateAmount(1.0f), 0.0f);
+	TestEqual(TEXT("Negative time clamps to the start"), RSHitFlash::CalculateAmount(-1.0f), 1.0f);
+	TestEqual(TEXT("Time beyond the duration clamps to the end"), RSHitFlash::CalculateAmount(2.0f), 0.0f);
+
+	return true;
+}
 
 bool FRSHitFlashComponentTest::RunTest(const FString& Parameters)
 {
