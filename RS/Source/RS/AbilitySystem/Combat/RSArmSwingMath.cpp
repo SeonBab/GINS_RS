@@ -20,13 +20,6 @@ namespace
 			*OutValidationError = Error;
 		}
 	}
-
-	float CalculateOuterRadius(const FRSArmSwingSectorDefinition& SectorDefinition)
-	{
-		const float OuterEdgeDistance = SectorDefinition.InnerOffset + SectorDefinition.RadialLength;
-
-		return FMath::Sqrt(FMath::Square(OuterEdgeDistance) + FMath::Square(SectorDefinition.PathHalfWidth));
-	}
 }
 
 bool FRSArmSwingSectorDefinition::IsDataValid(FString* OutValidationError) const
@@ -36,23 +29,30 @@ bool FRSArmSwingSectorDefinition::IsDataValid(FString* OutValidationError) const
 		OutValidationError->Reset();
 	}
 
-	if (!IsFinite(InnerOffset) || !IsFinite(RadialLength) || !IsFinite(PathHalfWidth))
+	if (!IsFinite(InnerRadius) || !IsFinite(OuterRadius) || !IsFinite(AngularWidthDegrees))
 	{
 		SetValidationError(OutValidationError, TEXT("Arm Swing 수평 범위 값은 유한해야 합니다"));
 
 		return false;
 	}
 
-	if (InnerOffset < 0.0f)
+	if (InnerRadius < 0.0f)
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing의 안쪽 Offset은 0 이상이어야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing의 안쪽 반경은 0 이상이어야 합니다"));
 
 		return false;
 	}
 
-	if (RadialLength <= MinimumSize || PathHalfWidth <= MinimumSize)
+	if (OuterRadius <= InnerRadius + MinimumSize)
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing의 수평 길이와 반폭은 0보다 커야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing의 바깥 반경은 안쪽 반경보다 커야 합니다"));
+
+		return false;
+	}
+
+	if (AngularWidthDegrees <= MinimumSize || AngularWidthDegrees > 360.0f)
+	{
+		SetValidationError(OutValidationError, TEXT("Arm Swing의 순간 각도 폭은 0보다 크고 360도 이하여야 합니다"));
 
 		return false;
 	}
@@ -67,16 +67,16 @@ bool FRSArmSwingPathDefinition::IsDataValid(FString* OutValidationError) const
 		OutValidationError->Reset();
 	}
 
-	if (!IsFinite(StartYawOffset) || !IsFinite(SweepAngleDegrees))
+	if (!IsFinite(StartYawOffset) || !IsFinite(TravelAngleDegrees))
 	{
 		SetValidationError(OutValidationError, TEXT("Arm Swing 경로 각도는 유한해야 합니다"));
 
 		return false;
 	}
 
-	if (FMath::IsNearlyZero(SweepAngleDegrees) || FMath::Abs(SweepAngleDegrees) > 360.0f)
+	if (FMath::IsNearlyZero(TravelAngleDegrees) || FMath::Abs(TravelAngleDegrees) > 360.0f)
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing Sweep 각도는 0이 아니고 360도 이하여야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing 이동 각도는 0이 아니고 360도 이하여야 합니다"));
 
 		return false;
 	}
@@ -121,17 +121,14 @@ bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingSectorDefinition
 		return false;
 	}
 
-	// Pivot과 맞닿은 경로도 거의 전 방향으로 과대 표시되지 않도록 중심 회전 반지름에서 수평 반폭을 각도로 변환합니다
-	const float PathCenterRadius = SectorDefinition.InnerOffset + SectorDefinition.RadialLength * 0.5f;
-	const float AngularPadding = FMath::RadiansToDegrees(FMath::Atan2(SectorDefinition.PathHalfWidth, PathCenterRadius));
-	const float SweepSign = FMath::Sign(PathDefinition.SweepAngleDegrees);
-	const float IntervalSweepAngleDegrees = PathDefinition.SweepAngleDegrees * (ClampedCurrentProgress - ClampedPreviousProgress);
+	const float TravelSign = FMath::Sign(PathDefinition.TravelAngleDegrees);
+	const float IntervalTravelAngleDegrees = PathDefinition.TravelAngleDegrees * (ClampedCurrentProgress - ClampedPreviousProgress);
 
-	OutBounds.InnerRadius = SectorDefinition.InnerOffset;
-	OutBounds.OuterRadius = CalculateOuterRadius(SectorDefinition);
-	OutBounds.StartYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * ClampedPreviousProgress - SweepSign * AngularPadding;
-	const float PaddedSweepAngleDegrees = FMath::Abs(IntervalSweepAngleDegrees) + AngularPadding * 2.0f;
-	OutBounds.SweepAngleDegrees = SweepSign * FMath::Min(PaddedSweepAngleDegrees, 360.0f);
+	OutBounds.InnerRadius = SectorDefinition.InnerRadius;
+	OutBounds.OuterRadius = SectorDefinition.OuterRadius;
+	OutBounds.StartYawOffset = PathDefinition.StartYawOffset + PathDefinition.TravelAngleDegrees * ClampedPreviousProgress;
+	const float SliceSweepAngleDegrees = FMath::Abs(IntervalTravelAngleDegrees) + SectorDefinition.AngularWidthDegrees;
+	OutBounds.SweepAngleDegrees = TravelSign * FMath::Min(SliceSweepAngleDegrees, 360.0f);
 
 	return true;
 }
@@ -185,7 +182,7 @@ bool FRSArmSwingMath::TryCalculateTargetTangentDirection(const FTransform& Locke
 	RadialDirection.Z = 0.0f;
 	if (!RadialDirection.Normalize())
 	{
-		const float CurrentYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * FMath::Clamp(SweepProgress, 0.0f, 1.0f);
+		const float CurrentYawOffset = PathDefinition.StartYawOffset + PathDefinition.TravelAngleDegrees * FMath::Clamp(SweepProgress, 0.0f, 1.0f);
 		RadialDirection = LockedAttackTransform.GetUnitAxis(EAxis::X).RotateAngleAxis(CurrentYawOffset, FVector::UpVector);
 		RadialDirection.Z = 0.0f;
 		if (!RadialDirection.Normalize())
@@ -194,7 +191,7 @@ bool FRSArmSwingMath::TryCalculateTargetTangentDirection(const FTransform& Locke
 		}
 	}
 
-	const float TangentYawOffset = PathDefinition.SweepAngleDegrees > 0.0f ? 90.0f : -90.0f;
+	const float TangentYawOffset = PathDefinition.TravelAngleDegrees > 0.0f ? 90.0f : -90.0f;
 	OutTangentDirection = RadialDirection.RotateAngleAxis(TangentYawOffset, FVector::UpVector);
 
 	return true;
@@ -240,7 +237,7 @@ bool FRSArmSwingMath::IsProgressSampleSequenceValid(const TArray<float>& Progres
 
 	for (int32 SampleIndex = 1; SampleIndex < ProgressSamples.Num(); ++SampleIndex)
 	{
-		// 진행률이 되돌아가면 Box가 역회전하고 접선 방향 부호가 뒤집혀 넉백 방향이 반대가 됩니다
+		// 진행률이 되돌아가면 Sector가 역진행하고 접선 방향 부호가 뒤집혀 넉백 방향이 반대가 됩니다
 		if (ProgressSamples[SampleIndex] < ProgressSamples[SampleIndex - 1] - ProgressEndpointTolerance)
 		{
 			SetValidationError(OutValidationError, TEXT("Arm Swing 회전 진행률은 되돌아가지 않고 단조 증가해야 합니다"));

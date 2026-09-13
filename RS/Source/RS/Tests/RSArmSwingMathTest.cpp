@@ -33,24 +33,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSArmSwingMathTest, "RS.Combat.ArmSwing.Math",
 bool FRSArmSwingMathTest::RunTest(const FString& Parameters)
 {
 	FRSArmSwingSectorDefinition SectorDefinition;
-	SectorDefinition.InnerOffset = 100.0f;
-	SectorDefinition.RadialLength = 400.0f;
-	SectorDefinition.PathHalfWidth = 50.0f;
+	SectorDefinition.InnerRadius = 100.0f;
+	SectorDefinition.OuterRadius = 500.0f;
+	SectorDefinition.AngularWidthDegrees = 20.0f;
 
 	FRSArmSwingPathDefinition LeftPath;
 	LeftPath.StartYawOffset = -90.0f;
-	LeftPath.SweepAngleDegrees = 180.0f;
+	LeftPath.TravelAngleDegrees = 180.0f;
 
 	TestTrue(TEXT("Valid sector definition"), SectorDefinition.IsDataValid());
 	TestTrue(TEXT("Valid path definition"), LeftPath.IsDataValid());
 
 	FRSArmSwingSectorDefinition InvalidSectorDefinition = SectorDefinition;
-	InvalidSectorDefinition.RadialLength = 0.0f;
-	TestFalse(TEXT("Zero radial length is invalid"), InvalidSectorDefinition.IsDataValid());
+	InvalidSectorDefinition.OuterRadius = InvalidSectorDefinition.InnerRadius;
+	TestFalse(TEXT("Outer radius equal to inner radius is invalid"), InvalidSectorDefinition.IsDataValid());
+	InvalidSectorDefinition = SectorDefinition;
+	InvalidSectorDefinition.AngularWidthDegrees = 0.0f;
+	TestFalse(TEXT("Zero angular width is invalid"), InvalidSectorDefinition.IsDataValid());
 
 	FRSArmSwingPathDefinition InvalidPath = LeftPath;
-	InvalidPath.SweepAngleDegrees = 0.0f;
-	TestFalse(TEXT("Zero sweep angle is invalid"), InvalidPath.IsDataValid());
+	InvalidPath.TravelAngleDegrees = 0.0f;
+	TestFalse(TEXT("Zero travel angle is invalid"), InvalidPath.IsDataValid());
 
 	FTransform LockedAttackTransformFromCapsule;
 	const FTransform CapsuleTransform(FRotator::ZeroRotator, FVector(10.0f, 20.0f, 130.0f));
@@ -62,46 +65,58 @@ bool FRSArmSwingMathTest::RunTest(const FString& Parameters)
 	const FTransform LockedAttackTransform(FRotator(0.0f, 90.0f, 0.0f), FVector(10.0f, 20.0f, 30.0f));
 	FRSArmSwingPathDefinition RightPath;
 	RightPath.StartYawOffset = -LeftPath.StartYawOffset;
-	RightPath.SweepAngleDegrees = -LeftPath.SweepAngleDegrees;
+	RightPath.TravelAngleDegrees = -LeftPath.TravelAngleDegrees;
 
 	FRSArmSwingSectorBounds LeftBounds;
 	FRSArmSwingSectorBounds RightBounds;
 	TestTrue(TEXT("Left telegraph bounds are calculated"), FRSArmSwingMath::TryCalculateTelegraphBounds(SectorDefinition, LeftPath, LeftBounds));
 	TestTrue(TEXT("Right telegraph bounds are calculated"), FRSArmSwingMath::TryCalculateTelegraphBounds(SectorDefinition, RightPath, RightBounds));
 	TestTrue(TEXT("Telegraph inner radius preserves the empty center"), FMath::IsNearlyEqual(LeftBounds.InnerRadius, 100.0f));
-	TestTrue(TEXT("Telegraph outer radius includes the outer corner"), FMath::IsNearlyEqual(LeftBounds.OuterRadius, FMath::Sqrt(FMath::Square(500.0f) + FMath::Square(50.0f))));
-	const float ExpectedAngularPadding = FMath::RadiansToDegrees(FMath::Atan2(50.0f, 300.0f));
-	TestTrue(TEXT("Telegraph padding uses the rotating box center radius"), FMath::IsNearlyEqual(LeftBounds.StartYawOffset, LeftPath.StartYawOffset - ExpectedAngularPadding));
-	TestTrue(TEXT("Telegraph sweep includes the box width at both ends"), FMath::IsNearlyEqual(LeftBounds.SweepAngleDegrees, LeftPath.SweepAngleDegrees + ExpectedAngularPadding * 2.0f));
+	TestTrue(TEXT("Telegraph outer radius matches the configured boundary"), FMath::IsNearlyEqual(LeftBounds.OuterRadius, SectorDefinition.OuterRadius));
+	TestTrue(TEXT("Telegraph starts exactly at the configured boundary"), FMath::IsNearlyEqual(LeftBounds.StartYawOffset, LeftPath.StartYawOffset));
+	TestTrue(TEXT("Telegraph includes travel and instantaneous angular width"), FMath::IsNearlyEqual(LeftBounds.SweepAngleDegrees, LeftPath.TravelAngleDegrees + SectorDefinition.AngularWidthDegrees));
 	TestTrue(TEXT("Mirrored telegraph start is symmetric"), FMath::IsNearlyEqual(RightBounds.StartYawOffset, -LeftBounds.StartYawOffset));
 	TestTrue(TEXT("Mirrored telegraph sweep is symmetric"), FMath::IsNearlyEqual(RightBounds.SweepAngleDegrees, -LeftBounds.SweepAngleDegrees));
 
 	FRSArmSwingSectorDefinition PivotTouchingSector = SectorDefinition;
-	PivotTouchingSector.InnerOffset = 0.0f;
-	PivotTouchingSector.RadialLength = 500.0f;
-	PivotTouchingSector.PathHalfWidth = 100.0f;
+	PivotTouchingSector.InnerRadius = 0.0f;
+	PivotTouchingSector.OuterRadius = 500.0f;
+	PivotTouchingSector.AngularWidthDegrees = 40.0f;
 	FRSArmSwingPathDefinition PivotTouchingPath;
 	PivotTouchingPath.StartYawOffset = 30.0f;
-	PivotTouchingPath.SweepAngleDegrees = 160.0f;
+	PivotTouchingPath.TravelAngleDegrees = 160.0f;
 	FRSArmSwingSectorBounds PivotTouchingBounds;
 	TestTrue(TEXT("Pivot touching sector telegraph bounds are calculated"), FRSArmSwingMath::TryCalculateTelegraphBounds(PivotTouchingSector, PivotTouchingPath, PivotTouchingBounds));
-	const float PivotTouchingPadding = FMath::RadiansToDegrees(FMath::Atan2(100.0f, 250.0f));
-	TestTrue(TEXT("Pivot touching box avoids near full circle padding"), FMath::IsNearlyEqual(PivotTouchingBounds.SweepAngleDegrees, 160.0f + PivotTouchingPadding * 2.0f));
-	TestTrue(TEXT("Pivot touching box keeps one readable sector"), PivotTouchingBounds.SweepAngleDegrees < 210.0f);
+	TestTrue(TEXT("Pivot touching sector uses its configured angular width"), FMath::IsNearlyEqual(PivotTouchingBounds.SweepAngleDegrees, 200.0f));
+	FRSArmSwingPathDefinition ZeroStartPath;
+	ZeroStartPath.StartYawOffset = 0.0f;
+	ZeroStartPath.TravelAngleDegrees = 160.0f;
+	FRSArmSwingSectorBounds ZeroStartBounds;
+	TestTrue(TEXT("Zero start path bounds are calculated"), FRSArmSwingMath::TryCalculateTelegraphBounds(PivotTouchingSector, ZeroStartPath, ZeroStartBounds));
+	TestTrue(TEXT("Zero start path does not extend before zero degrees"), FMath::IsNearlyZero(ZeroStartBounds.StartYawOffset));
+	const FVector ZeroStartInsideLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, 1.0f, 0.0f).Vector() * 250.0f);
+	const FVector ZeroStartBeforeBoundaryLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -1.0f, 0.0f).Vector() * 250.0f);
+	TestTrue(TEXT("Zero start path includes the travel direction side"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, ZeroStartBounds, ZeroStartInsideLocation));
+	TestFalse(TEXT("Zero start path excludes the side before zero degrees"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, ZeroStartBounds, ZeroStartBeforeBoundaryLocation));
 
 	FRSArmSwingSectorBounds PartialSectorBounds;
 	TestTrue(TEXT("Partial attack sector is calculated"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, LeftPath, 0.25f, 0.5f, PartialSectorBounds));
-	TestTrue(TEXT("Partial sector begins with width before its previous angle"), FMath::IsNearlyEqual(PartialSectorBounds.StartYawOffset, -45.0f - ExpectedAngularPadding));
-	TestTrue(TEXT("Partial sector covers the elapsed angle and both width margins"), FMath::IsNearlyEqual(PartialSectorBounds.SweepAngleDegrees, 45.0f + ExpectedAngularPadding * 2.0f));
+	TestTrue(TEXT("Partial sector begins exactly at its previous path boundary"), FMath::IsNearlyEqual(PartialSectorBounds.StartYawOffset, -45.0f));
+	TestTrue(TEXT("Partial sector covers the elapsed travel and instantaneous angular width"), FMath::IsNearlyEqual(PartialSectorBounds.SweepAngleDegrees, 45.0f + SectorDefinition.AngularWidthDegrees));
 	FRSArmSwingSectorBounds InvalidSectorBounds;
 	TestFalse(TEXT("Reversed progress interval is invalid"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, LeftPath, 0.5f, 0.25f, InvalidSectorBounds));
 
 	FRSArmSwingSectorBounds StartSectorBounds;
 	TestTrue(TEXT("Stationary start sector is calculated"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, LeftPath, 0.0f, 0.0f, StartSectorBounds));
-	TestTrue(TEXT("Stationary start sector keeps the attack width"), FMath::IsNearlyEqual(StartSectorBounds.SweepAngleDegrees, ExpectedAngularPadding * 2.0f));
+	TestTrue(TEXT("Stationary start sector begins at the configured boundary"), FMath::IsNearlyEqual(StartSectorBounds.StartYawOffset, LeftPath.StartYawOffset));
+	TestTrue(TEXT("Stationary start sector keeps its configured angular width"), FMath::IsNearlyEqual(StartSectorBounds.SweepAngleDegrees, SectorDefinition.AngularWidthDegrees));
+	FRSArmSwingSectorBounds MirroredStartSectorBounds;
+	TestTrue(TEXT("Mirrored stationary start sector is calculated"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, RightPath, 0.0f, 0.0f, MirroredStartSectorBounds));
+	TestTrue(TEXT("Negative travel starts exactly at the configured boundary"), FMath::IsNearlyEqual(MirroredStartSectorBounds.StartYawOffset, RightPath.StartYawOffset));
+	TestTrue(TEXT("Negative travel keeps its width in the travel direction"), FMath::IsNearlyEqual(MirroredStartSectorBounds.SweepAngleDegrees, -SectorDefinition.AngularWidthDegrees));
 
 	const FVector PartialMiddleLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -20.0f, 0.0f).Vector() * 300.0f);
-	const FVector PartialOutsideAngleLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, 20.0f, 0.0f).Vector() * 300.0f);
+	const FVector PartialOutsideAngleLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, 21.0f, 0.0f).Vector() * 300.0f);
 	const FVector PartialInsideRadiusLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -20.0f, 0.0f).Vector() * 99.0f);
 	const FVector PartialOuterBoundaryLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -20.0f, 0.0f).Vector() * PartialSectorBounds.OuterRadius);
 	const FVector PartialOutsideRadiusLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -20.0f, 0.0f).Vector() * (PartialSectorBounds.OuterRadius + 1.0f));
@@ -116,12 +131,13 @@ bool FRSArmSwingMathTest::RunTest(const FString& Parameters)
 	FRSArmSwingSectorBounds MirroredPartialSectorBounds;
 	TestTrue(TEXT("Mirrored partial attack sector is calculated"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, RightPath, 0.25f, 0.5f, MirroredPartialSectorBounds));
 	const FVector MirroredMiddleLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, 20.0f, 0.0f).Vector() * 300.0f);
-	TestTrue(TEXT("Negative sweep includes its directed partial sector"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, MirroredPartialSectorBounds, MirroredMiddleLocation));
-	TestFalse(TEXT("Negative sweep excludes the opposite partial sector"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, MirroredPartialSectorBounds, PartialMiddleLocation));
+	const FVector MirroredOutsideLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -21.0f, 0.0f).Vector() * 300.0f);
+	TestTrue(TEXT("Negative travel includes its directed partial sector"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, MirroredPartialSectorBounds, MirroredMiddleLocation));
+	TestFalse(TEXT("Negative travel excludes the opposite partial sector"), FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, MirroredPartialSectorBounds, MirroredOutsideLocation));
 
 	FRSArmSwingPathDefinition WrappedPath;
 	WrappedPath.StartYawOffset = 170.0f;
-	WrappedPath.SweepAngleDegrees = 30.0f;
+	WrappedPath.TravelAngleDegrees = 30.0f;
 	FRSArmSwingSectorBounds WrappedBounds;
 	TestTrue(TEXT("Wrapped sector is calculated"), FRSArmSwingMath::TryCalculateSectorBounds(SectorDefinition, WrappedPath, 0.0f, 1.0f, WrappedBounds));
 	const FVector WrappedInsideLocation = LockedAttackTransform.TransformPosition(FRotator(0.0f, -175.0f, 0.0f).Vector() * 300.0f);

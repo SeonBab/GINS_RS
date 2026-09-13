@@ -32,7 +32,7 @@ FRSArmSwingPathDefinition FRSArmSwingVariantDefinition::GetPathDefinition() cons
 {
 	FRSArmSwingPathDefinition PathDefinition;
 	PathDefinition.StartYawOffset = StartYawOffset;
-	PathDefinition.SweepAngleDegrees = SweepAngleDegrees;
+	PathDefinition.TravelAngleDegrees = TravelAngleDegrees;
 
 	return PathDefinition;
 }
@@ -414,7 +414,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowAdvanced(float PreviousAlpha
 		return;
 	}
 
-	// 직전 각도부터 현재 각도까지 연속된 조각을 검사하므로 프레임 사이를 별도 Box Sample로 채울 필요가 없습니다
+	// 직전 각도부터 현재 각도까지 연속된 조각을 검사하므로 프레임 사이를 별도 Sample로 채울 필요가 없습니다
 	if (!ExecuteAttackSectorSlice(PreviousSweepProgress, CurrentSweepProgress))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -589,7 +589,7 @@ bool URSGameplayAbility_ArmSwing::IsVariantRuntimeValid(const FRSArmSwingVariant
 		&& Variant.GetPathDefinition().IsDataValid()
 		&& bHasValidAttackWindow
 		&& WindowStartPosition > KINDA_SMALL_NUMBER
-		// Curve가 없으면 EvaluateCurveData가 조용히 0을 돌려주어 Box가 전혀 회전하지 않습니다
+		// Curve가 없으면 EvaluateCurveData가 조용히 0을 돌려주어 Sector가 전혀 진행하지 않습니다
 		&& Variant.AttackMontage->HasCurveData(SweepProgressCurveName);
 }
 

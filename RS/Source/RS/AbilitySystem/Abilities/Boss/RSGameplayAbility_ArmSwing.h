@@ -27,13 +27,13 @@ struct FRSArmSwingVariantDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
-	/** 고정된 공격 기준 Yaw에서 Box가 시작되는 상대 각도입니다 */
+	/** 고정된 공격 기준 Yaw에서 실제 Sector의 첫 경계가 시작되는 상대 각도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (ForceUnits = "deg"))
 	float StartYawOffset = 0.0f;
 
-	/** 공격 Window 전체에서 Box가 회전할 각도이며 부호가 진행 방향을 결정합니다 */
+	/** 공격 Window 동안 Sector의 시작 경계가 이동할 각도이며 부호가 진행 방향을 결정합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (ClampMin = "-360.0", ClampMax = "360.0", UIMin = "-180.0", UIMax = "180.0", ForceUnits = "deg"))
-	float SweepAngleDegrees = 160.0f;
+	float TravelAngleDegrees = 160.0f;
 
 	/** 공간 계산에 전달할 경로 정의를 반환합니다 */
 	FRSArmSwingPathDefinition GetPathDefinition() const;
@@ -56,7 +56,7 @@ class RS_API URSGameplayAbility_ArmSwing : public URSBaseGameplayAbility_BossPat
 public:
 	URSGameplayAbility_ArmSwing();
 
-	/** Attack Window 구간의 Box 회전 진행률을 정의하는 Montage 내부 Curve 이름입니다 */
+	/** Attack Window 구간의 Sector 진행률을 정의하는 Montage 내부 Curve 이름입니다 */
 	static const FName SweepProgressCurveName;
 
 protected:

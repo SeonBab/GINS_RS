@@ -72,19 +72,19 @@ struct FRSAnnularSectorTelegraphDefinition
 {
 	GENERATED_BODY()
 
-	/** 공격 Pivot에서 경로 안쪽까지의 거리입니다 */
+	/** 공격 Pivot에서 표시 영역의 안쪽 경계까지의 수평 반경입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
 	float InnerRadius = 0.0f;
 
-	/** 공격 Pivot에서 경로 바깥쪽까지의 거리입니다 */
+	/** 공격 Pivot에서 표시 영역의 바깥쪽 경계까지의 수평 반경입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "0.0", UIMin = "1.0", ForceUnits = "cm"))
 	float OuterRadius = 0.0f;
 
-	/** 고정된 기준 Yaw에서 경로가 시작되는 상대 각도입니다 */
+	/** 고정된 기준 Yaw에서 표시 영역의 첫 경계가 시작되는 상대 각도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ForceUnits = "deg"))
 	float StartYawOffset = 0.0f;
 
-	/** 경로 전체 각도이며 부호가 채워지는 방향을 결정합니다 */
+	/** 표시 영역의 전체 각도이며 부호가 펼쳐지는 방향을 결정합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph", meta = (ClampMin = "-360.0", ClampMax = "360.0", ForceUnits = "deg"))
 	float SweepAngleDegrees = 0.0f;
 
