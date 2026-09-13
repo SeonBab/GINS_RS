@@ -242,6 +242,18 @@ EDataValidationResult ARSBossMeteorHazard::IsDataValid(FDataValidationContext& C
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
+	if (!FallingNiagaraSystem)
+	{
+		Context.AddError(FText::FromString(TEXT("FallingNiagaraSystem is not configured.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!HazardNiagaraSystem)
+	{
+		Context.AddError(FText::FromString(TEXT("HazardNiagaraSystem is not configured.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
 	return ValidationResult;
 }
 #endif
