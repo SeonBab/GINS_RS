@@ -8,7 +8,6 @@
 
 class ARSBossCharacter;
 class ARSBossController;
-class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 class UGameplayEffect;
 class URSAbilityTask_ObserveElapsedTime;
@@ -109,10 +108,6 @@ private:
 	/** 선택적 Montage를 요청하며 재생 실패는 공격 타임라인을 취소하지 않습니다 */
 	void RequestAttackMontage();
 
-	/** Montage가 정상 완료되면 Task 참조만 정리합니다 */
-	UFUNCTION()
-	void HandleAttackMontageCompleted();
-
 	/** 재생 중이던 Montage가 강제로 중단되면 Ability를 취소합니다 */
 	UFUNCTION()
 	void HandleAttackMontageInterrupted();
@@ -188,7 +183,6 @@ private:
 	TSet<TWeakObjectPtr<AActor>> HitActors;
 	bool bHasSavedRotationSettings = false;
 	bool bHasAppliedGameplayFocus = false;
-	bool bHasCommittedActivation = false;
 	bool bIsCleaningUp = false;
 	FRotator OriginalRotationRate = FRotator::ZeroRotator;
 	bool bOriginalUseControllerDesiredRotation = false;
@@ -200,6 +194,4 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<URSAbilityTask_ObserveElapsedTime> TimelineTask;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
 };

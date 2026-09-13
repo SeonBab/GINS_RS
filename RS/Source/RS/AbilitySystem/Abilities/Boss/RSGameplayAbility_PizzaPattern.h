@@ -7,7 +7,6 @@
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_PizzaPattern.generated.h"
 
-class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitDelay;
 class UAnimMontage;
 class UGameplayEffect;
@@ -79,7 +78,7 @@ protected:
 #endif
 
 private:
-	/** 설정된 Montage를 한 번 요청하며 실패와 종료는 공격 수명에 영향을 주지 않습니다 */
+	/** 설정된 Montage를 한 번 요청하며 재생 실패와 중단은 공격 흐름을 취소하지 않습니다 */
 	void RequestAttackMontage();
 
 	/** 공격 시작 지연이 끝나면 패턴 Transform을 확정하고 첫 Telegraph를 만듭니다 */
@@ -153,9 +152,6 @@ private:
 	/** 0부터 시작하는 현재 폭발 번호이며 짝수는 A, 홀수는 B입니다 */
 	int32 CurrentExplosionIndex = 0;
 
-	/** Montage 재생 요청의 Task이며 완료·실패·중단 콜백은 공격 흐름에 연결하지 않습니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
 
 	/** 첫 Telegraph 시작까지 기다리는 Task입니다 */
 	UPROPERTY(Transient)

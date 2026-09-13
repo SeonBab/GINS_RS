@@ -280,6 +280,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void FindTargetsInShape(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
 
+	/** 복합 판정의 후보만 수집하고 중간 형상은 디버그로 그리지 않습니다 */
+	static void FindTargetsInShapeWithoutDebugDraw(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
+
 	/** 대상 위치의 중심점이 Cone의 수평 범위 안에 있는지 검사합니다 */
 	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
 
@@ -313,6 +316,12 @@ public:
 	 */
 	static void DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime);
 
+	/** 시작 경계와 회전 각도로 정의한 수평 부채꼴을 디버그로 그립니다 */
+	static void DrawDebugCombatSector(const UWorld* World, const FTransform& ShapeTransform, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime);
+
+	/** 안쪽·바깥쪽 반지름과 부호 있는 회전 각도로 정의한 수평 환형 부채꼴을 디버그로 그립니다 */
+	static void DrawDebugCombatAnnularSector(const UWorld* World, const FTransform& ShapeTransform, float InnerRadius, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime);
+
 #if WITH_EDITOR
 
 public:
@@ -333,6 +342,9 @@ public:
 #endif
 
 private:
+	/** 공용 형상 조회를 수행하고 요청한 경우에만 전달받은 중간 형상을 디버그로 그립니다 */
+	static void FindTargetsInShapeInternal(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets, bool bShouldDrawDebug);
+
 	/** 선택적인 방향 데이터를 포함해 공통 피격 반응 Event를 구성하고 전송합니다 */
 	static void SendHitReactionInternal(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, bool bHasKnockbackDirection, const FVector& KnockbackDirection);
 };

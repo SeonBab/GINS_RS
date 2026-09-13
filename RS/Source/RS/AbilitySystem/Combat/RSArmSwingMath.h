@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "RSArmSwingMath.generated.h"
 
-/** Arm Swing의 회전형 Box가 사용할 공통 공간 데이터입니다 */
+/** Arm Swing의 수평 환형 부채꼴을 유도할 공통 공간 데이터입니다 */
 USTRUCT(BlueprintType)
 struct FRSArmSwingBoxDefinition
 {
@@ -23,15 +23,7 @@ struct FRSArmSwingBoxDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Arm Swing", meta = (ClampMin = "0.0", UIMin = "1.0", ForceUnits = "cm"))
 	float BoxHalfWidth = 100.0f;
 
-	/** Box의 수직 반높이입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Arm Swing", meta = (ClampMin = "0.0", UIMin = "1.0", ForceUnits = "cm"))
-	float BoxHalfHeight = 100.0f;
-
-	/** 발밑 공격 Pivot에서 Box 중심까지의 높이입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Arm Swing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
-	float BoxCenterHeight = 200.0f;
-
-	/** 회전형 Box 계산에 사용할 수 있는 값인지 검사합니다 */
+	/** 수평 환형 부채꼴 계산에 사용할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
 
@@ -53,26 +45,8 @@ struct FRSArmSwingPathDefinition
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
 
-/** 한 진행률에서 계산한 Arm Swing Box의 월드 공간 Sample입니다 */
-struct FRSArmSwingBoxSample
-{
-	FTransform BoxTransform = FTransform::Identity;
-	FVector BoxExtent = FVector::ZeroVector;
-	FVector RadialDirection = FVector::ZeroVector;
-	FVector TangentDirection = FVector::ZeroVector;
-	float YawOffset = 0.0f;
-};
-
-/** 이전 진행률과 현재 진행률 사이를 검사할 Substep 계획입니다 */
-struct FRSArmSwingSubstepPlan
-{
-	int32 StepCount = 1;
-	int32 RequiredStepCount = 1;
-	bool bReachedLimit = false;
-};
-
-/** 회전형 Box 전체를 감싸는 환형 부채꼴 Telegraph 데이터입니다 */
-struct FRSArmSwingTelegraphBounds
+/** 회전형 Box의 중심 경로와 수평 폭에서 유도한 환형 부채꼴 경계입니다 */
+struct FRSArmSwingSectorBounds
 {
 	float InnerRadius = 0.0f;
 	float OuterRadius = 0.0f;
@@ -83,17 +57,23 @@ struct FRSArmSwingTelegraphBounds
 /** Arm Swing 전용 공간 계산을 제공합니다 */
 struct RS_API FRSArmSwingMath
 {
+	/** 후보 원의 열린 바깥 경계가 최종 Sector의 닫힌 경계를 선제 탈락시키지 않게 하는 내부 여유입니다 */
+	static constexpr float CandidateQueryRadiusMargin = 1.0f;
+
 	/** Capsule 발밑과 Actor 전방에서 공격 중 고정할 월드 Transform을 계산합니다 */
 	static bool TryCalculateLockedAttackTransform(const FTransform& CapsuleTransform, float ScaledCapsuleHalfHeight, const FVector& ActorForward, FTransform& OutLockedAttackTransform);
 
-	/** 고정된 공격 Transform과 진행률에서 현재 Box Sample을 계산합니다 */
-	static bool TryCalculateBoxSample(const FTransform& LockedAttackTransform, const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float Alpha, FRSArmSwingBoxSample& OutSample);
+	/** 지정한 진행률 구간에 수평 반폭을 반영한 환형 부채꼴 경계를 계산합니다 */
+	static bool TryCalculateSectorBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSArmSwingSectorBounds& OutBounds);
 
-	/** 두 진행률 사이에서 필요한 적응형 Substep 개수를 계산합니다 */
-	static bool TryCalculateSubstepPlan(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousAlpha, float CurrentAlpha, FRSArmSwingSubstepPlan& OutPlan);
+	/** 전체 회전 경로와 실제 판정이 공유할 Telegraph 경계를 계산합니다 */
+	static bool TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingSectorBounds& OutBounds);
 
-	/** 회전형 Box의 전체 수평 경로를 빠짐없이 감싸는 Telegraph 경계를 계산합니다 */
-	static bool TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingTelegraphBounds& OutBounds);
+	/** 대상 중심점이 지정한 환형 부채꼴 경계 안에 있는지 검사합니다 */
+	static bool IsLocationInsideSector(const FTransform& LockedAttackTransform, const FRSArmSwingSectorBounds& SectorBounds, const FVector& TargetLocation);
+
+	/** 대상 위치의 반지름 방향에서 Sweep 진행 방향의 수평 접선을 계산합니다 */
+	static bool TryCalculateTargetTangentDirection(const FTransform& LockedAttackTransform, const FRSArmSwingPathDefinition& PathDefinition, float SweepProgress, const FVector& TargetLocation, FVector& OutTangentDirection);
 
 	/** Attack Window 구간에서 Sample한 회전 진행률이 0에서 1까지 단조 증가하는지 검사합니다 */
 	static bool IsProgressSampleSequenceValid(const TArray<float>& ProgressSamples, FString* OutValidationError = nullptr);

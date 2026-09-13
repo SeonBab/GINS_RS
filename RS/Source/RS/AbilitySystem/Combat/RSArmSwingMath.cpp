@@ -5,10 +5,6 @@
 namespace
 {
 	constexpr float MinimumSize = KINDA_SMALL_NUMBER;
-	constexpr float MaximumAngularStepDegrees = 5.0f;
-	constexpr float MaximumOuterArcStep = 25.0f;
-	constexpr int32 MaximumSubstepCount = 16;
-	constexpr float TelegraphSmallDistance = 1.0f;
 	constexpr float ProgressEndpointTolerance = 0.01f;
 	constexpr int32 MinimumProgressSampleCount = 2;
 
@@ -40,23 +36,23 @@ bool FRSArmSwingBoxDefinition::IsDataValid(FString* OutValidationError) const
 		OutValidationError->Reset();
 	}
 
-	if (!IsFinite(InnerOffset) || !IsFinite(BoxLength) || !IsFinite(BoxHalfWidth) || !IsFinite(BoxHalfHeight) || !IsFinite(BoxCenterHeight))
+	if (!IsFinite(InnerOffset) || !IsFinite(BoxLength) || !IsFinite(BoxHalfWidth))
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing Box 값은 유한해야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing 수평 범위 값은 유한해야 합니다"));
 
 		return false;
 	}
 
-	if (InnerOffset < 0.0f || BoxCenterHeight < 0.0f)
+	if (InnerOffset < 0.0f)
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing Box의 Offset과 중심 높이는 0 이상이어야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing의 안쪽 Offset은 0 이상이어야 합니다"));
 
 		return false;
 	}
 
-	if (BoxLength <= MinimumSize || BoxHalfWidth <= MinimumSize || BoxHalfHeight <= MinimumSize)
+	if (BoxLength <= MinimumSize || BoxHalfWidth <= MinimumSize)
 	{
-		SetValidationError(OutValidationError, TEXT("Arm Swing Box의 길이와 반크기는 0보다 커야 합니다"));
+		SetValidationError(OutValidationError, TEXT("Arm Swing의 수평 길이와 반폭은 0보다 커야 합니다"));
 
 		return false;
 	}
@@ -110,70 +106,96 @@ bool FRSArmSwingMath::TryCalculateLockedAttackTransform(const FTransform& Capsul
 	return true;
 }
 
-bool FRSArmSwingMath::TryCalculateBoxSample(const FTransform& LockedAttackTransform, const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float Alpha, FRSArmSwingBoxSample& OutSample)
+bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSArmSwingSectorBounds& OutBounds)
 {
-	OutSample = FRSArmSwingBoxSample();
-	if (LockedAttackTransform.ContainsNaN() || !BoxDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(Alpha))
+	OutBounds = FRSArmSwingSectorBounds();
+	if (!BoxDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(PreviousProgress) || !IsFinite(CurrentProgress))
 	{
 		return false;
 	}
 
-	const float ClampedAlpha = FMath::Clamp(Alpha, 0.0f, 1.0f);
-	const float LockedYaw = LockedAttackTransform.Rotator().Yaw;
-	const float CurrentYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * ClampedAlpha;
-	const FRotator BoxRotation(0.0f, LockedYaw + CurrentYawOffset, 0.0f);
-	const FVector RadialDirection = BoxRotation.Vector();
-	const float BoxCenterDistance = BoxDefinition.InnerOffset + BoxDefinition.BoxLength * 0.5f;
-	const FVector BoxCenter = LockedAttackTransform.GetLocation() + RadialDirection * BoxCenterDistance + FVector::UpVector * BoxDefinition.BoxCenterHeight;
-	const float TangentYawOffset = PathDefinition.SweepAngleDegrees > 0.0f ? 90.0f : -90.0f;
-
-	OutSample.BoxTransform = FTransform(BoxRotation, BoxCenter);
-	OutSample.BoxExtent = FVector(BoxDefinition.BoxLength * 0.5f, BoxDefinition.BoxHalfWidth, BoxDefinition.BoxHalfHeight);
-	OutSample.RadialDirection = RadialDirection;
-	OutSample.TangentDirection = RadialDirection.RotateAngleAxis(TangentYawOffset, FVector::UpVector);
-	OutSample.YawOffset = CurrentYawOffset;
-
-	return true;
-}
-
-bool FRSArmSwingMath::TryCalculateSubstepPlan(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousAlpha, float CurrentAlpha, FRSArmSwingSubstepPlan& OutPlan)
-{
-	OutPlan = FRSArmSwingSubstepPlan();
-	if (!BoxDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(PreviousAlpha) || !IsFinite(CurrentAlpha))
+	const float ClampedPreviousProgress = FMath::Clamp(PreviousProgress, 0.0f, 1.0f);
+	const float ClampedCurrentProgress = FMath::Clamp(CurrentProgress, 0.0f, 1.0f);
+	if (ClampedCurrentProgress < ClampedPreviousProgress - KINDA_SMALL_NUMBER)
 	{
 		return false;
 	}
 
-	const float ClampedPreviousAlpha = FMath::Clamp(PreviousAlpha, 0.0f, 1.0f);
-	const float ClampedCurrentAlpha = FMath::Clamp(CurrentAlpha, 0.0f, 1.0f);
-	const float DeltaAngleDegrees = FMath::Abs(PathDefinition.SweepAngleDegrees * (ClampedCurrentAlpha - ClampedPreviousAlpha));
-	const float OuterArcDistance = CalculateOuterRadius(BoxDefinition) * FMath::DegreesToRadians(DeltaAngleDegrees);
-	const int32 RequiredByAngle = FMath::CeilToInt(DeltaAngleDegrees / MaximumAngularStepDegrees);
-	const int32 RequiredByDistance = FMath::CeilToInt(OuterArcDistance / MaximumOuterArcStep);
-
-	OutPlan.RequiredStepCount = FMath::Max(1, FMath::Max(RequiredByAngle, RequiredByDistance));
-	OutPlan.StepCount = FMath::Min(OutPlan.RequiredStepCount, MaximumSubstepCount);
-	OutPlan.bReachedLimit = OutPlan.RequiredStepCount > MaximumSubstepCount;
-
-	return true;
-}
-
-bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingTelegraphBounds& OutBounds)
-{
-	OutBounds = FRSArmSwingTelegraphBounds();
-	if (!BoxDefinition.IsDataValid() || !PathDefinition.IsDataValid())
-	{
-		return false;
-	}
-
-	const float AngularPadding = FMath::RadiansToDegrees(FMath::Atan2(BoxDefinition.BoxHalfWidth, FMath::Max(BoxDefinition.InnerOffset, TelegraphSmallDistance)));
+	// Pivot과 맞닿은 Box도 거의 전 방향으로 과대 표시되지 않도록 실제로 회전하는 Box 중심 반지름에서 수평 반폭을 각도로 변환합니다
+	const float BoxCenterRadius = BoxDefinition.InnerOffset + BoxDefinition.BoxLength * 0.5f;
+	const float AngularPadding = FMath::RadiansToDegrees(FMath::Atan2(BoxDefinition.BoxHalfWidth, BoxCenterRadius));
 	const float SweepSign = FMath::Sign(PathDefinition.SweepAngleDegrees);
+	const float IntervalSweepAngleDegrees = PathDefinition.SweepAngleDegrees * (ClampedCurrentProgress - ClampedPreviousProgress);
 
 	OutBounds.InnerRadius = BoxDefinition.InnerOffset;
 	OutBounds.OuterRadius = CalculateOuterRadius(BoxDefinition);
-	OutBounds.StartYawOffset = PathDefinition.StartYawOffset - SweepSign * AngularPadding;
-	const float PaddedSweepAngleDegrees = FMath::Abs(PathDefinition.SweepAngleDegrees) + AngularPadding * 2.0f;
+	OutBounds.StartYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * ClampedPreviousProgress - SweepSign * AngularPadding;
+	const float PaddedSweepAngleDegrees = FMath::Abs(IntervalSweepAngleDegrees) + AngularPadding * 2.0f;
 	OutBounds.SweepAngleDegrees = SweepSign * FMath::Min(PaddedSweepAngleDegrees, 360.0f);
+
+	return true;
+}
+
+bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingSectorBounds& OutBounds)
+{
+	return TryCalculateSectorBounds(BoxDefinition, PathDefinition, 0.0f, 1.0f, OutBounds);
+}
+
+bool FRSArmSwingMath::IsLocationInsideSector(const FTransform& LockedAttackTransform, const FRSArmSwingSectorBounds& SectorBounds, const FVector& TargetLocation)
+{
+	if (LockedAttackTransform.ContainsNaN() || TargetLocation.ContainsNaN()
+		|| !IsFinite(SectorBounds.InnerRadius) || !IsFinite(SectorBounds.OuterRadius)
+		|| !IsFinite(SectorBounds.StartYawOffset) || !IsFinite(SectorBounds.SweepAngleDegrees)
+		|| SectorBounds.InnerRadius < 0.0f || SectorBounds.OuterRadius <= SectorBounds.InnerRadius
+		|| FMath::IsNearlyZero(SectorBounds.SweepAngleDegrees) || FMath::Abs(SectorBounds.SweepAngleDegrees) > 360.0f)
+	{
+		return false;
+	}
+
+	const FVector LocalOffset = LockedAttackTransform.InverseTransformPositionNoScale(TargetLocation);
+	const float RadiusSquared = FMath::Square(LocalOffset.X) + FMath::Square(LocalOffset.Y);
+	if (RadiusSquared < FMath::Square(SectorBounds.InnerRadius) - KINDA_SMALL_NUMBER
+		|| RadiusSquared > FMath::Square(SectorBounds.OuterRadius) + KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	if (RadiusSquared <= KINDA_SMALL_NUMBER || FMath::IsNearlyEqual(FMath::Abs(SectorBounds.SweepAngleDegrees), 360.0f))
+	{
+		return true;
+	}
+
+	const float TargetYawOffset = FMath::RadiansToDegrees(FMath::Atan2(LocalOffset.Y, LocalOffset.X));
+	const float DirectedAngle = SectorBounds.SweepAngleDegrees > 0.0f
+		? FRotator::ClampAxis(TargetYawOffset - SectorBounds.StartYawOffset)
+		: FRotator::ClampAxis(SectorBounds.StartYawOffset - TargetYawOffset);
+
+	return DirectedAngle <= FMath::Abs(SectorBounds.SweepAngleDegrees) + KINDA_SMALL_NUMBER;
+}
+
+bool FRSArmSwingMath::TryCalculateTargetTangentDirection(const FTransform& LockedAttackTransform, const FRSArmSwingPathDefinition& PathDefinition, float SweepProgress, const FVector& TargetLocation, FVector& OutTangentDirection)
+{
+	OutTangentDirection = FVector::ZeroVector;
+	if (LockedAttackTransform.ContainsNaN() || TargetLocation.ContainsNaN() || !PathDefinition.IsDataValid() || !IsFinite(SweepProgress))
+	{
+		return false;
+	}
+
+	FVector RadialDirection = TargetLocation - LockedAttackTransform.GetLocation();
+	RadialDirection.Z = 0.0f;
+	if (!RadialDirection.Normalize())
+	{
+		const float CurrentYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * FMath::Clamp(SweepProgress, 0.0f, 1.0f);
+		RadialDirection = LockedAttackTransform.GetUnitAxis(EAxis::X).RotateAngleAxis(CurrentYawOffset, FVector::UpVector);
+		RadialDirection.Z = 0.0f;
+		if (!RadialDirection.Normalize())
+		{
+			return false;
+		}
+	}
+
+	const float TangentYawOffset = PathDefinition.SweepAngleDegrees > 0.0f ? 90.0f : -90.0f;
+	OutTangentDirection = RadialDirection.RotateAngleAxis(TangentYawOffset, FVector::UpVector);
 
 	return true;
 }

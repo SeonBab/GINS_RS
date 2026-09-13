@@ -1,6 +1,5 @@
 #include "RSGameplayAbility_PizzaPattern.h"
 
-#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
@@ -101,7 +100,6 @@ void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpec
 	ActiveTelegraphHandles.Reset();
 	HitActors.Reset();
 	CurrentExplosionIndex = 0;
-	MontageTask = nullptr;
 	AttackStartDelayTask = nullptr;
 	TelegraphFillTask = nullptr;
 	bIsCleaningUp = false;
@@ -155,13 +153,11 @@ void URSGameplayAbility_PizzaPattern::EndAbility(const FGameplayAbilitySpecHandl
 	}
 
 	HideActiveTelegraphs();
-	EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
 
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceTransforms.Reset();
 	HitActors.Reset();
 	CurrentExplosionIndex = 0;
-	MontageTask = nullptr;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	bIsCleaningUp = false;
@@ -169,14 +165,9 @@ void URSGameplayAbility_PizzaPattern::EndAbility(const FGameplayAbilitySpecHandl
 
 void URSGameplayAbility_PizzaPattern::RequestAttackMontage()
 {
-	if (!AttackMontage)
-	{
-		return;
-	}
-
-	// Montage Task의 결과를 공격 흐름에 연결하지 않아 재생 실패와 중단이 패턴을 취소하지 않게 합니다
-	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage);
-	MontageTask->ReadyForActivation();
+	// 재생 실패와 중단은 패턴을 취소하지 않고 기다릴 대상만 없앱니다
+	// 공통 게이트가 Montage 수명을 알고 있으므로 마지막 폭발 뒤에도 재생 중인 Montage가 잘리지 않습니다
+	PlayPatternMontage(AttackMontage);
 }
 
 void URSGameplayAbility_PizzaPattern::HandleAttackStartDelayFinished()
@@ -301,7 +292,8 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 	++CurrentExplosionIndex;
 	if (CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		// 마지막 판정은 끝났지만 Montage가 남아 있으면 잘리지 않도록 종료를 미룹니다
+		FinishPatternWhenMontageEnds();
 
 		return;
 	}
