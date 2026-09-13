@@ -27,6 +27,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "Camera", "Player"),
 			Path.Combine(ModuleDirectory, "Character"),
 			Path.Combine(ModuleDirectory, "Character", "Boss"),
+			Path.Combine(ModuleDirectory, "Character", "Components"),
 			Path.Combine(ModuleDirectory, "Character", "Player"),
 			Path.Combine(ModuleDirectory, "Controller"),
 			Path.Combine(ModuleDirectory, "Controller", "Boss"),

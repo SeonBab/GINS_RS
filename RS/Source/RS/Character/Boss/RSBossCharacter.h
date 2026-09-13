@@ -12,6 +12,7 @@ class URSAttackTelegraphComponent;
 class URSBossPhaseComponent;
 class URSHealthComponent;
 class URSHealthSet;
+class URSHitFlashComponent;
 
 /** 보스 전용 설정과 Controller 연결의 기반이 되는 캐릭터입니다 */
 UCLASS()
@@ -51,6 +52,9 @@ public:
 	/** 보스 전투의 진행 상태와 패턴 선택 정책을 소유하는 컴포넌트를 반환합니다 */
 	URSBossPhaseComponent* GetBossPhaseComponent() const { return BossPhaseComp; }
 
+	/** 실제 체력 감소에 반응하는 메시 피격 플래시 컴포넌트를 반환합니다 */
+	URSHitFlashComponent* GetHitFlashComponent() const { return HitFlashComp; }
+
 private:
 	/** ASC의 Owner와 Avatar를 보스 Character로 초기화하고 기본 AbilitySet을 한 번 부여합니다 */
 	void InitializeAbilitySystem();
@@ -84,6 +88,10 @@ private:
 	/** 패턴 사이클과 패턴 후보 목록을 소유하는 컴포넌트입니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSBossPhaseComponent> BossPhaseComp;
+
+	/** 보스 Mesh에 원본 Material과 분리된 피격 Overlay를 재생합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Hit Flash", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSHitFlashComponent> HitFlashComp;
 
 	/** DefaultAbilitySet이 부여한 Ability를 정확히 식별하기 위한 핸들입니다 */
 	UPROPERTY(Transient)
