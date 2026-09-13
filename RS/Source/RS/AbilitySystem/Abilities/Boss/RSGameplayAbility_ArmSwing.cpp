@@ -298,7 +298,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	UAnimInstance* AnimInstance = CurrentActorInfo ? CurrentActorInfo->GetAnimInstance() : nullptr;
-	FRSArmSwingTelegraphBounds TelegraphBounds;
+	FRSArmSwingSectorBounds TelegraphBounds;
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
@@ -382,11 +382,10 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowBegan()
 
 	HitActors.Reset();
 	bIsAttackWindowActive = true;
-	bHasReportedSubstepLimit = false;
 
-	// 진행률 Curve는 Window 시작에서 0으로 검증되므로 여기서도 같은 경로로 시작 Box를 구합니다
+	// 진행률 Curve는 Window 시작에서 0으로 검증되므로 시작점의 공격 폭부터 판정합니다
 	float WindowStartSweepProgress = 0.0f;
-	if (!TryEvaluateSweepProgress(0.0f, WindowStartSweepProgress) || !ExecuteAttackBoxSample(WindowStartSweepProgress))
+	if (!TryEvaluateSweepProgress(0.0f, WindowStartSweepProgress) || !ExecuteAttackSectorSlice(WindowStartSweepProgress, WindowStartSweepProgress))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 	}
@@ -406,7 +405,6 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowAdvanced(float PreviousAlpha
 		return;
 	}
 
-	// Substep은 Curve를 통과한 실제 회전 각도로 계획해야 가속 구간에서 Box가 대상을 관통하지 않습니다
 	float PreviousSweepProgress = 0.0f;
 	float CurrentSweepProgress = 0.0f;
 	if (!TryEvaluateSweepProgress(PreviousAlpha, PreviousSweepProgress) || !TryEvaluateSweepProgress(CurrentAlpha, CurrentSweepProgress))
@@ -416,29 +414,10 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowAdvanced(float PreviousAlpha
 		return;
 	}
 
-	FRSArmSwingSubstepPlan SubstepPlan;
-	if (!FRSArmSwingMath::TryCalculateSubstepPlan(AttackBox, SelectedVariant->GetPathDefinition(), PreviousSweepProgress, CurrentSweepProgress, SubstepPlan))
+	// 직전 각도부터 현재 각도까지 연속된 조각을 검사하므로 프레임 사이를 별도 Box Sample로 채울 필요가 없습니다
+	if (!ExecuteAttackSectorSlice(PreviousSweepProgress, CurrentSweepProgress))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-		return;
-	}
-
-	if (SubstepPlan.bReachedLimit && !bHasReportedSubstepLimit)
-	{
-		bHasReportedSubstepLimit = true;
-		UE_LOG(LogTemp, Warning, TEXT("%s capped Arm Swing substeps at %d while %d were required"), *GetName(), SubstepPlan.StepCount, SubstepPlan.RequiredStepCount);
-	}
-
-	for (int32 StepIndex = 1; StepIndex <= SubstepPlan.StepCount; ++StepIndex)
-	{
-		const float StepSweepProgress = FMath::Lerp(PreviousSweepProgress, CurrentSweepProgress, static_cast<float>(StepIndex) / static_cast<float>(SubstepPlan.StepCount));
-		if (!ExecuteAttackBoxSample(StepSweepProgress))
-		{
-			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-			return;
-		}
 	}
 }
 
@@ -494,7 +473,7 @@ bool URSGameplayAbility_ArmSwing::TryEvaluateSweepProgress(float WindowAlpha, fl
 	return true;
 }
 
-bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float SweepProgress)
+bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepProgress, float CurrentSweepProgress)
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
@@ -503,18 +482,21 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float SweepProgress)
 		return false;
 	}
 
-	FRSArmSwingBoxSample BoxSample;
-	if (!FRSArmSwingMath::TryCalculateBoxSample(LockedAttackTransform, AttackBox, SelectedVariant->GetPathDefinition(), SweepProgress, BoxSample))
+	const FRSArmSwingPathDefinition PathDefinition = SelectedVariant->GetPathDefinition();
+	FRSArmSwingSectorBounds SectorBounds;
+	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackBox, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
 	{
 		return false;
 	}
 
-	FRSCombatShape AttackShape;
-	AttackShape.Type = ERSCombatShapeType::Box;
-	AttackShape.BoxExtent = BoxSample.BoxExtent;
+	// 넓은 원으로 PlayerHurtBox 후보만 모은 뒤 Actor 중심점으로 실제 환형 부채꼴을 판정합니다
+	FRSCombatShape CandidateShape;
+	CandidateShape.Type = ERSCombatShapeType::Sphere;
+	CandidateShape.Radius = SectorBounds.OuterRadius + FRSArmSwingMath::CandidateQueryRadiusMargin;
+	CandidateShape.InnerRadius = 0.0f;
 
-	TArray<AActor*> HitTargets;
-	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, AttackShape, BoxSample.BoxTransform, HitTargets);
+	TArray<AActor*> CandidateTargets;
+	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
 	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	if (!FMath::IsFinite(DamageAmount))
@@ -522,18 +504,36 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackBoxSample(float SweepProgress)
 		return false;
 	}
 
-	for (AActor* HitTarget : HitTargets)
+	bool bHasTargetsInSectorSlice = false;
+	for (AActor* HitTarget : CandidateTargets)
 	{
 		const TWeakObjectPtr<AActor> HitTargetPointer(HitTarget);
-		if (!HitTarget || HitActors.Contains(HitTargetPointer))
+		if (!HitTarget || !FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, SectorBounds, HitTarget->GetActorLocation()))
 		{
 			continue;
+		}
+
+		bHasTargetsInSectorSlice = true;
+		if (HitActors.Contains(HitTargetPointer))
+		{
+			continue;
+		}
+
+		FVector TangentDirection;
+		if (!FRSArmSwingMath::TryCalculateTargetTangentDirection(LockedAttackTransform, PathDefinition, CurrentSweepProgress, HitTarget->GetActorLocation(), TangentDirection))
+		{
+			return false;
 		}
 
 		// 면역 결과와 무관하게 이 Window에서 같은 Actor에게 요청을 반복하지 않습니다
 		HitActors.Add(HitTargetPointer);
 		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(BossCharacter, HitTarget, Reaction, BoxSample.TangentDirection);
+		URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(BossCharacter, HitTarget, Reaction, TangentDirection);
+	}
+
+	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
+	{
+		URSCombatFunctionLibrary::DrawDebugCombatAnnularSector(BossCharacter->GetWorld(), LockedAttackTransform, SectorBounds.InnerRadius, SectorBounds.OuterRadius, SectorBounds.StartYawOffset, SectorBounds.SweepAngleDegrees, bHasTargetsInSectorSlice ? FColor::Red : FColor::Silver, 0.0f);
 	}
 
 	return true;
@@ -651,7 +651,6 @@ void URSGameplayAbility_ArmSwing::ResetTransientState()
 	State = ERSArmSwingState::Inactive;
 	bIsAttackWindowActive = false;
 	bHasCompletedAttackWindow = false;
-	bHasReportedSubstepLimit = false;
 	ActiveTelegraphHandle = INDEX_NONE;
 	TelegraphStartPosition = 0.0f;
 	AttackWindowStartPosition = 0.0f;

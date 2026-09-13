@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -86,11 +86,11 @@ private:
 	UFUNCTION()
 	void HandleAttackMontagePositionUpdated(float MontagePosition);
 
-	/** Attack Window 시작 순간의 Box를 판정하고 Window 적중 기록을 초기화합니다 */
+	/** Attack Window 시작 순간의 부채꼴 폭을 판정하고 Window 적중 기록을 초기화합니다 */
 	UFUNCTION()
 	void HandleAttackWindowBegan();
 
-	/** 전달된 진행률 구간을 적응형 Substep으로 나눠 회전 Box를 판정합니다 */
+	/** 전달된 진행률 사이를 지나간 환형 부채꼴 조각으로 판정합니다 */
 	UFUNCTION()
 	void HandleAttackWindowAdvanced(float PreviousAlpha, float CurrentAlpha);
 
@@ -105,8 +105,8 @@ private:
 	/** Attack Window의 0~1 진행률을 Montage Curve가 정의한 회전 진행률로 변환합니다 */
 	bool TryEvaluateSweepProgress(float WindowAlpha, float& OutSweepProgress) const;
 
-	/** 한 회전 진행률의 Box를 조회하고 처음 검출된 대상에게 Damage와 Knockdown을 요청합니다 */
-	bool ExecuteAttackBoxSample(float SweepProgress);
+	/** 진행률 구간의 환형 부채꼴에 중심점이 포함된 대상에게 Damage와 Knockdown을 요청합니다 */
+	bool ExecuteAttackSectorSlice(float PreviousSweepProgress, float CurrentSweepProgress);
 
 	/** 선택한 Montage가 정상 완료되면 Ability를 성공 종료합니다 */
 	UFUNCTION()
@@ -141,7 +141,7 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Animation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01"))
 	float MontagePlayRate = 1.0f;
 
-	/** Left와 Right가 공유하는 회전형 공격 Box 크기입니다 */
+	/** Left와 Right가 공유하며 환형 부채꼴 반지름과 각도 폭을 유도할 기존 Box 크기입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
 	FRSArmSwingBoxDefinition AttackBox;
 
@@ -219,9 +219,6 @@ private:
 
 	/** 선택한 Montage가 Attack Window 끝까지 정상 진행했는지 나타냅니다 */
 	bool bHasCompletedAttackWindow = false;
-
-	/** 한 Window에서 Substep 상한 도달 경고를 이미 남겼는지 나타냅니다 */
-	bool bHasReportedSubstepLimit = false;
 
 	/** 현재 환형 부채꼴 Telegraph를 개별 회수하기 위한 Component Handle입니다 */
 	int32 ActiveTelegraphHandle = INDEX_NONE;
