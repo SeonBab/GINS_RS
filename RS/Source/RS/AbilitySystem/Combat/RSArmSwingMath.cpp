@@ -21,22 +21,22 @@ namespace
 		}
 	}
 
-	float CalculateOuterRadius(const FRSArmSwingBoxDefinition& BoxDefinition)
+	float CalculateOuterRadius(const FRSArmSwingSectorDefinition& SectorDefinition)
 	{
-		const float OuterEdgeDistance = BoxDefinition.InnerOffset + BoxDefinition.BoxLength;
+		const float OuterEdgeDistance = SectorDefinition.InnerOffset + SectorDefinition.RadialLength;
 
-		return FMath::Sqrt(FMath::Square(OuterEdgeDistance) + FMath::Square(BoxDefinition.BoxHalfWidth));
+		return FMath::Sqrt(FMath::Square(OuterEdgeDistance) + FMath::Square(SectorDefinition.PathHalfWidth));
 	}
 }
 
-bool FRSArmSwingBoxDefinition::IsDataValid(FString* OutValidationError) const
+bool FRSArmSwingSectorDefinition::IsDataValid(FString* OutValidationError) const
 {
 	if (OutValidationError)
 	{
 		OutValidationError->Reset();
 	}
 
-	if (!IsFinite(InnerOffset) || !IsFinite(BoxLength) || !IsFinite(BoxHalfWidth))
+	if (!IsFinite(InnerOffset) || !IsFinite(RadialLength) || !IsFinite(PathHalfWidth))
 	{
 		SetValidationError(OutValidationError, TEXT("Arm Swing 수평 범위 값은 유한해야 합니다"));
 
@@ -50,7 +50,7 @@ bool FRSArmSwingBoxDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
-	if (BoxLength <= MinimumSize || BoxHalfWidth <= MinimumSize)
+	if (RadialLength <= MinimumSize || PathHalfWidth <= MinimumSize)
 	{
 		SetValidationError(OutValidationError, TEXT("Arm Swing의 수평 길이와 반폭은 0보다 커야 합니다"));
 
@@ -106,10 +106,10 @@ bool FRSArmSwingMath::TryCalculateLockedAttackTransform(const FTransform& Capsul
 	return true;
 }
 
-bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSArmSwingSectorBounds& OutBounds)
+bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSArmSwingSectorBounds& OutBounds)
 {
 	OutBounds = FRSArmSwingSectorBounds();
-	if (!BoxDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(PreviousProgress) || !IsFinite(CurrentProgress))
+	if (!SectorDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(PreviousProgress) || !IsFinite(CurrentProgress))
 	{
 		return false;
 	}
@@ -121,14 +121,14 @@ bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingBoxDefinition& B
 		return false;
 	}
 
-	// Pivot과 맞닿은 Box도 거의 전 방향으로 과대 표시되지 않도록 실제로 회전하는 Box 중심 반지름에서 수평 반폭을 각도로 변환합니다
-	const float BoxCenterRadius = BoxDefinition.InnerOffset + BoxDefinition.BoxLength * 0.5f;
-	const float AngularPadding = FMath::RadiansToDegrees(FMath::Atan2(BoxDefinition.BoxHalfWidth, BoxCenterRadius));
+	// Pivot과 맞닿은 경로도 거의 전 방향으로 과대 표시되지 않도록 중심 회전 반지름에서 수평 반폭을 각도로 변환합니다
+	const float PathCenterRadius = SectorDefinition.InnerOffset + SectorDefinition.RadialLength * 0.5f;
+	const float AngularPadding = FMath::RadiansToDegrees(FMath::Atan2(SectorDefinition.PathHalfWidth, PathCenterRadius));
 	const float SweepSign = FMath::Sign(PathDefinition.SweepAngleDegrees);
 	const float IntervalSweepAngleDegrees = PathDefinition.SweepAngleDegrees * (ClampedCurrentProgress - ClampedPreviousProgress);
 
-	OutBounds.InnerRadius = BoxDefinition.InnerOffset;
-	OutBounds.OuterRadius = CalculateOuterRadius(BoxDefinition);
+	OutBounds.InnerRadius = SectorDefinition.InnerOffset;
+	OutBounds.OuterRadius = CalculateOuterRadius(SectorDefinition);
 	OutBounds.StartYawOffset = PathDefinition.StartYawOffset + PathDefinition.SweepAngleDegrees * ClampedPreviousProgress - SweepSign * AngularPadding;
 	const float PaddedSweepAngleDegrees = FMath::Abs(IntervalSweepAngleDegrees) + AngularPadding * 2.0f;
 	OutBounds.SweepAngleDegrees = SweepSign * FMath::Min(PaddedSweepAngleDegrees, 360.0f);
@@ -136,9 +136,9 @@ bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingBoxDefinition& B
 	return true;
 }
 
-bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingBoxDefinition& BoxDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingSectorBounds& OutBounds)
+bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingSectorBounds& OutBounds)
 {
-	return TryCalculateSectorBounds(BoxDefinition, PathDefinition, 0.0f, 1.0f, OutBounds);
+	return TryCalculateSectorBounds(SectorDefinition, PathDefinition, 0.0f, 1.0f, OutBounds);
 }
 
 bool FRSArmSwingMath::IsLocationInsideSector(const FTransform& LockedAttackTransform, const FRSArmSwingSectorBounds& SectorBounds, const FVector& TargetLocation)
