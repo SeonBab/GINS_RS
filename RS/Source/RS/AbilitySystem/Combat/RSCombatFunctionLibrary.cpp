@@ -173,6 +173,16 @@ namespace RSCombatDebug
 
 void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets)
 {
+	FindTargetsInShapeInternal(Attacker, TargetChannel, Shape, ShapeTransform, OutTargets, true);
+}
+
+void URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets)
+{
+	FindTargetsInShapeInternal(Attacker, TargetChannel, Shape, ShapeTransform, OutTargets, false);
+}
+
+void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets, bool bShouldDrawDebug)
+{
 	OutTargets.Reset();
 
 	if (!Attacker)
@@ -269,7 +279,7 @@ void URSCombatFunctionLibrary::FindTargetsInShape(const AActor* Attacker, EColli
 		OutTargets.Add(OverlappedActor);
 	}
 
-	if (IsHitCheckDebugEnabled())
+	if (bShouldDrawDebug && IsHitCheckDebugEnabled())
 	{
 		DrawDebugCombatShape(World, Shape, ShapeTransform, OutTargets.IsEmpty() ? FColor::Silver : FColor::Red, RSCombatDebugLifeTime);
 	}
@@ -346,6 +356,92 @@ void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const F
 		}
 		break;
 	}
+	}
+#endif
+}
+
+void URSCombatFunctionLibrary::DrawDebugCombatSector(const UWorld* World, const FTransform& ShapeTransform, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime)
+{
+#if ENABLE_DRAW_DEBUG
+	if (!World || ShapeTransform.ContainsNaN() || !FMath::IsFinite(OuterRadius) || OuterRadius <= 0.0f
+		|| !FMath::IsFinite(StartAngleOffsetDegrees) || !FMath::IsFinite(SweepAngleDegrees) || SweepAngleDegrees <= 0.0f || SweepAngleDegrees > 360.0f)
+	{
+		return;
+	}
+
+	FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
+	HorizontalForward.Z = 0.0f;
+	if (!HorizontalForward.Normalize())
+	{
+		return;
+	}
+
+	constexpr int32 DebugCircleSegments = 48;
+	const FVector ShapeLocation = ShapeTransform.GetLocation();
+	const FVector StartBoundary = HorizontalForward.RotateAngleAxis(StartAngleOffsetDegrees, FVector::UpVector);
+	if (!FMath::IsNearlyEqual(SweepAngleDegrees, 360.0f))
+	{
+		const FVector EndBoundary = StartBoundary.RotateAngleAxis(SweepAngleDegrees, FVector::UpVector);
+		DrawDebugLine(World, ShapeLocation, ShapeLocation + StartBoundary * OuterRadius, Color, false, LifeTime);
+		DrawDebugLine(World, ShapeLocation, ShapeLocation + EndBoundary * OuterRadius, Color, false, LifeTime);
+	}
+
+	FVector PreviousArcPoint = ShapeLocation + StartBoundary * OuterRadius;
+	for (int32 SegmentIndex = 1; SegmentIndex <= DebugCircleSegments; ++SegmentIndex)
+	{
+		const float SegmentRatio = static_cast<float>(SegmentIndex) / static_cast<float>(DebugCircleSegments);
+		const FVector ArcPoint = ShapeLocation + StartBoundary.RotateAngleAxis(SweepAngleDegrees * SegmentRatio, FVector::UpVector) * OuterRadius;
+		DrawDebugLine(World, PreviousArcPoint, ArcPoint, Color, false, LifeTime);
+		PreviousArcPoint = ArcPoint;
+	}
+#endif
+}
+
+void URSCombatFunctionLibrary::DrawDebugCombatAnnularSector(const UWorld* World, const FTransform& ShapeTransform, float InnerRadius, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime)
+{
+#if ENABLE_DRAW_DEBUG
+	const float AbsoluteSweepAngleDegrees = FMath::Abs(SweepAngleDegrees);
+	if (!World || ShapeTransform.ContainsNaN() || !FMath::IsFinite(InnerRadius) || !FMath::IsFinite(OuterRadius)
+		|| InnerRadius < 0.0f || OuterRadius <= InnerRadius || !FMath::IsFinite(StartAngleOffsetDegrees)
+		|| !FMath::IsFinite(SweepAngleDegrees) || AbsoluteSweepAngleDegrees <= 0.0f || AbsoluteSweepAngleDegrees > 360.0f)
+	{
+		return;
+	}
+
+	FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
+	HorizontalForward.Z = 0.0f;
+	if (!HorizontalForward.Normalize())
+	{
+		return;
+	}
+
+	constexpr int32 FullCircleSegmentCount = 48;
+	const int32 SegmentCount = FMath::Max(1, FMath::CeilToInt(AbsoluteSweepAngleDegrees / 360.0f * FullCircleSegmentCount));
+	const FVector ShapeLocation = ShapeTransform.GetLocation();
+	const FVector StartBoundary = HorizontalForward.RotateAngleAxis(StartAngleOffsetDegrees, FVector::UpVector);
+	if (!FMath::IsNearlyEqual(AbsoluteSweepAngleDegrees, 360.0f))
+	{
+		const FVector EndBoundary = StartBoundary.RotateAngleAxis(SweepAngleDegrees, FVector::UpVector);
+		DrawDebugLine(World, ShapeLocation + StartBoundary * InnerRadius, ShapeLocation + StartBoundary * OuterRadius, Color, false, LifeTime);
+		DrawDebugLine(World, ShapeLocation + EndBoundary * InnerRadius, ShapeLocation + EndBoundary * OuterRadius, Color, false, LifeTime);
+	}
+
+	const bool bHasInnerArc = InnerRadius > KINDA_SMALL_NUMBER;
+	FVector PreviousInnerArcPoint = ShapeLocation + StartBoundary * InnerRadius;
+	FVector PreviousOuterArcPoint = ShapeLocation + StartBoundary * OuterRadius;
+	for (int32 SegmentIndex = 1; SegmentIndex <= SegmentCount; ++SegmentIndex)
+	{
+		const float SegmentRatio = static_cast<float>(SegmentIndex) / static_cast<float>(SegmentCount);
+		const FVector ArcDirection = StartBoundary.RotateAngleAxis(SweepAngleDegrees * SegmentRatio, FVector::UpVector);
+		const FVector InnerArcPoint = ShapeLocation + ArcDirection * InnerRadius;
+		const FVector OuterArcPoint = ShapeLocation + ArcDirection * OuterRadius;
+		if (bHasInnerArc)
+		{
+			DrawDebugLine(World, PreviousInnerArcPoint, InnerArcPoint, Color, false, LifeTime);
+		}
+		DrawDebugLine(World, PreviousOuterArcPoint, OuterArcPoint, Color, false, LifeTime);
+		PreviousInnerArcPoint = InnerArcPoint;
+		PreviousOuterArcPoint = OuterArcPoint;
 	}
 #endif
 }
