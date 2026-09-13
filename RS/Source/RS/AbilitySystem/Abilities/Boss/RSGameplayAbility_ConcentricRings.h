@@ -8,7 +8,6 @@
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_ConcentricRings.generated.h"
 
-class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 
 /**
@@ -54,7 +53,7 @@ protected:
 #endif
 
 private:
-	/** 설정된 Montage를 한 번 요청하며 재생 실패와 중단은 패턴 진행에 영향을 주지 않습니다 */
+	/** 설정된 Montage를 한 번 요청하며 재생 실패와 중단은 패턴 진행을 막지 않습니다 */
 	void RequestAttackMontage();
 
 	/**
@@ -150,10 +149,4 @@ private:
 	UPROPERTY(Transient)
 	int32 StepIndex = 0;
 
-	/**
-	 * Montage 재생 요청의 Task입니다
-	 * 완료·중단 콜백을 패턴 흐름에 연결하지 않으므로 Task는 수명 관리를 위해서만 보관합니다
-	 */
-	UPROPERTY(Transient)
-	TObjectPtr<UAbilityTask_PlayMontageAndWait> MontageTask;
 };

@@ -6,6 +6,9 @@
 #include "RSBaseGameplayAbility.h"
 #include "RSBaseGameplayAbility_BossPattern.generated.h"
 
+class UAbilityTask_PlayMontageAndWait;
+class UAnimMontage;
+
 /**
  * 보스가 페이즈에서 사용하는 공격 패턴의 공통 부모입니다
  * 어느 패턴이든 페이즈의 메인 기믹으로 지정될 수 있도록 파훼 판정과 결과 보고를 담당합니다
@@ -42,7 +45,46 @@ protected:
 	 */
 	virtual bool IsGimmickBroken() const { return !bAnyTargetHit; }
 
+	/**
+	 * 패턴 Montage 재생을 요청하고 그 Montage가 끝날 때까지 정상 종료를 막습니다
+	 * 반환한 Task에 패턴이 자기 Callback을 더 붙일 수 있으며 Montage가 없거나 Task를 만들지 못하면 nullptr을 돌려줍니다
+	 * 종료 시 Task 정리와 Montage가 남긴 상태 태그 회수도 이 부모가 맡으므로 패턴이 따로 처리하지 않습니다
+	 */
+	UAbilityTask_PlayMontageAndWait* PlayPatternMontage(UAnimMontage* Montage, float PlayRate = 1.0f);
+
+	/**
+	 * 패턴의 공격 타임라인이 끝나 정상 종료해도 되는 시점에 호출합니다
+	 * PlayPatternMontage()로 요청한 Montage가 아직 남아 있으면 마지막 하나가 끝나는 순간으로 정상 종료를 미룹니다
+	 * 취소 경로는 이 함수를 쓰지 않고 지금처럼 EndAbility()를 직접 불러 즉시 끝냅니다
+	 *
+	 * 이 게이트는 **이미 재생을 요청한** Montage만 셉니다
+	 * 그래서 나중에 재생할 Montage가 더 있는 패턴은 그 요청을 먼저 하고 이 함수를 호출해야 합니다
+	 * 순서가 뒤바뀌면 그 순간 남은 Montage가 0개라 어빌리티가 먼저 끝납니다
+	 */
+	void FinishPatternWhenMontageEnds();
+
 private:
+	/** 재생이 끝난 Montage 하나를 게이트에서 내리고 마지막 하나였으면 보류한 정상 종료를 진행합니다 */
+	UFUNCTION()
+	void HandlePatternMontageFinished();
+
+	/** 타임라인과 Montage가 모두 끝났을 때만 정상 종료합니다 */
+	void TryFinishPattern();
+
 	/** 이번 실행에서 판정에 걸린 대상이 있었는지 나타냅니다 */
 	bool bAnyTargetHit = false;
+
+	/** 패턴이 자기 타임라인을 끝내고 정상 종료를 요청했는지 나타냅니다 */
+	bool bPatternTimelineFinished = false;
+
+	/** 재생을 요청했고 아직 끝나지 않은 Montage의 개수입니다 */
+	int32 PendingPatternMontageCount = 0;
+
+	/** 종료할 때 함께 정리할 이번 실행의 Montage Task입니다 */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAbilityTask_PlayMontageAndWait>> PatternMontageTasks;
+
+	/** 종료할 때 상태 태그를 회수할 이번 실행의 Montage입니다 */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAnimMontage>> PlayedPatternMontages;
 };

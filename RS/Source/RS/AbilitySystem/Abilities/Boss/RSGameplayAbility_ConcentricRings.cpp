@@ -2,7 +2,6 @@
 
 #include "RSGameplayAbility_ConcentricRings.h"
 
-#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
 #include "Engine/World.h"
@@ -53,7 +52,6 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	ActiveSequence.Reset();
 	RingCenterTransform = FTransform::Identity;
 	StepIndex = 0;
-	MontageTask = nullptr;
 
 	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
 	if (!AvatarActor || Rings.IsEmpty() || SequencePool.IsEmpty())
@@ -109,23 +107,13 @@ void URSGameplayAbility_ConcentricRings::EndAbility(const FGameplayAbilitySpecHa
 		}
 	}
 
-	// Montage가 중단되면 Notify State의 End가 오지 않아 상태 태그가 남으므로 여기서 회수합니다
-	EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
-	MontageTask = nullptr;
-
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void URSGameplayAbility_ConcentricRings::RequestAttackMontage()
 {
-	if (!AttackMontage)
-	{
-		return;
-	}
-
-	// Task의 완료·실패·중단 결과를 패턴 흐름에 연결하지 않아 애니메이션이 패턴 수명을 정하지 않게 합니다
-	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage);
-	MontageTask->ReadyForActivation();
+	// Montage는 예고와 타격 시각을 정하지 않지만, 공통 게이트가 수명을 알고 있어 마지막 타격 뒤에도 재생 중인 Montage가 잘리지 않습니다
+	PlayPatternMontage(AttackMontage);
 }
 
 void URSGameplayAbility_ConcentricRings::RunCurrentStep()
@@ -135,7 +123,7 @@ void URSGameplayAbility_ConcentricRings::RunCurrentStep()
 	// 마지막 타격이 직접 종료하므로 정상 흐름에서는 도달하지 않는 범위 가드입니다
 	if (StepIndex >= SequenceLength * 2)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 
 		return;
 	}
@@ -168,9 +156,10 @@ void URSGameplayAbility_ConcentricRings::RunCurrentStep()
 	StrikeRing(*AvatarActor, SequenceIndex);
 
 	// 마지막 타격 뒤에 대기를 예약하지 않도록 한다
+	// 판정은 끝났지만 Montage가 남아 있으면 잘리지 않도록 종료를 미룬다
 	if (bIsLastStepOfPhase)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 
 		return;
 	}

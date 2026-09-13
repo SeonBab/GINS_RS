@@ -154,7 +154,6 @@ void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGamepla
 
 		return;
 	}
-	bHasCommittedActivation = true;
 
 	UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement();
 	OriginalRotationRate = CharacterMovementComp->RotationRate;
@@ -208,17 +207,6 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 		BossController->ClearFocus(EAIFocusPriority::Gameplay);
 	}
 
-	if (MontageTask)
-	{
-		MontageTask->EndTask();
-		MontageTask = nullptr;
-	}
-
-	if (bHasCommittedActivation)
-	{
-		EndAnimationGameplayStatesForMontage(ActorInfo, AttackMontage);
-	}
-
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
@@ -229,7 +217,6 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 	HitActors.Reset();
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;
-	bHasCommittedActivation = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	bIsCleaningUp = false;
@@ -374,20 +361,11 @@ void URSGameplayAbility_SequentialSweepExplosion::StartAttackTimeline()
 
 void URSGameplayAbility_SequentialSweepExplosion::RequestAttackMontage()
 {
-	if (!AttackMontage)
+	// 정상 완료를 기다리는 것은 공통 게이트가 맡고 여기서는 강제 중단만 취소로 다룹니다
+	if (UAbilityTask_PlayMontageAndWait* MontageTask = PlayPatternMontage(AttackMontage, MontagePlayRate))
 	{
-		return;
+		MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
 	}
-
-	MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, MontagePlayRate);
-	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleAttackMontageCompleted);
-	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleAttackMontageInterrupted);
-	MontageTask->ReadyForActivation();
-}
-
-void URSGameplayAbility_SequentialSweepExplosion::HandleAttackMontageCompleted()
-{
-	MontageTask = nullptr;
 }
 
 void URSGameplayAbility_SequentialSweepExplosion::HandleAttackMontageInterrupted()
@@ -447,7 +425,8 @@ void URSGameplayAbility_SequentialSweepExplosion::HandleTimelineElapsedTimeUpdat
 
 	if (NextExplosionSectorIndex >= PatternDefinition.SectorCount)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		// 마지막 판정은 끝났지만 Montage가 남아 있으면 잘리지 않도록 종료를 미룹니다
+		FinishPatternWhenMontageEnds();
 	}
 }
 
@@ -598,13 +577,11 @@ void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()
 	HitActors.Reset();
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;
-	bHasCommittedActivation = false;
 	OriginalRotationRate = FRotator::ZeroRotator;
 	bOriginalUseControllerDesiredRotation = false;
 	State = ERSSequentialSweepExplosionState::Inactive;
 	ObserveFacingTask = nullptr;
 	TimelineTask = nullptr;
-	MontageTask = nullptr;
 }
 
 #if WITH_EDITOR
