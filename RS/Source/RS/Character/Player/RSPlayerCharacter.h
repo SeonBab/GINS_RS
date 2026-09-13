@@ -73,6 +73,9 @@ private:
 	/** 현재 Gameplay State에서 새 Navigation 이동을 요청할 수 있는지 반환합니다 */
 	bool CanRequestMoveTo() const;
 
+	/** Navigation 이동 전에 진행 중인 대시를 취소하고 이동 소유권을 확보합니다 */
+	bool TryCancelDashForNavigationMovement();
+
 	/** 진행 중인 Navigation 경로 추종과 CharacterMovement의 속도를 중단합니다 */
 	void StopNavigationMovement();
 

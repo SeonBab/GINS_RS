@@ -150,6 +150,11 @@ void ARSPlayerCharacter::Input_MoveToStarted()
 		return;
 	}
 
+	if (!TryCancelDashForNavigationMovement())
+	{
+		return;
+	}
+
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, MoveToLocation);
 	SpawnMoveClickEffect(MoveToLocation);
 
@@ -180,6 +185,11 @@ void ARSPlayerCharacter::Input_MoveTo(const FInputActionValue& InputActionValue)
 
 	FVector MoveToLocation;
 	if (!TryGetMoveToLocation(MoveToLocation))
+	{
+		return;
+	}
+
+	if (!TryCancelDashForNavigationMovement())
 	{
 		return;
 	}
@@ -254,6 +264,26 @@ bool ARSPlayerCharacter::CanRequestMoveTo() const
 		&& !IsDead()
 		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Action_Locked)
 		&& !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Movement_Blocked);
+}
+
+bool ARSPlayerCharacter::TryCancelDashForNavigationMovement()
+{
+	UAbilitySystemComponent* AbilitySystemComp = GetAbilitySystemComponent();
+	if (!AbilitySystemComp)
+	{
+		return false;
+	}
+
+	if (!AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Movement_Dashing))
+	{
+		return true;
+	}
+
+	// 이동 소유권을 넘기기 전에 CurveMovement Task가 끝나야 같은 캡슐을 두 경로가 동시에 움직이지 않습니다
+	const FGameplayTagContainer DashAbilityTags(RSGameplayTags::Ability_Movement_Dash);
+	AbilitySystemComp->CancelAbilities(&DashAbilityTags);
+
+	return !AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Movement_Dashing);
 }
 
 void ARSPlayerCharacter::StopNavigationMovement()
