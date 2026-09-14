@@ -15,6 +15,7 @@ class UNiagaraSystem;
 class URSInputConfig;
 class UCameraComponent;
 class USkeletalMeshComponent;
+class UStaticMeshComponent;
 class USpringArmComponent;
 class URSHealthComponent;
 
@@ -184,6 +185,10 @@ private:
 	/** 본체 Mesh의 Leader Pose를 공유하며 외곽선 Material만 렌더링하는 Mesh입니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USkeletalMeshComponent> OutlineMeshComp;
+
+	/** 캐릭터 Mesh에 부착되어 장착 무기를 표시하는 Static Mesh입니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> WeaponMeshComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> CameraComp;
