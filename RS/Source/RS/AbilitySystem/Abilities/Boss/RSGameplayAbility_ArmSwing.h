@@ -141,9 +141,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Animation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01"))
 	float MontagePlayRate = 1.0f;
 
-	/** Left와 Right가 공유하며 환형 부채꼴 반지름과 각도 폭을 유도할 기존 Box 크기입니다 */
+	/** Left와 Right가 공유하며 환형 부채꼴 반지름과 각도 폭을 유도할 수평 경로 데이터입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
-	FRSArmSwingBoxDefinition AttackBox;
+	FRSArmSwingSectorDefinition AttackSector;
 
 	/** 판정에 걸린 대상에게 적용할 피해량입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))

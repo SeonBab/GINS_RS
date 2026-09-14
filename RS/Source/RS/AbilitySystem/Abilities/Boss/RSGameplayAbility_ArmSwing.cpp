@@ -60,7 +60,7 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 		|| !IsVariantRuntimeValid(LeftVariant)
 		|| !IsVariantRuntimeValid(RightVariant)
 		|| LeftVariant.AttackMontage == RightVariant.AttackMontage
-		|| !AttackBox.IsDataValid()
+		|| !AttackSector.IsDataValid()
 		|| !DamageEffectClass
 		|| Reaction.Type != ERSHitReactionType::Knockdown
 		|| !FMath::IsFinite(Reaction.KnockbackDistance)
@@ -303,7 +303,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
 		|| !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(SelectedVariant->AttackMontage, AttackWindowStartPosition, AttackWindowEndPosition)
-		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackBox, SelectedVariant->GetPathDefinition(), TelegraphBounds))
+		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), TelegraphBounds))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -484,7 +484,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 
 	const FRSArmSwingPathDefinition PathDefinition = SelectedVariant->GetPathDefinition();
 	FRSArmSwingSectorBounds SectorBounds;
-	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackBox, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
+	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
 	{
 		return false;
 	}
@@ -700,10 +700,10 @@ EDataValidationResult URSGameplayAbility_ArmSwing::IsDataValid(FDataValidationCo
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	FString AttackBoxValidationError;
-	if (!AttackBox.IsDataValid(&AttackBoxValidationError))
+	FString AttackSectorValidationError;
+	if (!AttackSector.IsDataValid(&AttackSectorValidationError))
 	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("AttackBox is invalid: %s"), *AttackBoxValidationError)));
+		Context.AddError(FText::FromString(FString::Printf(TEXT("AttackSector is invalid: %s"), *AttackSectorValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
