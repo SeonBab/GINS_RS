@@ -8,42 +8,36 @@
 #include "RSAudioSettingsWidget.generated.h"
 
 class APlayerController;
-class UButton;
 class USlider;
 class UTextBlock;
 class URSAudioSettingsSubsystem;
 
-DECLARE_MULTICAST_DELEGATE(FRSAudioSettingsClosed)
-
-/** Master·배경음·효과음의 임시 적용과 확정·취소 입력을 관리합니다 */
+/** Master·배경음·효과음의 즉시 적용과 조작 종료 저장을 관리합니다 */
 UCLASS()
 class RS_API URSAudioSettingsWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
 protected:
-	/** Slider와 Action Button의 이벤트를 연결합니다 */
+	/** Slider의 변경과 Mouse Capture 이벤트를 연결합니다 */
 	virtual void NativeOnInitialized() override;
 
-	/** Widget이 예상하지 않게 제거되면 임시 음량을 저장값으로 복구합니다 */
+	/** Widget이 제거될 때 남은 변경값을 저장합니다 */
 	virtual void NativeDestruct() override;
 
-	/** Escape 입력을 취소로 처리합니다 */
-	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
-
 public:
-	/** 저장값 Snapshot을 보관하고 설정 화면 편집을 시작합니다 */
+	/** 현재 적용 중인 값을 Slider에 동기화합니다 */
 	bool OpenAudioSettings();
 
 	/** Master Slider에 Keyboard Focus를 요청합니다 */
 	void RequestInitialFocus(APlayerController* PlayerController);
 
-	/** 설정 화면이 적용 또는 취소로 닫혔음을 알리는 이벤트를 반환합니다 */
-	FRSAudioSettingsClosed& GetAudioSettingsClosed() { return OnAudioSettingsClosed; }
-
 private:
-	/** 현재 세 Slider 값을 Runtime 출력에 임시 적용합니다 */
-	void PreviewCurrentSliderValues();
+	/** 현재 세 Slider 값을 Runtime 출력에 즉시 적용합니다 */
+	void ApplyCurrentSliderValues();
+
+	/** 변경된 현재 값을 사용자 설정에 저장합니다 */
+	void SaveAudioSettingsIfNeeded();
 
 	/** 지정한 설정을 Slider에 반영합니다 */
 	void SynchronizeSliders(const FRSAudioVolumeSettings& Settings);
@@ -58,13 +52,10 @@ private:
 	void HandleSliderValueChanged(float Value);
 
 	UFUNCTION()
-	void HandleApplyButtonClicked();
+	void HandleSliderMouseCaptureBegin();
 
 	UFUNCTION()
-	void HandleCancelButtonClicked();
-
-	UFUNCTION()
-	void HandleDefaultsButtonClicked();
+	void HandleSliderMouseCaptureEnd();
 
 private:
 	/** 모든 오디오 채널에 공통 배율을 지정하는 Slider입니다 */
@@ -91,21 +82,12 @@ private:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Audio", meta = (BindWidget, AllowPrivateAccess = "true"))
 	TObjectPtr<UTextBlock> Text_SoundEffectsValue;
 
-	/** 임시 적용값을 저장하고 설정 화면을 닫는 Button입니다 */
-	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Audio", meta = (BindWidget, AllowPrivateAccess = "true"))
-	TObjectPtr<UButton> Button_Apply;
-
-	/** 저장값 Snapshot으로 복구하고 설정 화면을 닫는 Button입니다 */
-	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Audio", meta = (BindWidget, AllowPrivateAccess = "true"))
-	TObjectPtr<UButton> Button_Cancel;
-
-	/** 세 편집값과 Runtime 출력을 기본값으로 임시 변경하는 Button입니다 */
-	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Audio", meta = (BindWidget, AllowPrivateAccess = "true"))
-	TObjectPtr<UButton> Button_Defaults;
-
-	/** 적용 또는 취소 후 Main Menu 복귀를 요청하는 이벤트입니다 */
-	FRSAudioSettingsClosed OnAudioSettingsClosed;
-
-	/** 코드가 Slider를 동기화할 때 Preview 이벤트가 발생하지 않도록 구분합니다 */
+	/** 코드가 Slider를 동기화할 때 적용 이벤트가 발생하지 않도록 구분합니다 */
 	bool bIsSynchronizingSliders = false;
+
+	/** 마우스 드래그 중 반복 저장을 피하기 위해 Capture 상태를 구분합니다 */
+	bool bIsSliderMouseCaptured = false;
+
+	/** Runtime에 반영됐지만 사용자 설정 파일에는 아직 저장하지 않은 변경이 있는지 나타냅니다 */
+	bool bHasUnsavedChanges = false;
 };

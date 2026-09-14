@@ -26,11 +26,6 @@ void URSAudioSettingsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void URSAudioSettingsSubsystem::Deinitialize()
 {
-	if (EditTransaction.IsActive())
-	{
-		CancelAudioSettingsEdit();
-	}
-
 	FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationHandle);
 	PostWorldInitializationHandle.Reset();
 
@@ -48,73 +43,22 @@ void URSAudioSettingsSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-bool URSAudioSettingsSubsystem::BeginAudioSettingsEdit(FRSAudioVolumeSettings& OutEditingSettings)
+void URSAudioSettingsSubsystem::SetAudioSettings(const FRSAudioVolumeSettings& InSettings)
 {
-	URSGameUserSettings* GameUserSettings = GetRSGameUserSettings();
-	if (!GameUserSettings || !EditTransaction.Begin(GameUserSettings->GetAudioVolumeSettings()))
-	{
-		return false;
-	}
-
-	OutEditingSettings = EditTransaction.GetEditingSettings();
-	CurrentAudioSettings = OutEditingSettings;
+	CurrentAudioSettings = InSettings.GetClamped();
 	ApplyCurrentAudioSettings(GetAudioWorld());
-
-	return true;
 }
 
-bool URSAudioSettingsSubsystem::PreviewAudioSettings(const FRSAudioVolumeSettings& InSettings)
-{
-	if (!EditTransaction.SetEditingSettings(InSettings))
-	{
-		return false;
-	}
-
-	CurrentAudioSettings = EditTransaction.GetEditingSettings();
-	ApplyCurrentAudioSettings(GetAudioWorld());
-
-	return true;
-}
-
-bool URSAudioSettingsSubsystem::ApplyAudioSettingsEdit()
+bool URSAudioSettingsSubsystem::SaveAudioSettings()
 {
 	URSGameUserSettings* GameUserSettings = GetRSGameUserSettings();
-	if (!GameUserSettings || !EditTransaction.IsActive())
+	if (!GameUserSettings)
 	{
 		return false;
 	}
 
-	CurrentAudioSettings = EditTransaction.Commit();
 	GameUserSettings->SetAudioVolumeSettings(CurrentAudioSettings);
 	GameUserSettings->SaveSettings();
-	ApplyCurrentAudioSettings(GetAudioWorld());
-
-	return true;
-}
-
-bool URSAudioSettingsSubsystem::CancelAudioSettingsEdit()
-{
-	if (!EditTransaction.IsActive())
-	{
-		return false;
-	}
-
-	CurrentAudioSettings = EditTransaction.Cancel();
-	ApplyCurrentAudioSettings(GetAudioWorld());
-
-	return true;
-}
-
-bool URSAudioSettingsSubsystem::PreviewDefaultAudioSettings(FRSAudioVolumeSettings& OutEditingSettings)
-{
-	if (!EditTransaction.SetEditingSettings(FRSAudioVolumeSettings()))
-	{
-		return false;
-	}
-
-	OutEditingSettings = EditTransaction.GetEditingSettings();
-	CurrentAudioSettings = OutEditingSettings;
-	ApplyCurrentAudioSettings(GetAudioWorld());
 
 	return true;
 }

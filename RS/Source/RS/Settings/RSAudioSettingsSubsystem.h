@@ -10,7 +10,7 @@
 
 class USoundMix;
 
-/** 저장된 사용자 음량과 설정 화면의 임시 음량을 실제 오디오 출력에 적용합니다 */
+/** 저장된 사용자 음량을 관리하고 현재 값을 실제 오디오 출력에 적용합니다 */
 UCLASS()
 class RS_API URSAudioSettingsSubsystem : public UGameInstanceSubsystem
 {
@@ -20,30 +20,18 @@ public:
 	/** 저장값 로드와 World별 Sound Mix 적용을 준비합니다 */
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	/** 임시 설정과 World Delegate를 정리합니다 */
+	/** World Delegate와 적용한 Sound Mix를 정리합니다 */
 	virtual void Deinitialize() override;
 
 public:
-	/** 현재 저장값을 Snapshot으로 보관하고 설정 편집을 시작합니다 */
-	bool BeginAudioSettingsEdit(FRSAudioVolumeSettings& OutEditingSettings);
+	/** 지정한 음량을 현재 출력에 즉시 적용합니다 */
+	void SetAudioSettings(const FRSAudioVolumeSettings& InSettings);
 
-	/** 편집값을 저장하지 않고 현재 오디오 출력에 즉시 적용합니다 */
-	bool PreviewAudioSettings(const FRSAudioVolumeSettings& InSettings);
-
-	/** 편집값을 실제 설정으로 확정하고 사용자 설정 파일에 저장합니다 */
-	bool ApplyAudioSettingsEdit();
-
-	/** 편집 전 저장값으로 실제 출력을 복구하고 편집을 종료합니다 */
-	bool CancelAudioSettingsEdit();
-
-	/** 기본값을 편집값과 현재 출력에 임시 적용합니다 */
-	bool PreviewDefaultAudioSettings(FRSAudioVolumeSettings& OutEditingSettings);
+	/** 현재 음량을 사용자 설정 파일에 저장합니다 */
+	bool SaveAudioSettings();
 
 	/** 현재 실제 출력에 적용하도록 요청한 음량 설정을 반환합니다 */
 	const FRSAudioVolumeSettings& GetCurrentAudioSettings() const { return CurrentAudioSettings; }
-
-	/** 오디오 설정을 편집 중인지 반환합니다 */
-	bool IsEditingAudioSettings() const { return EditTransaction.IsActive(); }
 
 private:
 	/** 새 Game World에 현재 음량을 다시 적용합니다 */
@@ -59,9 +47,6 @@ private:
 	class URSGameUserSettings* GetRSGameUserSettings() const;
 
 private:
-	/** 저장값 Snapshot과 임시 적용값의 편집 상태입니다 */
-	FRSAudioSettingsEditTransaction EditTransaction;
-
 	/** 현재 World의 Sound Mix Override에 적용할 값입니다 */
 	FRSAudioVolumeSettings CurrentAudioSettings;
 

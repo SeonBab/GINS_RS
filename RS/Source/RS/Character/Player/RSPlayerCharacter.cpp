@@ -7,6 +7,7 @@
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/CollisionProfile.h"
 #include "InputMappingContext.h"
@@ -34,6 +35,12 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	OutlineMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	OutlineMeshComp->SetGenerateOverlapEvents(false);
 
+	WeaponMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMeshComponent"));
+	WeaponMeshComp->SetupAttachment(GetMesh());
+	WeaponMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	WeaponMeshComp->SetGenerateOverlapEvents(false);
+	WeaponMeshComp->SetSimulatePhysics(false);
+
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	SpringArmComp->SetupAttachment(GetRootComponent());
 
@@ -60,6 +67,11 @@ void ARSPlayerCharacter::PostInitializeComponents()
 	OutlineMeshComp->bUseBoundsFromLeaderPoseComponent = true;
 	OutlineMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	OutlineMeshComp->SetGenerateOverlapEvents(false);
+
+	// 공격 판정은 Ability의 HitCheck가 소유하므로 무기 Mesh는 렌더링에만 사용합니다
+	WeaponMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	WeaponMeshComp->SetGenerateOverlapEvents(false);
+	WeaponMeshComp->SetSimulatePhysics(false);
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 }
