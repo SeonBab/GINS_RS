@@ -13,6 +13,7 @@ class URSBossPhaseComponent;
 class URSHealthComponent;
 class URSHealthSet;
 class URSHitFlashComponent;
+class USoundBase;
 
 /** 보스 전용 설정과 Controller 연결의 기반이 되는 캐릭터입니다 */
 UCLASS()
@@ -62,6 +63,9 @@ private:
 	/** 사망이 시작되면 실행 중인 Ability와 보스 AI의 행동을 중지합니다 */
 	UFUNCTION()
 	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
+
+	/** 새 페이즈의 음악 요청을 현재 World의 공용 음악 재생 관리자에 전달합니다 */
+	void HandleBossPhaseEntered(int32 PhaseIndex, USoundBase* PhaseMusic, float CrossfadeDuration);
 
 protected:
 	/** 이 보스가 초기화될 때 기본으로 부여할 AbilitySet입니다 */

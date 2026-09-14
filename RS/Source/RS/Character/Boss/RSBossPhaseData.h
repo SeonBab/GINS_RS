@@ -8,6 +8,7 @@
 #include "RSBossPhaseData.generated.h"
 
 class URSBaseGameplayAbility;
+class USoundBase;
 
 /**
  * 보스 페이즈 하나가 사용하는 패턴 후보와 진행 규칙입니다
@@ -50,6 +51,14 @@ struct FRSBossPhaseDefinition
 	/** 이 페이즈에 처음 진입할 때 한 번 활성화할 전투 지속형 Ability이며 선택 사항입니다 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
 	TSubclassOf<URSBaseGameplayAbility> PersistentAbilityOnEnter;
+
+	/** 이 페이즈에 진입할 때 재생할 음악이며 비어 있으면 현재 음악을 유지합니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Music")
+	TObjectPtr<USoundBase> PhaseMusic;
+
+	/** 이전 음악에서 이 페이즈 음악으로 전환하는 시간입니다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Music", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float MusicCrossfadeDuration = 1.0f;
 };
 
 /**
