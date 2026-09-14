@@ -6,8 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "RSMainMenuPlayerController.generated.h"
 
-class URSAudioSettingsWidget;
 class URSMainMenuWidget;
+class URSMainMenuSettingsWidget;
 class URSQuitConfirmationWidget;
 class UUserWidget;
 
@@ -21,7 +21,7 @@ protected:
 	/** Main Menu Widget을 생성하고 UI 입력을 준비합니다 */
 	virtual void BeginPlay() override;
 
-	/** 임시 오디오 설정과 생성한 Widget을 정리합니다 */
+	/** 생성한 Widget을 정리합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
@@ -43,8 +43,8 @@ private:
 	/** 종료 확인 화면을 생성하거나 다시 표시합니다 */
 	void HandleQuitConfirmationRequested();
 
-	/** 오디오 설정 화면이 닫히면 Main Menu로 돌아갑니다 */
-	void HandleAudioSettingsClosed();
+	/** Main Menu Settings 화면이 닫히면 Main Menu로 돌아갑니다 */
+	void HandleMainMenuSettingsClosed();
 
 	/** 종료 확인을 취소하고 Main Menu로 돌아갑니다 */
 	void HandleQuitCancelled();
@@ -57,9 +57,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<URSMainMenuWidget> MainMenuWidgetClass;
 
-	/** Master·배경음·효과음 설정 Widget 클래스입니다 */
+	/** 공용 오디오 설정 Panel과 Main Menu 닫기 Action을 포함하는 Widget 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<URSAudioSettingsWidget> AudioSettingsWidgetClass;
+	TSubclassOf<URSMainMenuSettingsWidget> MainMenuSettingsWidgetClass;
 
 	/** Application 종료 확인 Widget 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
@@ -69,9 +69,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<URSMainMenuWidget> MainMenuWidget;
 
-	/** 필요할 때 생성해 재사용하는 오디오 설정 Widget입니다 */
+	/** 필요할 때 생성해 재사용하는 Main Menu Settings Widget입니다 */
 	UPROPERTY(Transient)
-	TObjectPtr<URSAudioSettingsWidget> AudioSettingsWidget;
+	TObjectPtr<URSMainMenuSettingsWidget> MainMenuSettingsWidget;
 
 	/** 필요할 때 생성해 재사용하는 종료 확인 Widget입니다 */
 	UPROPERTY(Transient)

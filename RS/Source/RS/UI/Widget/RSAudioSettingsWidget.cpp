@@ -2,11 +2,9 @@
 
 #include "RSAudioSettingsWidget.h"
 
-#include "Components/Button.h"
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"
 #include "Engine/GameInstance.h"
-#include "InputCoreTypes.h"
 #include "RSAudioSettingsSubsystem.h"
 
 void URSAudioSettingsWidget::NativeOnInitialized()
@@ -16,56 +14,31 @@ void URSAudioSettingsWidget::NativeOnInitialized()
 	if (Slider_Master)
 	{
 		Slider_Master->OnValueChanged.AddUniqueDynamic(this, &ThisClass::HandleSliderValueChanged);
+		Slider_Master->OnMouseCaptureBegin.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureBegin);
+		Slider_Master->OnMouseCaptureEnd.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureEnd);
 	}
 
 	if (Slider_BackgroundMusic)
 	{
 		Slider_BackgroundMusic->OnValueChanged.AddUniqueDynamic(this, &ThisClass::HandleSliderValueChanged);
+		Slider_BackgroundMusic->OnMouseCaptureBegin.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureBegin);
+		Slider_BackgroundMusic->OnMouseCaptureEnd.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureEnd);
 	}
 
 	if (Slider_SoundEffects)
 	{
 		Slider_SoundEffects->OnValueChanged.AddUniqueDynamic(this, &ThisClass::HandleSliderValueChanged);
+		Slider_SoundEffects->OnMouseCaptureBegin.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureBegin);
+		Slider_SoundEffects->OnMouseCaptureEnd.AddUniqueDynamic(this, &ThisClass::HandleSliderMouseCaptureEnd);
 	}
 
-	if (Button_Apply)
-	{
-		Button_Apply->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleApplyButtonClicked);
-	}
-
-	if (Button_Cancel)
-	{
-		Button_Cancel->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleCancelButtonClicked);
-	}
-
-	if (Button_Defaults)
-	{
-		Button_Defaults->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleDefaultsButtonClicked);
-	}
 }
 
 void URSAudioSettingsWidget::NativeDestruct()
 {
-	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
-	{
-		if (AudioSettingsSubsystem->IsEditingAudioSettings())
-		{
-			AudioSettingsSubsystem->CancelAudioSettingsEdit();
-		}
-	}
+	SaveAudioSettingsIfNeeded();
 
 	Super::NativeDestruct();
-}
-
-FReply URSAudioSettingsWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
-{
-	if (InKeyEvent.GetKey() == EKeys::Escape)
-	{
-		HandleCancelButtonClicked();
-		return FReply::Handled();
-	}
-
-	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
 
 bool URSAudioSettingsWidget::OpenAudioSettings()
@@ -76,13 +49,9 @@ bool URSAudioSettingsWidget::OpenAudioSettings()
 		return false;
 	}
 
-	FRSAudioVolumeSettings EditingSettings;
-	if (!AudioSettingsSubsystem->BeginAudioSettingsEdit(EditingSettings))
-	{
-		return false;
-	}
-
-	SynchronizeSliders(EditingSettings);
+	SynchronizeSliders(AudioSettingsSubsystem->GetCurrentAudioSettings());
+	bIsSliderMouseCaptured = false;
+	bHasUnsavedChanges = false;
 
 	return true;
 }
@@ -95,7 +64,7 @@ void URSAudioSettingsWidget::RequestInitialFocus(APlayerController* PlayerContro
 	}
 }
 
-void URSAudioSettingsWidget::PreviewCurrentSliderValues()
+void URSAudioSettingsWidget::ApplyCurrentSliderValues()
 {
 	if (!Slider_Master || !Slider_BackgroundMusic || !Slider_SoundEffects)
 	{
@@ -109,7 +78,24 @@ void URSAudioSettingsWidget::PreviewCurrentSliderValues()
 
 	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
 	{
-		AudioSettingsSubsystem->PreviewAudioSettings(Settings);
+		AudioSettingsSubsystem->SetAudioSettings(Settings);
+		bHasUnsavedChanges = true;
+	}
+}
+
+void URSAudioSettingsWidget::SaveAudioSettingsIfNeeded()
+{
+	if (!bHasUnsavedChanges)
+	{
+		return;
+	}
+
+	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
+	{
+		if (AudioSettingsSubsystem->SaveAudioSettings())
+		{
+			bHasUnsavedChanges = false;
+		}
 	}
 }
 
@@ -165,40 +151,22 @@ void URSAudioSettingsWidget::HandleSliderValueChanged(float)
 	if (!bIsSynchronizingSliders)
 	{
 		UpdateValueTexts();
-		PreviewCurrentSliderValues();
-	}
-}
+		ApplyCurrentSliderValues();
 
-void URSAudioSettingsWidget::HandleApplyButtonClicked()
-{
-	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
-	{
-		if (AudioSettingsSubsystem->ApplyAudioSettingsEdit())
+		if (!bIsSliderMouseCaptured)
 		{
-			OnAudioSettingsClosed.Broadcast();
+			SaveAudioSettingsIfNeeded();
 		}
 	}
 }
 
-void URSAudioSettingsWidget::HandleCancelButtonClicked()
+void URSAudioSettingsWidget::HandleSliderMouseCaptureBegin()
 {
-	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
-	{
-		if (AudioSettingsSubsystem->CancelAudioSettingsEdit())
-		{
-			OnAudioSettingsClosed.Broadcast();
-		}
-	}
+	bIsSliderMouseCaptured = true;
 }
 
-void URSAudioSettingsWidget::HandleDefaultsButtonClicked()
+void URSAudioSettingsWidget::HandleSliderMouseCaptureEnd()
 {
-	if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GetAudioSettingsSubsystem())
-	{
-		FRSAudioVolumeSettings DefaultSettings;
-		if (AudioSettingsSubsystem->PreviewDefaultAudioSettings(DefaultSettings))
-		{
-			SynchronizeSliders(DefaultSettings);
-		}
-	}
+	bIsSliderMouseCaptured = false;
+	SaveAudioSettingsIfNeeded();
 }

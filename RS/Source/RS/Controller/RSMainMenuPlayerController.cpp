@@ -3,11 +3,9 @@
 #include "RSMainMenuPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
-#include "Engine/GameInstance.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "RSAudioSettingsSubsystem.h"
-#include "RSAudioSettingsWidget.h"
 #include "RSMainMenuGameMode.h"
+#include "RSMainMenuSettingsWidget.h"
 #include "RSMainMenuWidget.h"
 #include "RSQuitConfirmationWidget.h"
 
@@ -28,25 +26,14 @@ void ARSMainMenuPlayerController::BeginPlay()
 
 void ARSMainMenuPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (UGameInstance* GameInstance = GetGameInstance())
-	{
-		if (URSAudioSettingsSubsystem* AudioSettingsSubsystem = GameInstance->GetSubsystem<URSAudioSettingsSubsystem>())
-		{
-			if (AudioSettingsSubsystem->IsEditingAudioSettings())
-			{
-				AudioSettingsSubsystem->CancelAudioSettingsEdit();
-			}
-		}
-	}
-
 	if (MainMenuWidget)
 	{
 		MainMenuWidget->RemoveFromParent();
 	}
 
-	if (AudioSettingsWidget)
+	if (MainMenuSettingsWidget)
 	{
-		AudioSettingsWidget->RemoveFromParent();
+		MainMenuSettingsWidget->RemoveFromParent();
 	}
 
 	if (QuitConfirmationWidget)
@@ -102,9 +89,9 @@ void ARSMainMenuPlayerController::RestoreMainMenu()
 		return;
 	}
 
-	if (AudioSettingsWidget)
+	if (MainMenuSettingsWidget)
 	{
-		AudioSettingsWidget->RemoveFromParent();
+		MainMenuSettingsWidget->RemoveFromParent();
 	}
 
 	if (QuitConfirmationWidget)
@@ -137,31 +124,31 @@ void ARSMainMenuPlayerController::HandleStartGameRequested()
 
 void ARSMainMenuPlayerController::HandleAudioSettingsRequested()
 {
-	if (!MainMenuWidget || !AudioSettingsWidgetClass)
+	if (!MainMenuWidget || !MainMenuSettingsWidgetClass)
 	{
 		return;
 	}
 
-	if (!AudioSettingsWidget)
+	if (!MainMenuSettingsWidget)
 	{
-		AudioSettingsWidget = CreateWidget<URSAudioSettingsWidget>(this, AudioSettingsWidgetClass);
-		if (!AudioSettingsWidget)
+		MainMenuSettingsWidget = CreateWidget<URSMainMenuSettingsWidget>(this, MainMenuSettingsWidgetClass);
+		if (!MainMenuSettingsWidget)
 		{
 			return;
 		}
 
-		AudioSettingsWidget->GetAudioSettingsClosed().AddUObject(this, &ThisClass::HandleAudioSettingsClosed);
+		MainMenuSettingsWidget->GetMainMenuSettingsClosed().AddUObject(this, &ThisClass::HandleMainMenuSettingsClosed);
 	}
 
-	if (!AudioSettingsWidget->OpenAudioSettings())
+	if (!MainMenuSettingsWidget->OpenSettings())
 	{
 		return;
 	}
 
 	MainMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
-	AudioSettingsWidget->AddToViewport(10);
-	ConfigureUserInterfaceInput(AudioSettingsWidget);
-	AudioSettingsWidget->RequestInitialFocus(this);
+	MainMenuSettingsWidget->AddToViewport(10);
+	ConfigureUserInterfaceInput(MainMenuSettingsWidget);
+	MainMenuSettingsWidget->RequestInitialFocus(this);
 }
 
 void ARSMainMenuPlayerController::HandleQuitConfirmationRequested()
@@ -189,7 +176,7 @@ void ARSMainMenuPlayerController::HandleQuitConfirmationRequested()
 	QuitConfirmationWidget->RequestInitialFocus(this);
 }
 
-void ARSMainMenuPlayerController::HandleAudioSettingsClosed()
+void ARSMainMenuPlayerController::HandleMainMenuSettingsClosed()
 {
 	RestoreMainMenu();
 }
