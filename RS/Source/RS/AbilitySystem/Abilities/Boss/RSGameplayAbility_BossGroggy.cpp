@@ -4,6 +4,35 @@
 #include "RSGameplayAbility_BossGroggy.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+namespace
+{
+	const FName StartSectionName(TEXT("Start"));
+	const FName LoopSectionName(TEXT("Loop"));
+	const FName EndSectionName(TEXT("End"));
+
+	bool TryGetGroggySectionTiming(const UAnimMontage* Montage, float PlayRate, float RequestedDuration, float& OutStartDuration, float& OutLoopDuration, float& OutEndDuration, int32& OutLoopCount, float& OutEffectiveDuration)
+	{
+		if (!Montage || !FMath::IsFinite(PlayRate) || PlayRate <= 0.0f || Montage->GetNumSections() != 3
+			|| Montage->GetSectionName(0) != StartSectionName || Montage->GetSectionName(1) != LoopSectionName || Montage->GetSectionName(2) != EndSectionName)
+		{
+			return false;
+		}
+
+		OutStartDuration = Montage->GetSectionLength(0) / PlayRate;
+		OutLoopDuration = Montage->GetSectionLength(1) / PlayRate;
+		OutEndDuration = Montage->GetSectionLength(2) / PlayRate;
+
+		return URSGameplayAbility_BossGroggy::TryCalculateGroggyTiming(RequestedDuration, OutStartDuration, OutLoopDuration, OutEndDuration, OutLoopCount, OutEffectiveDuration);
+	}
+}
 
 URSGameplayAbility_BossGroggy::URSGameplayAbility_BossGroggy()
 {
@@ -11,10 +40,40 @@ URSGameplayAbility_BossGroggy::URSGameplayAbility_BossGroggy()
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
+bool URSGameplayAbility_BossGroggy::TryCalculateGroggyTiming(float RequestedDuration, float StartDuration, float LoopDuration, float EndDuration, int32& OutLoopCount, float& OutEffectiveDuration)
+{
+	OutLoopCount = 0;
+	OutEffectiveDuration = 0.0f;
+
+	if (!FMath::IsFinite(RequestedDuration) || !FMath::IsFinite(StartDuration) || !FMath::IsFinite(LoopDuration) || !FMath::IsFinite(EndDuration)
+		|| RequestedDuration <= 0.0f || StartDuration <= 0.0f || LoopDuration <= 0.0f || EndDuration <= 0.0f)
+	{
+		return false;
+	}
+
+	const float AvailableLoopDuration = RequestedDuration - StartDuration - EndDuration;
+	OutLoopCount = FMath::FloorToInt32((AvailableLoopDuration + UE_KINDA_SMALL_NUMBER) / LoopDuration);
+	if (OutLoopCount < 1)
+	{
+		OutLoopCount = 0;
+
+		return false;
+	}
+
+	OutEffectiveDuration = StartDuration + LoopDuration * OutLoopCount + EndDuration;
+
+	return FMath::IsFinite(OutEffectiveDuration) && OutEffectiveDuration <= RequestedDuration + UE_KINDA_SMALL_NUMBER;
+}
+
 void URSGameplayAbility_BossGroggy::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	// Montage가 무력화 시간을 결정하므로 Montage가 없으면 무력화 구간이 성립하지 않습니다
-	if (!ActorInfo || !GroggyMontage)
+	bIsEndingAbility = false;
+	float StartDuration = 0.0f;
+	float LoopDuration = 0.0f;
+	float EndDuration = 0.0f;
+	float EffectiveDuration = 0.0f;
+	int32 LoopCount = 0;
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !TryGetGroggySectionTiming(GroggyMontage, GroggyMontagePlayRate, GroggyDuration, StartDuration, LoopDuration, EndDuration, LoopCount, EffectiveDuration))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 
@@ -28,26 +87,100 @@ void URSGameplayAbility_BossGroggy::ActivateAbility(const FGameplayAbilitySpecHa
 		return;
 	}
 
-	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GroggyMontage);
+	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GroggyMontage, GroggyMontagePlayRate, StartSectionName);
 	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleGroggyMontageFinished);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleGroggyMontageCancelled);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleGroggyMontageCancelled);
 	MontageTask->ReadyForActivation();
+	if (!IsActive())
+	{
+		return;
+	}
+
+	UAnimInstance* AnimInstance = ActorInfo->GetAnimInstance();
+	if (!AnimInstance || !AnimInstance->Montage_IsPlaying(GroggyMontage))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
+	AnimInstance->Montage_SetNextSection(StartSectionName, LoopSectionName, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(LoopSectionName, LoopCount > 1 ? LoopSectionName : EndSectionName, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(EndSectionName, NAME_None, GroggyMontage);
+
+	if (LoopCount > 1)
+	{
+		const float PrepareFinalLoopDelay = StartDuration + LoopDuration * (static_cast<float>(LoopCount) - 0.5f);
+		UAbilityTask_WaitDelay* FinalLoopDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, PrepareFinalLoopDelay);
+		FinalLoopDelayTask->OnFinish.AddDynamic(this, &ThisClass::HandlePrepareFinalLoop);
+		FinalLoopDelayTask->ReadyForActivation();
+	}
 }
 
 void URSGameplayAbility_BossGroggy::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+	if (bIsEndingAbility)
+	{
+		return;
+	}
+
+	bIsEndingAbility = true;
 	EndAnimationGameplayStatesForMontage(ActorInfo, GroggyMontage);
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	bIsEndingAbility = false;
 }
 
 void URSGameplayAbility_BossGroggy::HandleGroggyMontageFinished()
 {
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	if (!bIsEndingAbility && IsActive())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	}
 }
 
 void URSGameplayAbility_BossGroggy::HandleGroggyMontageCancelled()
 {
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+	if (!bIsEndingAbility && IsActive())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+	}
 }
+
+void URSGameplayAbility_BossGroggy::HandlePrepareFinalLoop()
+{
+	UAnimInstance* AnimInstance = CurrentActorInfo ? CurrentActorInfo->GetAnimInstance() : nullptr;
+	if (!AnimInstance || !AnimInstance->Montage_IsPlaying(GroggyMontage))
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	AnimInstance->Montage_SetNextSection(LoopSectionName, EndSectionName, GroggyMontage);
+}
+
+#if WITH_EDITOR
+EDataValidationResult URSGameplayAbility_BossGroggy::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
+	float StartDuration = 0.0f;
+	float LoopDuration = 0.0f;
+	float EndDuration = 0.0f;
+	float EffectiveDuration = 0.0f;
+	int32 LoopCount = 0;
+	if (!TryGetGroggySectionTiming(GroggyMontage, GroggyMontagePlayRate, GroggyDuration, StartDuration, LoopDuration, EndDuration, LoopCount, EffectiveDuration))
+	{
+		Context.AddError(FText::FromString(TEXT("GroggyMontage must contain exactly Start, Loop, and End Sections in that order, use a positive play rate, and fit at least one complete Loop inside GroggyDuration.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+	else if (!GroggyMontage->bEnableAutoBlendOut)
+	{
+		Context.AddError(FText::FromString(TEXT("GroggyMontage must enable Auto Blend Out so the ability receives normal completion after End.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	return ValidationResult;
+}
+#endif
