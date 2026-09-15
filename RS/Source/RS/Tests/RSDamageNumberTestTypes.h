@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_TESTS
+
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "RSDamageNumberTestTypes.generated.h"
@@ -11,7 +13,7 @@ class URSDamageNumberViewModel;
 /**
  * URSDamageNumberViewModel의 요청 델리게이트를 수집하는 자동화 테스트 전용 객체입니다
  * 동적 델리게이트는 람다로 구독할 수 없어 UFUNCTION 핸들러를 가진 UObject가 필요합니다
- * UHT가 처리하는 헤더에 있어야 하므로 WITH_DEV_AUTOMATION_TESTS로 감싸지 않습니다
+ * UHT는 WITH_DEV_AUTOMATION_TESTS를 해석하지 못해 안쪽 선언을 건너뛰므로 WITH_TESTS로 감쌉니다
  */
 UCLASS()
 class URSDamageNumberTestListener : public UObject
@@ -44,3 +46,5 @@ public:
 	/** 수집한 폐기 요청의 횟수입니다 */
 	int32 ResetCount = 0;
 };
+
+#endif // WITH_TESTS

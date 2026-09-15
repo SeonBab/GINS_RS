@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_TESTS
+
 #include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -29,3 +31,5 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<URSAbilitySystemComponent> AbilitySystemComp;
 };
+
+#endif // WITH_TESTS

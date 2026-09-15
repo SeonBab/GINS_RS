@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_TESTS
+
 #include "CoreMinimal.h"
 #include "Abilities/Boss/RSGameplayAbility_RandomFallingRocks.h"
 #include "RSFallingRocksTestTypes.generated.h"
@@ -24,3 +26,5 @@ protected:
 private:
 	int32 ActivationCount = 0;
 };
+
+#endif // WITH_TESTS

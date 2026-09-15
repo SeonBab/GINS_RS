@@ -1,5 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#if WITH_TESTS
+
 #include "RSFallingRocksTestTypes.h"
 
 URSFallingRocksTestAbility::URSFallingRocksTestAbility()
@@ -15,3 +17,5 @@ void URSFallingRocksTestAbility::ActivateAbility(const FGameplayAbilitySpecHandl
 
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
+
+#endif // WITH_TESTS

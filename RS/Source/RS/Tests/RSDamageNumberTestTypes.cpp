@@ -1,5 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#if WITH_TESTS
 
 #include "RSDamageNumberTestTypes.h"
 
@@ -33,3 +34,5 @@ void URSDamageNumberTestListener::HandleDamageNumberResetRequested()
 {
 	++ResetCount;
 }
+
+#endif // WITH_TESTS

@@ -1,5 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#if WITH_TESTS
+
 #include "RSCombatShapeTestTypes.h"
 
 #include "Components/BoxComponent.h"
@@ -22,3 +24,5 @@ UAbilitySystemComponent* ARSCombatShapeTestActor::GetAbilitySystemComponent() co
 {
 	return AbilitySystemComp;
 }
+
+#endif // WITH_TESTS

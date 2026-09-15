@@ -9,7 +9,10 @@
 URSAnimNotify_GameplayEvent::URSAnimNotify_GameplayEvent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	// bShouldFireInEditor는 WITH_EDITORONLY_DATA 전용이라 Shipping 빌드에는 존재하지 않습니다
+#if WITH_EDITORONLY_DATA
 	bShouldFireInEditor = false;
+#endif
 }
 
 void URSAnimNotify_GameplayEvent::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
