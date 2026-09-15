@@ -4,6 +4,8 @@
 #include "AbilitySystemComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/Character.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "RSGameplayTags.h"
 #include "RSCombatShapeTestTypes.h"
@@ -307,6 +309,54 @@ bool FRSSphereFillTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Runaway cell count fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Donut, DonutTransform, 1.0f, UntouchedDonutTransforms));
 
 	TestEqual(TEXT("Failed calls leave the output array untouched"), UntouchedDonutTransforms.Num(), 1);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSActorGroundLocationTest, "RS.Combat.ActorGroundLocation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSActorGroundLocationTest::RunTest(const FString& Parameters)
+{
+	// 잘못된 입력에서 호출자가 이전 값을 그대로 쓰지 않도록 실패를 알리고 출력을 건드리지 않습니다
+	FVector UntouchedGroundLocation(1.0f, 2.0f, 3.0f);
+	TestFalse(TEXT("A null actor fails"), URSCombatFunctionLibrary::TryGetActorGroundLocation(nullptr, UntouchedGroundLocation));
+	TestEqual(TEXT("A failed call leaves the output untouched"), UntouchedGroundLocation, FVector(1.0f, 2.0f, 3.0f));
+
+	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("RSActorGroundLocationTestWorld"), EUniqueObjectNameOptions::GloballyUnique);
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	UWorld* TestWorld = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+	TestWorld->AddToRoot();
+	WorldContext.SetCurrentWorld(TestWorld);
+	TestWorld->InitializeActorsForPlay(FURL());
+
+	constexpr float CapsuleHalfHeight = 120.0f;
+	const FVector CharacterLocation(300.0f, -200.0f, 500.0f);
+
+	ACharacter* TestCharacter = TestWorld->SpawnActor<ACharacter>();
+	TestCharacter->GetCapsuleComponent()->SetCapsuleSize(40.0f, CapsuleHalfHeight);
+	TestCharacter->SetActorLocation(CharacterLocation);
+
+	FVector GroundLocation = FVector::ZeroVector;
+	TestTrue(TEXT("A character succeeds"), URSCombatFunctionLibrary::TryGetActorGroundLocation(TestCharacter, GroundLocation));
+	TestEqual(TEXT("A character grounds at its capsule bottom"), GroundLocation, CharacterLocation - FVector(0.0f, 0.0f, CapsuleHalfHeight));
+
+	// 크기를 키운 보스는 Scaled Half Height를 읽어야 바닥에 닿으므로 Scale을 무시하지 않는지 확인합니다
+	constexpr float CapsuleScale = 2.0f;
+	TestCharacter->SetActorScale3D(FVector(CapsuleScale));
+	TestTrue(TEXT("A scaled character succeeds"), URSCombatFunctionLibrary::TryGetActorGroundLocation(TestCharacter, GroundLocation));
+	TestEqual(TEXT("A scaled character grounds at its scaled capsule bottom"), GroundLocation, CharacterLocation - FVector(0.0f, 0.0f, CapsuleHalfHeight * CapsuleScale));
+
+	// 캡슐이 없는 연출 액터도 같은 계약으로 바닥을 얻어야 호출처가 타입을 나누지 않습니다
+	const FVector TestActorLocation(10.0f, 20.0f, 30.0f);
+	ARSCombatShapeTestActor* CapsulelessActor = TestWorld->SpawnActor<ARSCombatShapeTestActor>();
+	CapsulelessActor->SetActorLocation(TestActorLocation);
+
+	TestTrue(TEXT("An actor without a capsule succeeds"), URSCombatFunctionLibrary::TryGetActorGroundLocation(CapsulelessActor, GroundLocation));
+	TestEqual(TEXT("An actor without a capsule grounds by its simple collision"), GroundLocation, TestActorLocation - FVector(0.0f, 0.0f, 1.0f));
+
+	TestWorld->RemoveFromRoot();
+	GEngine->DestroyWorldContext(TestWorld);
+	TestWorld->DestroyWorld(false);
 
 	return true;
 }

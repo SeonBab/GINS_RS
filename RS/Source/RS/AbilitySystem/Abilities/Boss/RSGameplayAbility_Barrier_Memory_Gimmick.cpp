@@ -127,7 +127,16 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 		return;
 	}
 
-	PatternCenterTransform = FTransform(AvatarActor->GetActorLocation());
+	// 방어막과 공격 연출이 보스 발밑 평면에 놓이도록 액터 원점이 아니라 캡슐 바닥을 패턴 원점으로 씁니다
+	FVector PatternCenterLocation = FVector::ZeroVector;
+	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, PatternCenterLocation))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
+	PatternCenterTransform = FTransform(PatternCenterLocation);
 	StartingColor = FMath::RandBool() ? ERSBarrierColor::Red : ERSBarrierColor::Yellow;
 
 	CreateBarrierField();

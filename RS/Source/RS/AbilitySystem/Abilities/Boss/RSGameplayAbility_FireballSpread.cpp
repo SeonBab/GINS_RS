@@ -230,7 +230,12 @@ bool URSGameplayAbility_FireballSpread::CaptureLandingLocations(const FGameplayA
 		return false;
 	}
 
-	const FVector Center = BossCharacter->GetActorLocation() - FVector::UpVector * BossCharacter->GetSimpleCollisionHalfHeight();
+	FVector Center = FVector::ZeroVector;
+	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(BossCharacter, Center))
+	{
+		return false;
+	}
+
 	FVector PlayerDirection = PlayerCharacter->GetActorLocation() - Center;
 	PlayerDirection.Z = 0.0f;
 	if (!PlayerDirection.Normalize())
@@ -294,11 +299,12 @@ void URSGameplayAbility_FireballSpread::HandleDropDelayFinished()
 		return;
 	}
 
-	// 던지는 순간의 연출을 보스 위치에서 한 번 재생합니다
+	// 던지는 순간의 연출을 보스 발밑에서 한 번 재생합니다
 	// 화염구 자체는 Actor가 자기 Niagara로 보여 주므로 이 정의의 Niagara는 보통 비워 두며, 빈 항목은 그대로 건너뜁니다
-	if (const AActor* AvatarActor = GetAvatarActorFromActorInfo())
+	FVector PresentationLocation = FVector::ZeroVector;
+	if (URSCombatFunctionLibrary::TryGetActorGroundLocation(GetAvatarActorFromActorInfo(), PresentationLocation))
 	{
-		PlayPatternPresentation(AvatarActor->GetActorTransform());
+		PlayPatternPresentation(FTransform(PresentationLocation));
 	}
 
 	TryFinishAbility();

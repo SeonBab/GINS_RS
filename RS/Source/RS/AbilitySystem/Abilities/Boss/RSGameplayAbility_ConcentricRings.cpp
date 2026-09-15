@@ -88,8 +88,14 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	}
 
 	// 링 중심도 여기서 한 번만 캡처합니다. 예고 중 보스가 움직여도 판정 자리는 바뀌지 않습니다
-	// 액터 위치는 캡슐 중심이라 그대로 쓰면 표시가 공중에 떠서 실제 판정 경계와 어긋나 보입니다
-	const FVector RingCenterLocation = AvatarActor->GetActorLocation() - FVector(0.0f, 0.0f, AvatarActor->GetSimpleCollisionHalfHeight());
+	FVector RingCenterLocation = FVector::ZeroVector;
+	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, RingCenterLocation))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
 	RingCenterTransform = FTransform(RingCenterLocation);
 
 	// 조기 종료 경로를 모두 지난 뒤에 요청해 실행되지 않을 패턴의 Montage가 재생되지 않게 합니다

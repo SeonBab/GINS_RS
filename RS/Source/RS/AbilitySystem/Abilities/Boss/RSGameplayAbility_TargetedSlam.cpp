@@ -3,7 +3,6 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
-#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tasks/RSAbilityTask_ObserveFacing.h"
@@ -276,17 +275,16 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 		return;
 	}
 
-	UCapsuleComponent* CapsuleComp = BossCharacter->GetCapsuleComponent();
 	FVector HorizontalForward = BossCharacter->GetActorForwardVector();
 	HorizontalForward.Z = 0.0f;
-	if (!CapsuleComp || !HorizontalForward.Normalize())
+	FVector AttackOrigin = FVector::ZeroVector;
+	if (!HorizontalForward.Normalize() || !URSCombatFunctionLibrary::TryGetActorGroundLocation(BossCharacter, AttackOrigin))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	const FVector AttackOrigin = CapsuleComp->GetComponentLocation() - CapsuleComp->GetUpVector() * CapsuleComp->GetScaledCapsuleHalfHeight();
 	LockedAttackTransform = FTransform(HorizontalForward.Rotation(), AttackOrigin);
 	State = ERSTargetedSlamState::Attacking;
 

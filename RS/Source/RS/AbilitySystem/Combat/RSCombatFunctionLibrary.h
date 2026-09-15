@@ -304,6 +304,13 @@ public:
 	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
 
 	/**
+	 * 패턴 공간의 기준이 될 액터의 캡슐 바닥 위치를 얻습니다
+	 * Telegraph와 연출이 캡슐 중심 높이에 뜨지 않도록 모든 호출처가 같은 정의를 한 곳에서 읽습니다
+	 * 캡슐이 없는 액터는 Simple Collision의 반높이로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
+	 */
+	static bool TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation);
+
+	/**
 	 * 판정 형상 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다
 	 * 연출이 판정 범위를 벗어나지 않도록 셀 중심이 형상 안에 있는 칸만 남깁니다
 	 * 각 Transform은 ShapeTransform의 회전과 높이를 그대로 상속하고 Scale은 사용하지 않습니다

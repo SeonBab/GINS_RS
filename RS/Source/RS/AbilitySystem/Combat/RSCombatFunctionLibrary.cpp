@@ -8,6 +8,8 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -408,6 +410,33 @@ bool URSCombatFunctionLibrary::IsLocationInsideCone(const FRSCombatShape& Shape,
 	}
 
 	return IsLocationInsidePreparedCone(ShapeTransform.GetLocation(), HorizontalForward, RangeSquared, MinimumDot, TargetLocation);
+}
+
+bool URSCombatFunctionLibrary::TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation)
+{
+	if (!Actor)
+	{
+		return false;
+	}
+
+	const ACharacter* Character = Cast<const ACharacter>(Actor);
+	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
+
+	// 캡슐을 가진 액터는 자기 Up을 따라 내려야 눕거나 기울어진 순간에도 바닥이 캡슐과 함께 움직입니다
+	// 캡슐이 없는 연출 액터까지 같은 계약으로 받아야 호출처가 액터 타입을 나누지 않습니다
+	const FVector GroundLocation = CapsuleComp
+		? CapsuleComp->GetComponentLocation() - CapsuleComp->GetUpVector() * CapsuleComp->GetScaledCapsuleHalfHeight()
+		: Actor->GetActorLocation() - FVector::UpVector * Actor->GetSimpleCollisionHalfHeight();
+
+	// 잘못된 위치에 연출을 만드는 대신 호출자가 그 실행을 포기할 수 있도록 실패를 알립니다
+	if (GroundLocation.ContainsNaN())
+	{
+		return false;
+	}
+
+	OutGroundLocation = GroundLocation;
+
+	return true;
 }
 
 bool URSCombatFunctionLibrary::BuildShapeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
