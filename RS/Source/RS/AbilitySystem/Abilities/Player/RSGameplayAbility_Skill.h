@@ -18,6 +18,9 @@ public:
 	URSGameplayAbility_Skill();
 
 protected:
+	/** 커서 방향으로 캐릭터를 돌린 뒤 스킬 Montage와 판정 흐름을 시작합니다 */
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
 	/** 기존 스킬 Montage 설정을 공용 공격 판정 흐름에 제공합니다 */
 	virtual UAnimMontage* GetAttackMontage() const override;
 
