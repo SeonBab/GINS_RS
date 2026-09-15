@@ -12,6 +12,7 @@
 #include "Engine/CollisionProfile.h"
 #include "InputMappingContext.h"
 #include "NavigationSystem.h"
+#include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -40,6 +41,12 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	WeaponMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	WeaponMeshComp->SetGenerateOverlapEvents(false);
 	WeaponMeshComp->SetSimulatePhysics(false);
+
+	// 무기 오라는 무기와 함께 움직여야 하므로 Mesh에 부착하고, 재생할 Niagara System은 Blueprint에서 지정합니다
+	WeaponAuraNiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("WeaponAuraNiagaraComponent"));
+	WeaponAuraNiagaraComp->SetupAttachment(WeaponMeshComp);
+	WeaponAuraNiagaraComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	WeaponAuraNiagaraComp->SetGenerateOverlapEvents(false);
 
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	SpringArmComp->SetupAttachment(GetRootComponent());
