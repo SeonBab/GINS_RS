@@ -44,6 +44,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_MeteorHazardDamage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_Knockdown);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Presentation_Niagara);
 
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_BasicAttack);

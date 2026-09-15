@@ -43,6 +43,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_MeteorHazardDamage, "GameplayEvent.Combat.MeteorHazardDamage", "운석 장판이 찾은 플레이어에게 1회 피해를 적용하도록 보스 ASC에 알립니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_HitReact, "GameplayEvent.CrowdControl.HitReact", "공격이 대상에게 피격 경직을 요청하며 대상의 경직 Ability를 활성화합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_Knockdown, "GameplayEvent.CrowdControl.Knockdown", "공격이 대상에게 넉다운을 요청하며 대상의 넉다운 Ability를 활성화합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Presentation_Niagara, "GameplayEvent.Presentation.Niagara", "Montage의 특정 시점에 Ability가 Niagara 표현을 재생하도록 알립니다");
 
 	// Input
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_BasicAttack, "InputTag.Ability.BasicAttack", "기본 공격 Ability 입력을 식별합니다");
