@@ -322,12 +322,6 @@ bool URSBossPhaseComponent::EnterCurrentPhase()
 		return false;
 	}
 
-	if (LastEnteredPhaseIndex != CurrentPhaseIndex)
-	{
-		LastEnteredPhaseIndex = CurrentPhaseIndex;
-		PhaseEnteredEvent.Broadcast(CurrentPhaseIndex, CurrentPhase->PhaseMusic, CurrentPhase->MusicCrossfadeDuration);
-	}
-
 	if (!CurrentPhase->PersistentAbilityOnEnter)
 	{
 		return true;
@@ -376,7 +370,6 @@ void URSBossPhaseComponent::SetPhasesForTest(const TArray<FRSBossPhaseDefinition
 
 	PhaseData = TestPhaseData;
 	CurrentPhaseIndex = 0;
-	LastEnteredPhaseIndex = INDEX_NONE;
 	CurrentCycleIndex = 0;
 	SpecialPatternActivationSequence = 0;
 	bPhaseTransitionPending = false;

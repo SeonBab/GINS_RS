@@ -11,7 +11,6 @@ class UGameplayAbility;
 class URSBaseGameplayAbility;
 class URSBossPhaseData;
 class URSHealthComponent;
-class USoundBase;
 
 struct FRSBossPhaseDefinition;
 
@@ -20,9 +19,6 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FRSSpecialPatternActivationRequestedSignatur
 
 /** 메인 패턴, 보스 사망과 Encounter 종료가 지속 오브젝트의 즉시 정리를 요청합니다 */
 DECLARE_MULTICAST_DELEGATE(FRSPersistentObjectCleanupRequestedSignature);
-
-/** 새 보스 페이즈의 음악 요청 정보를 외부 표현 계층에 전달합니다 */
-DECLARE_MULTICAST_DELEGATE_ThreeParams(FRSBossPhaseEnteredSignature, int32, USoundBase*, float);
 
 /** 보스가 사용하는 패턴의 분류입니다 */
 UENUM(BlueprintType)
@@ -154,9 +150,6 @@ public:
 	/** 현재 페이즈에 설정된 전투 지속형 Ability를 중복 없이 활성화합니다 */
 	bool EnterCurrentPhase();
 
-	/** 새 페이즈 진입을 구독할 델리게이트를 반환합니다 */
-	FRSBossPhaseEnteredSignature& OnPhaseEntered() { return PhaseEnteredEvent; }
-
 #pragma endregion
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -200,10 +193,6 @@ private:
 	UPROPERTY(Transient)
 	int32 CurrentPhaseIndex = 0;
 
-	/** 같은 페이즈의 중복 진입 요청이 표현 이벤트를 다시 발생시키지 않도록 마지막 진입을 기록합니다 */
-	UPROPERTY(Transient)
-	int32 LastEnteredPhaseIndex = INDEX_NONE;
-
 	/** 현재 페이즈의 사이클 순서에서 현재 차례를 가리키는 위치입니다 */
 	UPROPERTY(Transient)
 	int32 CurrentCycleIndex = 0;
@@ -229,7 +218,4 @@ private:
 
 	/** 순번과 관계없이 모든 지속 오브젝트를 즉시 정리하는 이벤트입니다 */
 	FRSPersistentObjectCleanupRequestedSignature PersistentObjectCleanupRequestedEvent;
-
-	/** 실제로 새 페이즈가 시작됐을 때 음악 연결부에 전달하는 이벤트입니다 */
-	FRSBossPhaseEnteredSignature PhaseEnteredEvent;
 };

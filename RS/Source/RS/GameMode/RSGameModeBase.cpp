@@ -10,7 +10,6 @@
 #include "RSPlayerHeadUpDisplay.h"
 #include "RSPlayerState.h"
 #include "RSPlayerCharacter.h"
-#include "RSMusicPlaybackSubsystem.h"
 
 ARSGameModeBase::ARSGameModeBase()
 {
@@ -24,7 +23,6 @@ void ARSGameModeBase::StartPlay()
 	BindBossEncounter();
 
 	Super::StartPlay();
-	PlayInitialMusic();
 }
 
 void ARSGameModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -32,21 +30,6 @@ void ARSGameModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	UnbindBossEncounter();
 
 	Super::EndPlay(EndPlayReason);
-}
-
-void ARSGameModeBase::PlayInitialMusic()
-{
-	UWorld* World = GetWorld();
-	USoundBase* Music = InitialMusic.LoadSynchronous();
-	if (!World || !Music)
-	{
-		return;
-	}
-
-	if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
-	{
-		MusicPlaybackSubsystem->PlayMusic(Music, InitialMusicFadeDuration);
-	}
 }
 
 void ARSGameModeBase::BindBossEncounter()

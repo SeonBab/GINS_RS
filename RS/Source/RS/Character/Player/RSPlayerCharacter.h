@@ -48,9 +48,6 @@ public:
 	/** 입력 태그와 InputAction의 연결을 정의한 설정을 반환합니다 */
 	const URSInputConfig* GetInputConfig() const { return InputConfig; }
 
-	/** 진행 중인 Navigation 경로 추종과 CharacterMovement의 속도를 중단합니다 */
-	void StopNavigationMovement();
-
 protected:
 	/** 우클릭을 누른 순간 최초 Navigation 이동과 클릭 위치 표시를 요청합니다 */
 	void Input_MoveToStarted();
@@ -79,6 +76,9 @@ private:
 
 	/** Navigation 이동 전에 진행 중인 대시를 취소하고 이동 소유권을 확보합니다 */
 	bool TryCancelDashForNavigationMovement();
+
+	/** 진행 중인 Navigation 경로 추종과 CharacterMovement의 속도를 중단합니다 */
+	void StopNavigationMovement();
 
 	/** 현재 ASC의 행동 및 이동 차단 상태 변경을 구독합니다 */
 	void InitializeMovementBlocking(UAbilitySystemComponent* AbilitySystemComp);
