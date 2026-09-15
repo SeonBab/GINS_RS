@@ -237,8 +237,8 @@ void URSGameplayAbility_ConcentricRings::StrikeRing(const AActor& AvatarActor, i
 	TArray<AActor*> HitTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(&AvatarActor, TargetChannel, *RingShape, RingCenterTransform, HitTargets);
 
-	// 링은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 링 하나가 판정하는 순간에 흔듭니다
-	URSCombatFunctionLibrary::PlayCameraShake(&AvatarActor, ImpactCameraShake);
+	// 링은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 링 하나가 판정하는 순간에 재생합니다
+	PlayPatternPresentation(RingCenterTransform);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{

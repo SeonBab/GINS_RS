@@ -373,8 +373,8 @@ void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 	TArray<AActor*> HitTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, AttackShape, LockedAttackTransform, HitTargets);
 
-	// 내려찍기는 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 흔듭니다
-	URSCombatFunctionLibrary::PlayCameraShake(BossCharacter, ImpactCameraShake);
+	// 내려찍기는 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 재생합니다
+	PlayPatternPresentation(LockedAttackTransform);
 
 	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)

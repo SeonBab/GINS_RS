@@ -10,8 +10,6 @@
 class UAbilityTask_WaitDelay;
 class UAnimMontage;
 class UGameplayEffect;
-class UNiagaraSystem;
-class USoundBase;
 class URSAbilityTask_WaitTelegraphFill;
 
 /** 피자 패턴의 공간, 횟수, 시간, 피해와 반응 설정입니다 */
@@ -102,9 +100,6 @@ private:
 	/** 현재 폭발 그룹에 속하는 대상에게 피해와 반응을 한 번씩 요청합니다 */
 	bool ExecuteCurrentExplosion();
 
-	/** 현재 폭발의 선택적 Niagara와 Sound를 재생합니다 */
-	void PlayExplosionPresentation() const;
-
 	/** 현재 Ability가 만든 Telegraph Handle만 즉시 회수합니다 */
 	void HideActiveTelegraphs();
 
@@ -128,18 +123,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit")
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
 
-	/** 각 조각 위치에서 재생할 선택적 폭발 Niagara입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Presentation")
-	TObjectPtr<UNiagaraSystem> ExplosionNiagara;
-
-	/** 폭발마다 패턴 중심에서 한 번 재생할 선택적 Sound입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Presentation")
-	TObjectPtr<USoundBase> ExplosionSound;
-
-	/** 폭발이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Feedback")
-	FRSCameraShakeDefinition ImpactCameraShake;
-
 private:
 	/** 공격 시작 시점에 한 번 캡처해 모든 Telegraph와 HitCheck가 공유하는 Transform입니다 */
 	FTransform LockedPatternTransform = FTransform::Identity;
@@ -155,7 +138,6 @@ private:
 
 	/** 0부터 시작하는 현재 폭발 번호이며 짝수는 A, 홀수는 B입니다 */
 	int32 CurrentExplosionIndex = 0;
-
 
 	/** 첫 Telegraph 시작까지 기다리는 Task입니다 */
 	UPROPERTY(Transient)

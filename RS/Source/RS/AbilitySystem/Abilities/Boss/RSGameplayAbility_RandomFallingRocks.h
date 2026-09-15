@@ -10,7 +10,6 @@
 
 class UGameplayEffect;
 class UNiagaraSystem;
-class USoundBase;
 class URSAbilityTask_PendingFallingRock;
 class UAbilityTask_WaitDelay;
 
@@ -134,17 +133,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")
 	TObjectPtr<UNiagaraSystem> FallingRockNiagara;
 
-	/** 판정 시점에 재생할 선택적 Impact Niagara입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")
-	TObjectPtr<UNiagaraSystem> ImpactNiagara;
-
-	/** 판정 시점에 재생할 Impact Sound이며 비어 있으면 소리를 재생하지 않습니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")
-	TObjectPtr<USoundBase> ImpactSound;
-
-	/** 낙석이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Feedback")
-	FRSCameraShakeDefinition ImpactCameraShake;
 
 private:
 	/** 다음 낙석 예약을 기다리는 Task입니다 */

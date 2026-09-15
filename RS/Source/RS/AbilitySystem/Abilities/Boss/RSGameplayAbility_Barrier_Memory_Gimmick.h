@@ -110,9 +110,6 @@ private:
 	/** 현재 Montage용 Gameplay Event Task를 끝냅니다 */
 	void EndGameplayEventTasks();
 
-	/** 현재 색의 안광 또는 검 Niagara를 정의에 따라 생성합니다 */
-	UNiagaraComponent* SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const;
-
 	/** 안광 예고 이벤트를 현재 예고 색의 Niagara로 변환합니다 */
 	UFUNCTION()
 	void HandleEyeNiagaraEvent(FGameplayEventData Payload);

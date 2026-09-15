@@ -5,7 +5,10 @@
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 #include "RSBossPhaseComponent.h"
 
 void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -106,6 +109,57 @@ void URSBaseGameplayAbility_BossPattern::FinishPatternWhenMontageEnds()
 	bPatternTimelineFinished = true;
 
 	TryFinishPattern();
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const
+{
+	for (const FTransform& NiagaraTransform : NiagaraTransforms)
+	{
+		SpawnNiagaraFromDefinition(PatternPresentation.Niagara, NiagaraTransform, true);
+	}
+
+	// 광역 패턴은 Niagara가 여러 지점에서 나지만 소리까지 겹쳐 울리면 한 번의 공격으로 들리지 않습니다
+	if (PatternPresentation.Sound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, PatternPresentation.Sound, SoundLocation);
+	}
+
+	URSCombatFunctionLibrary::PlayCameraShake(this, PatternPresentation.CameraShake);
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FTransform& PresentationTransform) const
+{
+	PlayPatternPresentation(TArray<FTransform>({ PresentationTransform }), PresentationTransform.GetLocation());
+}
+
+UNiagaraComponent* URSBaseGameplayAbility_BossPattern::SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const
+{
+	if (!Definition.NiagaraSystem)
+	{
+		return nullptr;
+	}
+
+	if (Definition.SpawnMode == ERSNiagaraSpawnMode::WorldTransform)
+	{
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, true);
+	}
+
+	USkeletalMeshComponent* MeshComponent = CurrentActorInfo ? CurrentActorInfo->SkeletalMeshComponent.Get() : nullptr;
+	if (!MeshComponent || !MeshComponent->DoesSocketExist(Definition.SocketName))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s skipped Niagara %s because socket %s is unavailable"), *GetName(), *GetNameSafe(Definition.NiagaraSystem), *Definition.SocketName.ToString());
+
+		return nullptr;
+	}
+
+	if (Definition.SpawnMode == ERSNiagaraSpawnMode::SocketSnapshot)
+	{
+		const FTransform SocketTransform = MeshComponent->GetSocketTransform(Definition.SocketName);
+
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, SocketTransform.GetLocation(), SocketTransform.Rotator(), SocketTransform.GetScale3D(), bAutoDestroy, true);
+	}
+
+	return UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
 }
 
 void URSBaseGameplayAbility_BossPattern::HandlePatternMontageFinished()

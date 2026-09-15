@@ -140,10 +140,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Reaction", meta = (AllowPrivateAccess = "true"))
 	FRSHitReactionDefinition Reaction;
 
-	/** Strike가 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Feedback", meta = (AllowPrivateAccess = "true"))
-	FRSCameraShakeDefinition ImpactCameraShake;
-
 private:
 	/** 한 활성화에서 고정한 Controller Target이며 Pre-Aim 중 새 대상을 선택하지 않습니다 */
 	TWeakObjectPtr<AActor> AimTargetActor;

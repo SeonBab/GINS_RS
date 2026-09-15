@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RSGameplayAbility_Barrier_Memory_Gimmick.h"
 
@@ -6,10 +6,8 @@
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "GameplayEffect.h"
 #include "NiagaraComponent.h"
-#include "NiagaraFunctionLibrary.h"
 #include "RSGameplayTags.h"
 #include "RSHealthSet.h"
 #include "RSPlayerCharacter.h"
@@ -294,36 +292,6 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::EndGameplayEventTasks()
 		HitCheckEventTask->EndTask();
 		HitCheckEventTask = nullptr;
 	}
-}
-
-UNiagaraComponent* URSGameplayAbility_Barrier_Memory_Gimmick::SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const
-{
-	if (!Definition.NiagaraSystem)
-	{
-		return nullptr;
-	}
-
-	if (Definition.SpawnMode == ERSNiagaraSpawnMode::WorldTransform)
-	{
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, true);
-	}
-
-	USkeletalMeshComponent* MeshComponent = CurrentActorInfo ? CurrentActorInfo->SkeletalMeshComponent.Get() : nullptr;
-	if (!MeshComponent || !MeshComponent->DoesSocketExist(Definition.SocketName))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s skipped Niagara %s because socket %s is unavailable"), *GetName(), *GetNameSafe(Definition.NiagaraSystem), *Definition.SocketName.ToString());
-
-		return nullptr;
-	}
-
-	if (Definition.SpawnMode == ERSNiagaraSpawnMode::SocketSnapshot)
-	{
-		const FTransform SocketTransform = MeshComponent->GetSocketTransform(Definition.SocketName);
-
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, SocketTransform.GetLocation(), SocketTransform.Rotator(), SocketTransform.GetScale3D(), bAutoDestroy, true);
-	}
-
-	return UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
 }
 
 void URSGameplayAbility_Barrier_Memory_Gimmick::HandleEyeNiagaraEvent(FGameplayEventData Payload)

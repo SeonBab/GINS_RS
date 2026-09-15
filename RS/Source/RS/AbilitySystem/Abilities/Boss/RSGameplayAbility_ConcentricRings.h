@@ -122,10 +122,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Reaction", meta = (AllowPrivateAccess = "true"))
 	FRSHitReactionDefinition Reaction;
 
-	/** 링이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Feedback", meta = (AllowPrivateAccess = "true"))
-	FRSCameraShakeDefinition ImpactCameraShake;
-
 	/**
 	 * 어빌리티 활성화와 동시에 한 번만 재생을 요청할 선택적 Montage입니다
 	 * 이 패턴은 판정 시점을 직접 소유하므로 Montage 길이는 예고와 실행 타이밍에 영향을 주지 않습니다

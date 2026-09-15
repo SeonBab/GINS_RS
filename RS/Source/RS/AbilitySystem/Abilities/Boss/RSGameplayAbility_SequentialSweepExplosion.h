@@ -171,10 +171,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit")
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
 
-	/** 섹터 폭발이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Feedback")
-	FRSCameraShakeDefinition ImpactCameraShake;
-
 private:
 	TWeakObjectPtr<AActor> AimTargetActor;
 	FVector AimSnapshotLocation = FVector::ZeroVector;

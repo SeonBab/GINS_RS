@@ -3,11 +3,38 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBaseGameplayAbility.h"
+#include "RSNiagaraSpawnDefinition.h"
 #include "RSBaseGameplayAbility_BossPattern.generated.h"
 
 class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
+class UNiagaraComponent;
+class USoundBase;
+
+/**
+ * 패턴이 판정과 무관하게 재생하는 연출이며 항목은 전부 선택적입니다
+ * 적중한 대상이 아니라 패턴이 정한 위치를 기준으로 재생하므로 빗나가도 그대로 보입니다
+ * 이 점이 적중한 대상마다 재생하는 FRSHitFeedbackDefinition과 다르며, 그래서 보스 패턴은 그 정의를 쓰지 않습니다
+ */
+USTRUCT(BlueprintType)
+struct FRSBossPatternPresentation
+{
+	GENERATED_BODY()
+
+	/** 재생할 Niagara와 그 재생 방식이며 패턴이 넘긴 위치마다 하나씩 생성합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
+	FRSNiagaraSpawnDefinition Niagara;
+
+	/** 한 번의 연출에서 한 번만 재생할 Sound입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
+	TObjectPtr<USoundBase> Sound;
+
+	/** 한 번의 연출에서 한 번만 흔들 카메라 셰이크입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
+	FRSCameraShakeDefinition CameraShake;
+};
 
 /**
  * 보스가 페이즈에서 사용하는 공격 패턴의 공통 부모입니다
@@ -62,6 +89,30 @@ protected:
 	 * 순서가 뒤바뀌면 그 순간 남은 Montage가 0개라 어빌리티가 먼저 끝납니다
 	 */
 	void FinishPatternWhenMontageEnds();
+
+	/**
+	 * 이 패턴의 연출을 재생하며 적중 여부는 보지 않습니다
+	 * Niagara는 넘긴 위치마다 하나씩, Sound와 카메라 셰이크는 호출마다 한 번 재생합니다
+	 * 어느 위치에서 몇 번 재생할지는 패턴마다 다르므로 부모가 정하지 않고 호출자가 위치를 넘깁니다
+	 */
+	void PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const;
+
+	/** 연출 지점이 하나인 패턴이 사용하는 간편 형태이며 Sound도 같은 위치에서 재생합니다 */
+	void PlayPatternPresentation(const FTransform& PresentationTransform) const;
+
+	/**
+	 * 정의가 지정한 방식으로 Niagara 하나를 생성합니다
+	 * 소켓 기준 생성은 보스 Skeletal Mesh를 사용하며 소켓이 없으면 경고를 남기고 건너뜁니다
+	 */
+	UNiagaraComponent* SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const;
+
+protected:
+	/**
+	 * 이 패턴이 자기 연출 시점에 재생할 Niagara, Sound와 카메라 셰이크입니다
+	 * 비워 두면 아무것도 재생하지 않으므로 Data Validation은 이 값을 필수로 검사하지 않습니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
+	FRSBossPatternPresentation PatternPresentation;
 
 private:
 	/** 재생이 끝난 Montage 하나를 게이트에서 내리고 마지막 하나였으면 보류한 정상 종료를 진행합니다 */

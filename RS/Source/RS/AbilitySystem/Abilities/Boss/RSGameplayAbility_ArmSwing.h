@@ -161,10 +161,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Reaction", meta = (AllowPrivateAccess = "true"))
 	FRSHitReactionDefinition Reaction;
 
-	/** 공격 Window가 열리는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Feedback", meta = (AllowPrivateAccess = "true"))
-	FRSCameraShakeDefinition ImpactCameraShake;
-
 	/** Pre-Aim 동안 임시로 적용할 Boss Yaw 회전 속도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Aim", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "deg/s"))
 	float AimRotationSpeed = 150.0f;

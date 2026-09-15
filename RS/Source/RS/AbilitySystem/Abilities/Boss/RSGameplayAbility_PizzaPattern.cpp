@@ -1,11 +1,9 @@
-#include "RSGameplayAbility_PizzaPattern.h"
+﻿#include "RSGameplayAbility_PizzaPattern.h"
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
-#include "Kismet/GameplayStatics.h"
-#include "NiagaraFunctionLibrary.h"
 #include "Combat/RSPizzaPatternMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
@@ -287,7 +285,9 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 
 		return;
 	}
-	PlayExplosionPresentation();
+	// 폭발은 빗나가도 보여야 하므로 적중 여부와 무관하게 재생합니다
+	// Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
+	PlayPatternPresentation(ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 
 	++CurrentExplosionIndex;
 	if (CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
@@ -323,9 +323,6 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, CandidateShape, LockedPatternTransform, CandidateTargets);
 
-	// 폭발은 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 폭발 하나가 판정하는 순간에 한 번 흔듭니다
-	URSCombatFunctionLibrary::PlayCameraShake(AvatarActor, ImpactCameraShake);
-
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
 	{
@@ -342,22 +339,6 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	}
 
 	return true;
-}
-
-void URSGameplayAbility_PizzaPattern::PlayExplosionPresentation() const
-{
-	if (ExplosionNiagara)
-	{
-		for (const FTransform& SliceTransform : ActiveSliceTransforms)
-		{
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionNiagara, SliceTransform.GetLocation(), SliceTransform.Rotator());
-		}
-	}
-
-	if (ExplosionSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, LockedPatternTransform.GetLocation());
-	}
 }
 
 void URSGameplayAbility_PizzaPattern::HideActiveTelegraphs()

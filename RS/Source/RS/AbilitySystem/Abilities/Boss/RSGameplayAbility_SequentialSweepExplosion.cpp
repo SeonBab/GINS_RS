@@ -513,8 +513,8 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
-	// 연쇄 폭발은 빗나가도 이어지는 것이 보여야 하므로 섹터 하나가 판정하는 순간마다 흔듭니다
-	URSCombatFunctionLibrary::PlayCameraShake(BossCharacter, ImpactCameraShake);
+	// 연쇄 폭발은 빗나가도 이어지는 것이 보여야 하므로 섹터 하나가 판정하는 순간마다 재생합니다
+	PlayPatternPresentation(LockedAttackTransform);
 
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
