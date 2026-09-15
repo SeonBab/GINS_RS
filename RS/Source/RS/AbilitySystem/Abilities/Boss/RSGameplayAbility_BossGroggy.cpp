@@ -14,14 +14,14 @@
 
 namespace
 {
-	const FName StartSectionName(TEXT("Start"));
-	const FName LoopSectionName(TEXT("Loop"));
-	const FName EndSectionName(TEXT("End"));
+	const FName GroggyStartSectionName(TEXT("Start"));
+	const FName GroggyLoopSectionName(TEXT("Loop"));
+	const FName GroggyEndSectionName(TEXT("End"));
 
 	bool TryGetGroggySectionTiming(const UAnimMontage* Montage, float PlayRate, float RequestedDuration, float& OutStartDuration, float& OutLoopDuration, float& OutEndDuration, int32& OutLoopCount, float& OutEffectiveDuration)
 	{
 		if (!Montage || !FMath::IsFinite(PlayRate) || PlayRate <= 0.0f || Montage->GetNumSections() != 3
-			|| Montage->GetSectionName(0) != StartSectionName || Montage->GetSectionName(1) != LoopSectionName || Montage->GetSectionName(2) != EndSectionName)
+			|| Montage->GetSectionName(0) != GroggyStartSectionName || Montage->GetSectionName(1) != GroggyLoopSectionName || Montage->GetSectionName(2) != GroggyEndSectionName)
 		{
 			return false;
 		}
@@ -87,7 +87,7 @@ void URSGameplayAbility_BossGroggy::ActivateAbility(const FGameplayAbilitySpecHa
 		return;
 	}
 
-	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GroggyMontage, GroggyMontagePlayRate, StartSectionName);
+	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, GroggyMontage, GroggyMontagePlayRate, GroggyStartSectionName);
 	MontageTask->OnCompleted.AddDynamic(this, &ThisClass::HandleGroggyMontageFinished);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleGroggyMontageCancelled);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleGroggyMontageCancelled);
@@ -105,9 +105,9 @@ void URSGameplayAbility_BossGroggy::ActivateAbility(const FGameplayAbilitySpecHa
 		return;
 	}
 
-	AnimInstance->Montage_SetNextSection(StartSectionName, LoopSectionName, GroggyMontage);
-	AnimInstance->Montage_SetNextSection(LoopSectionName, LoopCount > 1 ? LoopSectionName : EndSectionName, GroggyMontage);
-	AnimInstance->Montage_SetNextSection(EndSectionName, NAME_None, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(GroggyStartSectionName, GroggyLoopSectionName, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(GroggyLoopSectionName, LoopCount > 1 ? GroggyLoopSectionName : GroggyEndSectionName, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(GroggyEndSectionName, NAME_None, GroggyMontage);
 
 	if (LoopCount > 1)
 	{
@@ -158,7 +158,7 @@ void URSGameplayAbility_BossGroggy::HandlePrepareFinalLoop()
 		return;
 	}
 
-	AnimInstance->Montage_SetNextSection(LoopSectionName, EndSectionName, GroggyMontage);
+	AnimInstance->Montage_SetNextSection(GroggyLoopSectionName, GroggyEndSectionName, GroggyMontage);
 }
 
 #if WITH_EDITOR

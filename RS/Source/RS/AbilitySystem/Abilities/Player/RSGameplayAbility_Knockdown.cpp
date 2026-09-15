@@ -21,10 +21,10 @@
 
 namespace
 {
-	const FName StartSectionName(TEXT("Start"));
-	const FName AirLoopSectionName(TEXT("AirLoop"));
-	const FName FallSectionName(TEXT("Fall"));
-	const FName LandSectionName(TEXT("Land"));
+	const FName KnockdownStartSectionName(TEXT("Start"));
+	const FName KnockdownAirLoopSectionName(TEXT("AirLoop"));
+	const FName KnockdownFallSectionName(TEXT("Fall"));
+	const FName KnockdownLandSectionName(TEXT("Land"));
 
 	struct FRSKnockdownMontageTiming
 	{
@@ -45,7 +45,7 @@ namespace
 			return false;
 		}
 
-		const TArray<FName> RequiredSections = { StartSectionName, AirLoopSectionName, FallSectionName, LandSectionName };
+		const TArray<FName> RequiredSections = { KnockdownStartSectionName, KnockdownAirLoopSectionName, KnockdownFallSectionName, KnockdownLandSectionName };
 		for (int32 SectionIndex = 0; SectionIndex < RequiredSections.Num(); ++SectionIndex)
 		{
 			if (Montage->GetSectionName(SectionIndex) != RequiredSections[SectionIndex])
@@ -195,7 +195,7 @@ void URSGameplayAbility_Knockdown::ActivateAbility(const FGameplayAbilitySpecHan
 	}
 
 	// 정상 Land handoff에서는 Ability 종료가 Montage를 먼저 정지하지 않게 하여 DefaultSlot의 기반 포즈가 노출되지 않도록 합니다
-	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, KnockdownMontage, KnockdownMontagePlayRate, StartSectionName, false);
+	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, KnockdownMontage, KnockdownMontagePlayRate, KnockdownStartSectionName, false);
 	MontageTask->OnInterrupted.AddDynamic(this, &ThisClass::HandleKnockdownMontageCancelled);
 	MontageTask->OnCancelled.AddDynamic(this, &ThisClass::HandleKnockdownMontageCancelled);
 	MontageTask->ReadyForActivation();
@@ -204,12 +204,12 @@ void URSGameplayAbility_Knockdown::ActivateAbility(const FGameplayAbilitySpecHan
 		return;
 	}
 
-	AnimInstance->Montage_SetNextSection(StartSectionName, MontageTiming.AirLoopCount > 0 ? AirLoopSectionName : FallSectionName, KnockdownMontage);
-	AnimInstance->Montage_SetNextSection(AirLoopSectionName, MontageTiming.AirLoopCount > 1 ? AirLoopSectionName : FallSectionName, KnockdownMontage);
-	AnimInstance->Montage_SetNextSection(FallSectionName, LandSectionName, KnockdownMontage);
-	AnimInstance->Montage_SetNextSection(LandSectionName, NAME_None, KnockdownMontage);
+	AnimInstance->Montage_SetNextSection(KnockdownStartSectionName, MontageTiming.AirLoopCount > 0 ? KnockdownAirLoopSectionName : KnockdownFallSectionName, KnockdownMontage);
+	AnimInstance->Montage_SetNextSection(KnockdownAirLoopSectionName, MontageTiming.AirLoopCount > 1 ? KnockdownAirLoopSectionName : KnockdownFallSectionName, KnockdownMontage);
+	AnimInstance->Montage_SetNextSection(KnockdownFallSectionName, KnockdownLandSectionName, KnockdownMontage);
+	AnimInstance->Montage_SetNextSection(KnockdownLandSectionName, NAME_None, KnockdownMontage);
 
-	URSAbilityTask_WaitMontageHeldAtSectionEnd* LandCompletionTask = URSAbilityTask_WaitMontageHeldAtSectionEnd::WaitMontageHeldAtSectionEnd(this, KnockdownMontage, LandSectionName);
+	URSAbilityTask_WaitMontageHeldAtSectionEnd* LandCompletionTask = URSAbilityTask_WaitMontageHeldAtSectionEnd::WaitMontageHeldAtSectionEnd(this, KnockdownMontage, KnockdownLandSectionName);
 	LandCompletionTask->OnCompleted.AddDynamic(this, &ThisClass::HandleKnockdownLandCompleted);
 	LandCompletionTask->OnInvalidated.AddDynamic(this, &ThisClass::HandleKnockdownMontageCancelled);
 	LandCompletionTask->ReadyForActivation();
@@ -257,7 +257,7 @@ void URSGameplayAbility_Knockdown::HandlePrepareFinalAirLoop()
 		return;
 	}
 
-	AnimInstance->Montage_SetNextSection(AirLoopSectionName, FallSectionName, KnockdownMontage);
+	AnimInstance->Montage_SetNextSection(KnockdownAirLoopSectionName, KnockdownFallSectionName, KnockdownMontage);
 }
 
 void URSGameplayAbility_Knockdown::HandleKnockbackMovementCompleted()
@@ -271,10 +271,10 @@ void URSGameplayAbility_Knockdown::HandleKnockbackMovementCompleted()
 	}
 
 	bReachedLand = true;
-	if (AnimInstance->Montage_GetCurrentSection(KnockdownMontage) != LandSectionName)
+	if (AnimInstance->Montage_GetCurrentSection(KnockdownMontage) != KnockdownLandSectionName)
 	{
 		// 이동 Task의 끝을 지면 접촉의 Source of Truth로 삼아 같은 프레임에 Land를 시작합니다
-		AnimInstance->Montage_JumpToSection(LandSectionName, KnockdownMontage);
+		AnimInstance->Montage_JumpToSection(KnockdownLandSectionName, KnockdownMontage);
 	}
 
 	ApplyQuickGetUpAvailability();
