@@ -8,6 +8,7 @@
 #include "RSPlayerController.generated.h"
 
 class URSLocalPlayerViewModelSubsystem;
+class URSInGameMenuWidget;
 class URSPlayerCameraComponent;
 enum class ERSBossEncounterResult : uint8;
 
@@ -65,9 +66,21 @@ public:
 	/** GameMode가 Action을 승인하면 Local Result UI의 추가 입력을 비활성화합니다 */
 	void HandleBossResultActionAccepted();
 
+	/** 인게임 메뉴를 표시하고 World와 입력을 Pause 상태로 전환합니다 */
+	bool OpenInGameMenu();
+
+	/** 인게임 메뉴를 숨기고 열기 전 Pause와 게임플레이 입력 상태를 복원합니다 */
+	bool CloseInGameMenu();
+
+	/** 인게임 메뉴가 현재 열려 있는지 반환합니다 */
+	bool IsInGameMenuOpen() const { return bIsInGameMenuOpen; }
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();
+
+	/** Pause 상태에서 인게임 메뉴만 입력과 Focus를 받도록 설정합니다 */
+	void ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMenuWidget);
 
 	/** 현재 로컬 플레이어의 ViewModel 저장소를 반환합니다 */
 	URSLocalPlayerViewModelSubsystem* GetViewModelSubsystem() const;
@@ -81,4 +94,10 @@ private:
 
 	/** 후속 Presentation 정책과 분리해 보존하는 최초 Boss Encounter 결과입니다 */
 	TOptional<ERSBossEncounterResult> BossResultPresentation;
+
+	/** Controller가 인게임 메뉴의 Pause와 입력 수명을 소유 중인지 나타냅니다 */
+	bool bIsInGameMenuOpen = false;
+
+	/** 메뉴가 닫힐 때 외부 시스템이 만들었던 기존 Pause를 유지하기 위한 Snapshot입니다 */
+	bool bWasGamePausedBeforeInGameMenu = false;
 };

@@ -8,6 +8,7 @@
 #include "Components/PanelWidget.h"
 #include "RSBossEncounter.h"
 #include "RSBossResultWidget.h"
+#include "RSInGameMenuWidget.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerController.h"
 #include "RSPrimaryLayout.h"
@@ -23,6 +24,11 @@ void ARSPlayerHeadUpDisplay::BeginPlay()
 
 void ARSPlayerHeadUpDisplay::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
+	{
+		InGameMenuWidget->GetContinueRequested().RemoveAll(this);
+	}
+
 	if (URSBossResultWidget* BossResultWidget = FindBossResultWidget())
 	{
 		BossResultWidget->GetBossResultActionRequested().RemoveAll(this);
@@ -67,6 +73,27 @@ void ARSPlayerHeadUpDisplay::SetBossResultActionsEnabled(bool bEnabled)
 	}
 }
 
+URSInGameMenuWidget* ARSPlayerHeadUpDisplay::ShowInGameMenu()
+{
+	URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget();
+	if (!InGameMenuWidget || !InGameMenuWidget->OpenMenu())
+	{
+		return nullptr;
+	}
+
+	InGameMenuWidget->SetActionsEnabled(true);
+	InGameMenuWidget->SetVisibility(ESlateVisibility::Visible);
+	return InGameMenuWidget;
+}
+
+void ARSPlayerHeadUpDisplay::HideInGameMenu()
+{
+	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
+	{
+		InGameMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
 void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 {
 	APlayerController* OwningPlayerController = GetOwningPlayerController();
@@ -82,6 +109,7 @@ void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 	}
 
 	SetSharedViewModels();
+	InitializeInGameMenu();
 	PrimaryLayout->AddToViewport();
 
 	// HUD보다 Result Flow가 먼저 시작된 경우에도 현재 Local Presentation을 복원합니다
@@ -153,10 +181,47 @@ URSBossResultWidget* ARSPlayerHeadUpDisplay::FindBossResultWidget() const
 	return nullptr;
 }
 
+URSInGameMenuWidget* ARSPlayerHeadUpDisplay::FindInGameMenuWidget() const
+{
+	UPanelWidget* MenuLayer = PrimaryLayout ? PrimaryLayout->GetLayer(ERSWidgetLayer::Menu) : nullptr;
+	if (!MenuLayer)
+	{
+		return nullptr;
+	}
+
+	for (int32 ChildIndex = 0; ChildIndex < MenuLayer->GetChildrenCount(); ++ChildIndex)
+	{
+		if (URSInGameMenuWidget* InGameMenuWidget = Cast<URSInGameMenuWidget>(MenuLayer->GetChildAt(ChildIndex)))
+		{
+			return InGameMenuWidget;
+		}
+	}
+
+	return nullptr;
+}
+
+void ARSPlayerHeadUpDisplay::InitializeInGameMenu()
+{
+	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
+	{
+		InGameMenuWidget->GetContinueRequested().RemoveAll(this);
+		InGameMenuWidget->GetContinueRequested().AddUObject(this, &ThisClass::HandleInGameMenuContinueRequested);
+		InGameMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
 void ARSPlayerHeadUpDisplay::HandleBossResultActionRequested(ERSBossResultAction Action)
 {
 	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
 	{
 		PlayerController->RequestBossResultAction(Action);
+	}
+}
+
+void ARSPlayerHeadUpDisplay::HandleInGameMenuContinueRequested()
+{
+	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
+	{
+		PlayerController->CloseInGameMenu();
 	}
 }

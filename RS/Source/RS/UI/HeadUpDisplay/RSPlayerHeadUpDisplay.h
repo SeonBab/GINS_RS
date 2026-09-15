@@ -8,6 +8,7 @@
 #include "RSPlayerHeadUpDisplay.generated.h"
 
 class URSBossResultWidget;
+class URSInGameMenuWidget;
 class URSPrimaryLayout;
 enum class ERSBossEncounterResult : uint8;
 
@@ -35,6 +36,12 @@ public:
 	/** 정적으로 배치된 Boss Result Widget의 두 Action Button 상태를 함께 변경합니다 */
 	void SetBossResultActionsEnabled(bool bEnabled);
 
+	/** Menu Layer에 정적으로 배치된 인게임 메뉴를 표시하고 반환합니다 */
+	URSInGameMenuWidget* ShowInGameMenu();
+
+	/** 표시 중인 인게임 메뉴를 숨깁니다 */
+	void HideInGameMenu();
+
 private:
 	/** 설정된 클래스에서 루트 레이아웃을 생성하고 공유 ViewModel을 연결합니다 */
 	void CreatePrimaryLayout();
@@ -45,8 +52,17 @@ private:
 	/** Menu Layer에 정적으로 배치된 Boss Result Widget을 반환합니다 */
 	URSBossResultWidget* FindBossResultWidget() const;
 
+	/** Menu Layer에 정적으로 배치된 인게임 메뉴를 반환합니다 */
+	URSInGameMenuWidget* FindInGameMenuWidget() const;
+
+	/** 인게임 메뉴의 Action 이벤트를 연결하고 초기 표시 상태를 구성합니다 */
+	void InitializeInGameMenu();
+
 	/** Boss Result Widget의 Action 의도를 Local PlayerController에 전달합니다 */
 	void HandleBossResultActionRequested(ERSBossResultAction Action);
+
+	/** 인게임 메뉴의 게임 계속 의도를 Local PlayerController에 전달합니다 */
+	void HandleInGameMenuContinueRequested();
 
 private:
 	/** 인게임 플레이어 화면에 사용할 루트 레이아웃 클래스입니다 */

@@ -4,6 +4,7 @@
 #include "RSPlayerController.h"
 
 #include "Engine/LocalPlayer.h"
+#include "Kismet/GameplayStatics.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSBossEncounter.h"
 #include "RSCheatManager.h"
@@ -11,6 +12,7 @@
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
 #include "RSPlayerHeadUpDisplay.h"
+#include "RSInGameMenuWidget.h"
 #include "RSPlayerState.h"
 
 ARSPlayerController::ARSPlayerController()
@@ -32,6 +34,9 @@ void ARSPlayerController::BeginPlay()
 
 void ARSPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	bIsInGameMenuOpen = false;
+	bWasGamePausedBeforeInGameMenu = false;
+
 	UnregisterViewModelSource(GetPawn());
 
 	Super::EndPlay(EndPlayReason);
@@ -121,6 +126,11 @@ void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Res
 		return;
 	}
 
+	if (bIsInGameMenuOpen && !CloseInGameMenu())
+	{
+		return;
+	}
+
 	// 기존 입력 정책은 유지하고 HUD에 정적으로 배치된 Result Widget만 표시합니다
 	BossResultPresentation.Emplace(Result);
 
@@ -160,6 +170,58 @@ void ARSPlayerController::HandleBossResultActionAccepted()
 	}
 }
 
+bool ARSPlayerController::OpenInGameMenu()
+{
+	if (!IsLocalController() || bIsInGameMenuOpen || BossResultPresentation.IsSet())
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>();
+	URSInGameMenuWidget* InGameMenuWidget = PlayerHeadUpDisplay ? PlayerHeadUpDisplay->ShowInGameMenu() : nullptr;
+	if (!World || !InGameMenuWidget)
+	{
+		return false;
+	}
+
+	bWasGamePausedBeforeInGameMenu = UGameplayStatics::IsGamePaused(World);
+	if (!bWasGamePausedBeforeInGameMenu && !UGameplayStatics::SetGamePaused(World, true))
+	{
+		PlayerHeadUpDisplay->HideInGameMenu();
+		return false;
+	}
+
+	bIsInGameMenuOpen = true;
+	ConfigureInGameMenuInput(InGameMenuWidget);
+	InGameMenuWidget->RequestInitialFocus(this);
+	return true;
+}
+
+bool ARSPlayerController::CloseInGameMenu()
+{
+	if (!IsLocalController() || !bIsInGameMenuOpen)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || (!bWasGamePausedBeforeInGameMenu && !UGameplayStatics::SetGamePaused(World, false)))
+	{
+		return false;
+	}
+
+	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
+	{
+		PlayerHeadUpDisplay->HideInGameMenu();
+	}
+
+	bIsInGameMenuOpen = false;
+	bWasGamePausedBeforeInGameMenu = false;
+	ConfigureMouseInput();
+	return true;
+}
+
 void ARSPlayerController::ConfigureMouseInput()
 {
 	if (!IsLocalController())
@@ -174,6 +236,21 @@ void ARSPlayerController::ConfigureMouseInput()
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
+}
+
+void ARSPlayerController::ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMenuWidget)
+{
+	if (!IsLocalController() || !InGameMenuWidget)
+	{
+		return;
+	}
+
+	bShowMouseCursor = true;
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	InputMode.SetWidgetToFocus(InGameMenuWidget->TakeWidget());
 	SetInputMode(InputMode);
 }
 
