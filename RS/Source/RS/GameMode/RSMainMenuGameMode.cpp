@@ -4,6 +4,7 @@
 
 #include "Kismet/GameplayStatics.h"
 #include "RSMainMenuPlayerController.h"
+#include "RSMusicPlaybackSubsystem.h"
 
 ARSMainMenuGameMode::ARSMainMenuGameMode()
 {
@@ -12,6 +13,12 @@ ARSMainMenuGameMode::ARSMainMenuGameMode()
 	HUDClass = nullptr;
 	PlayerControllerClass = ARSMainMenuPlayerController::StaticClass();
 	StartLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/Stage.Stage")));
+}
+
+void ARSMainMenuGameMode::StartPlay()
+{
+	Super::StartPlay();
+	PlayInitialMusic();
 }
 
 bool ARSMainMenuGameMode::RequestStartGame(ARSMainMenuPlayerController* RequestingController)
@@ -25,4 +32,19 @@ bool ARSMainMenuGameMode::RequestStartGame(ARSMainMenuPlayerController* Requesti
 	UGameplayStatics::OpenLevel(this, StartLevel.ToSoftObjectPath().GetLongPackageFName(), true);
 
 	return true;
+}
+
+void ARSMainMenuGameMode::PlayInitialMusic()
+{
+	UWorld* World = GetWorld();
+	USoundBase* Music = InitialMusic.LoadSynchronous();
+	if (!World || !Music)
+	{
+		return;
+	}
+
+	if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
+	{
+		MusicPlaybackSubsystem->PlayMusic(Music, InitialMusicFadeDuration);
+	}
 }

@@ -10,6 +10,7 @@ public class RS : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicIncludePaths.AddRange(new string[] {
+			Path.Combine(ModuleDirectory, "Audio"),
 			Path.Combine(ModuleDirectory, "AbilitySystem"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities"),
 			Path.Combine(ModuleDirectory, "AbilitySystem", "Abilities", "Boss"),

@@ -11,6 +11,7 @@
 #include "RSHealthComponent.h"
 #include "RSHealthSet.h"
 #include "RSHitFlashComponent.h"
+#include "RSMusicPlaybackSubsystem.h"
 
 ARSBossCharacter::ARSBossCharacter()
 {
@@ -49,6 +50,7 @@ void ARSBossCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+	BossPhaseComp->OnPhaseEntered().AddUObject(this, &ThisClass::HandleBossPhaseEntered);
 }
 
 void ARSBossCharacter::BeginPlay()
@@ -117,6 +119,20 @@ void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 	if (BossEncounter)
 	{
 		BossEncounter->RequestClearOutcome();
+	}
+}
+
+void ARSBossCharacter::HandleBossPhaseEntered(int32 /*PhaseIndex*/, USoundBase* PhaseMusic, float CrossfadeDuration)
+{
+	UWorld* World = GetWorld();
+	if (!World || !PhaseMusic)
+	{
+		return;
+	}
+
+	if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
+	{
+		MusicPlaybackSubsystem->PlayMusic(PhaseMusic, CrossfadeDuration);
 	}
 }
 
