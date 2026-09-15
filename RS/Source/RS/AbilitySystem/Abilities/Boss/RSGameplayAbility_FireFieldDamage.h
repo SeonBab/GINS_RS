@@ -7,7 +7,7 @@
 
 class UGameplayEffect;
 
-/** 화염 분화구 장판 이벤트 하나를 받아 플레이어 한 명에게 피해와 Reaction을 적용하고 즉시 끝납니다 */
+/** 화염구 장판 이벤트 하나를 받아 플레이어 한 명에게 피해와 Reaction을 적용하고 즉시 끝납니다 */
 UCLASS(Abstract, Blueprintable)
 class RS_API URSGameplayAbility_FireFieldDamage : public URSBaseGameplayAbility
 {
@@ -27,14 +27,14 @@ protected:
 
 private:
 	/** 한 번의 장판 Tick이 적용할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Fire Field", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
 	FScalableFloat Damage = 10.0f;
 
 	/** 플레이어에게 적용할 공용 Damage GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Fire Field", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 	/** 장판 피해와 함께 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|FlameCrater|Fire Field", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
 	FRSHitReactionDefinition Reaction;
 };

@@ -2,13 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "RSFlameCraterChargeWidget.generated.h"
+#include "RSFireballChargeWidget.generated.h"
 
 class UProgressBar;
 
-/** 화염 분화구의 착지 후 충전 진행도를 가로형 Progress Bar로 표시합니다 */
+/** 화염구의 착지 후 충전 진행도를 가로형 Progress Bar로 표시합니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSFlameCraterChargeWidget : public UUserWidget
+class RS_API URSFireballChargeWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
@@ -18,6 +18,6 @@ public:
 
 protected:
 	/** Blueprint가 같은 이름으로 배치하면 C++에서 직접 갱신할 Progress Bar입니다 */
-	UPROPERTY(BlueprintReadOnly, Category = "RS|FlameCrater", meta = (BindWidgetOptional))
+	UPROPERTY(BlueprintReadOnly, Category = "RS|Fireball", meta = (BindWidgetOptional))
 	TObjectPtr<UProgressBar> ChargeProgressBar;
 };

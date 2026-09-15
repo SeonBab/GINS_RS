@@ -12,7 +12,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ArmSwing_Fast);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_ConcentricRings);
-	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_FlameCraterSpread);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_FireballSpread);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_FireFieldDamage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MeteorHazard);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Combat_MeteorHazardDamage);
@@ -72,7 +72,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Immunity_Damage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Immunity_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Immunity_Knockback);
-	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Hazard_FlameCrater_Vulnerable);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Hazard_Fireball_Vulnerable);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Blocked);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Movement_Dashing);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Recovery_QuickGetUpAvailable);

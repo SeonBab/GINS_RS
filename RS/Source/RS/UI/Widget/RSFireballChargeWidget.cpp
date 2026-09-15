@@ -1,8 +1,8 @@
-#include "RSFlameCraterChargeWidget.h"
+#include "RSFireballChargeWidget.h"
 
 #include "Components/ProgressBar.h"
 
-void URSFlameCraterChargeWidget::SetChargeProgress(float InChargeProgress)
+void URSFireballChargeWidget::SetChargeProgress(float InChargeProgress)
 {
 	if (ChargeProgressBar)
 	{

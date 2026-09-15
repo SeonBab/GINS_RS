@@ -1,10 +1,9 @@
-#include "RSBossFlameCrater.h"
+#include "RSBossFireball.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Curves/CurveFloat.h"
@@ -13,7 +12,7 @@
 #include "NiagaraSystem.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
-#include "RSFlameCraterChargeWidget.h"
+#include "RSFireballChargeWidget.h"
 #include "RSGameplayTags.h"
 #include "RSHealthComponent.h"
 #include "RSHealthSet.h"
@@ -24,7 +23,7 @@
 #include "Misc/DataValidation.h"
 #endif
 
-bool FRSBossFlameCraterDefinition::IsDataValid(FString* OutValidationError) const
+bool FRSBossFireballDefinition::IsDataValid(FString* OutValidationError) const
 {
 	if (OutValidationError)
 	{
@@ -70,37 +69,37 @@ bool FRSBossFlameCraterDefinition::IsDataValid(FString* OutValidationError) cons
 	return true;
 }
 
-ARSBossFlameCrater::ARSBossFlameCrater()
+ARSBossFireball::ARSBossFireball()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
-	CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComponent"));
-	SetRootComponent(CapsuleComp);
-	CapsuleComp->InitCapsuleSize(45.0f, 90.0f);
-	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	CapsuleComp->SetCollisionObjectType(ECC_Pawn);
-	CapsuleComp->SetCollisionResponseToAllChannels(ECR_Ignore);
-	CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+	// 화염구는 Mesh 없이 Niagara로만 보이므로 충돌은 이 박스 하나가 전담합니다
+	// 맵 지오메트리는 Block하고 플레이어와 보스는 통과시켜 이동을 막지 않습니다
+	BoxComp = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
+	SetRootComponent(BoxComp);
+	BoxComp->SetBoxExtent(FVector(45.0f, 45.0f, 45.0f));
+	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BoxComp->SetCollisionObjectType(ECC_WorldDynamic);
+	BoxComp->SetCollisionResponseToAllChannels(ECR_Ignore);
+	BoxComp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	BoxComp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+	BoxComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
 
+	// 충돌 박스는 착지 지점에 고정되고 낙하는 이 VisualRoot만 내려옵니다
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
-	VisualRoot->SetupAttachment(CapsuleComp);
+	VisualRoot->SetupAttachment(BoxComp);
 
-	FlameCraterMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FlameCraterMeshComponent"));
-	FlameCraterMeshComp->SetupAttachment(VisualRoot);
-	FlameCraterMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	FlameCraterMeshComp->SetReceivesDecals(false);
-
-	FallingNiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FallingNiagaraComponent"));
-	FallingNiagaraComp->SetupAttachment(VisualRoot);
-	FallingNiagaraComp->SetAutoActivate(false);
+	FireballNiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FireballNiagaraComponent"));
+	FireballNiagaraComp->SetupAttachment(VisualRoot);
+	FireballNiagaraComp->SetAutoActivate(false);
 
 	FireFieldNiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FireFieldNiagaraComponent"));
-	FireFieldNiagaraComp->SetupAttachment(CapsuleComp);
+	FireFieldNiagaraComp->SetupAttachment(BoxComp);
 	FireFieldNiagaraComp->SetAutoActivate(false);
 
 	ChargeWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("ChargeWidgetComponent"));
-	ChargeWidgetComp->SetupAttachment(CapsuleComp);
+	ChargeWidgetComp->SetupAttachment(BoxComp);
 	ChargeWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
 	ChargeWidgetComp->SetDrawAtDesiredSize(true);
 	ChargeWidgetComp->SetVisibility(false);
@@ -111,17 +110,17 @@ ARSBossFlameCrater::ARSBossFlameCrater()
 	PersistentObjectLifetimeComp = CreateDefaultSubobject<URSBossPersistentObjectLifetimeComponent>(TEXT("PersistentObjectLifetimeComponent"));
 }
 
-void ARSBossFlameCrater::Tick(float DeltaSeconds)
+void ARSBossFireball::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	switch (FlameCraterState)
+	switch (FireballState)
 	{
-	case ERSBossFlameCraterState::Falling:
+	case ERSBossFireballState::Falling:
 		AdvanceFalling(DeltaSeconds);
 		break;
 
-	case ERSBossFlameCraterState::Charging:
+	case ERSBossFireballState::Charging:
 		AdvanceCharging(DeltaSeconds);
 		break;
 
@@ -131,7 +130,7 @@ void ARSBossFlameCrater::Tick(float DeltaSeconds)
 	}
 }
 
-void ARSBossFlameCrater::BeginPlay()
+void ARSBossFireball::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -139,12 +138,12 @@ void ARSBossFlameCrater::BeginPlay()
 	if (PersistentObjectLifetimeComp)
 	{
 		PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
-		PersistentObjectLifetimeComp->StartObserving(GetOwner(), FlameCraterDefinition.SpecialPatternCleanupOffset);
+		PersistentObjectLifetimeComp->StartObserving(GetOwner(), FireballDefinition.SpecialPatternCleanupOffset);
 	}
 
-	if (FallingNiagaraComp)
+	if (FireballNiagaraComp)
 	{
-		FallingNiagaraComp->SetAsset(FallingNiagaraSystem);
+		FireballNiagaraComp->SetAsset(FireballNiagaraSystem);
 	}
 
 	if (FireFieldNiagaraComp)
@@ -158,7 +157,7 @@ void ARSBossFlameCrater::BeginPlay()
 		ChargeWidgetComp->SetWidgetClass(ChargeWidgetClass);
 	}
 
-	if (!FlameCraterDefinition.IsDataValid())
+	if (!FireballDefinition.IsDataValid())
 	{
 		RequestCleanup();
 
@@ -168,7 +167,7 @@ void ARSBossFlameCrater::BeginPlay()
 	BeginFalling();
 }
 
-void ARSBossFlameCrater::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void ARSBossFireball::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	ClearTimers();
 	if (PersistentObjectLifetimeComp)
@@ -179,7 +178,7 @@ void ARSBossFlameCrater::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	if (AbilitySystemComp)
 	{
-		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable);
+		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
 		AbilitySystemComp->CancelAbilities();
 		GrantedAbilityHandles.TakeFromAbilitySystem(AbilitySystemComp);
 	}
@@ -193,14 +192,14 @@ void ARSBossFlameCrater::EndPlay(const EEndPlayReason::Type EndPlayReason)
 }
 
 #if WITH_EDITOR
-EDataValidationResult ARSBossFlameCrater::IsDataValid(FDataValidationContext& Context) const
+EDataValidationResult ARSBossFireball::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
 	FString ValidationError;
-	if (!FlameCraterDefinition.IsDataValid(&ValidationError))
+	if (!FireballDefinition.IsDataValid(&ValidationError))
 	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("FlameCraterDefinition is invalid: %s"), *ValidationError)));
+		Context.AddError(FText::FromString(FString::Printf(TEXT("FireballDefinition is invalid: %s"), *ValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -226,12 +225,12 @@ EDataValidationResult ARSBossFlameCrater::IsDataValid(FDataValidationContext& Co
 }
 #endif
 
-UAbilitySystemComponent* ARSBossFlameCrater::GetAbilitySystemComponent() const
+UAbilitySystemComponent* ARSBossFireball::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComp;
 }
 
-void ARSBossFlameCrater::InitializeAbilitySystem()
+void ARSBossFireball::InitializeAbilitySystem()
 {
 	if (!AbilitySystemComp)
 	{
@@ -245,8 +244,8 @@ void ARSBossFlameCrater::InitializeAbilitySystem()
 		DefaultAbilitySet->GiveToAbilitySystem(AbilitySystemComp, &GrantedAbilityHandles, this);
 	}
 
-	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetMaxHealthAttribute(), FlameCraterDefinition.RequiredHitCount);
-	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), FlameCraterDefinition.RequiredHitCount);
+	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetMaxHealthAttribute(), FireballDefinition.RequiredHitCount);
+	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), FireballDefinition.RequiredHitCount);
 
 	if (HealthComp)
 	{
@@ -255,7 +254,7 @@ void ARSBossFlameCrater::InitializeAbilitySystem()
 	}
 }
 
-void ARSBossFlameCrater::HandleDeathStarted(URSHealthComponent* InHealthComponent)
+void ARSBossFireball::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 {
 	if (InHealthComponent == HealthComp)
 	{
@@ -263,20 +262,20 @@ void ARSBossFlameCrater::HandleDeathStarted(URSHealthComponent* InHealthComponen
 	}
 }
 
-void ARSBossFlameCrater::RequestCleanup()
+void ARSBossFireball::RequestCleanup()
 {
-	if (FlameCraterState == ERSBossFlameCraterState::Cleanup)
+	if (FireballState == ERSBossFireballState::Cleanup)
 	{
 		return;
 	}
 
-	FlameCraterState = ERSBossFlameCraterState::Cleanup;
+	FireballState = ERSBossFireballState::Cleanup;
 	SetActorTickEnabled(false);
 	ClearTimers();
 
-	if (CapsuleComp)
+	if (BoxComp)
 	{
-		CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
 	if (ChargeWidgetComp)
@@ -284,9 +283,9 @@ void ARSBossFlameCrater::RequestCleanup()
 		ChargeWidgetComp->SetVisibility(false);
 	}
 
-	if (FallingNiagaraComp)
+	if (FireballNiagaraComp)
 	{
-		FallingNiagaraComp->DeactivateImmediate();
+		FireballNiagaraComp->DeactivateImmediate();
 	}
 
 	if (FireFieldNiagaraComp)
@@ -296,35 +295,35 @@ void ARSBossFlameCrater::RequestCleanup()
 
 	if (AbilitySystemComp)
 	{
-		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable);
+		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
 		AbilitySystemComp->CancelAbilities();
 	}
 
 	Destroy();
 }
 
-void ARSBossFlameCrater::BeginFalling()
+void ARSBossFireball::BeginFalling()
 {
-	FlameCraterState = ERSBossFlameCraterState::Falling;
+	FireballState = ERSBossFireballState::Falling;
 	StateElapsedTime = 0.0f;
-	VisualRoot->SetRelativeLocation(FVector::UpVector * FlameCraterDefinition.FallHeight);
-	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	VisualRoot->SetRelativeLocation(FVector::UpVector * FireballDefinition.FallHeight);
+	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
 
-	if (FallingNiagaraSystem)
+	if (FireballNiagaraSystem)
 	{
-		FallingNiagaraComp->Activate(true);
+		FireballNiagaraComp->Activate(true);
 	}
 
 	SetActorTickEnabled(true);
 }
 
-void ARSBossFlameCrater::AdvanceFalling(float DeltaSeconds)
+void ARSBossFireball::AdvanceFalling(float DeltaSeconds)
 {
 	StateElapsedTime += DeltaSeconds;
-	const float LinearProgress = FMath::Clamp(StateElapsedTime / FlameCraterDefinition.FallDuration, 0.0f, 1.0f);
-	const float CurveProgress = FlameCraterDefinition.FallCurve ? FlameCraterDefinition.FallCurve->GetFloatValue(LinearProgress) : LinearProgress;
-	const float Height = FMath::Lerp(FlameCraterDefinition.FallHeight, 0.0f, FMath::Clamp(CurveProgress, 0.0f, 1.0f));
+	const float LinearProgress = FMath::Clamp(StateElapsedTime / FireballDefinition.FallDuration, 0.0f, 1.0f);
+	const float CurveProgress = FireballDefinition.FallCurve ? FireballDefinition.FallCurve->GetFloatValue(LinearProgress) : LinearProgress;
+	const float Height = FMath::Lerp(FireballDefinition.FallHeight, 0.0f, FMath::Clamp(CurveProgress, 0.0f, 1.0f));
 	VisualRoot->SetRelativeLocation(FVector::UpVector * Height);
 
 	if (LinearProgress >= 1.0f)
@@ -334,22 +333,24 @@ void ARSBossFlameCrater::AdvanceFalling(float DeltaSeconds)
 	}
 }
 
-void ARSBossFlameCrater::BeginCharging()
+void ARSBossFireball::BeginCharging()
 {
-	FlameCraterState = ERSBossFlameCraterState::Charging;
+	FireballState = ERSBossFireballState::Charging;
 	StateElapsedTime = 0.0f;
-	FallingNiagaraComp->Deactivate();
-	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	// 화염구 본체 Niagara는 충전 중에도 계속 보여야 하므로 착지했다고 끄지 않습니다
+	// 낙하 연출과 본체가 같은 Component이며, 끄는 시점은 장판으로 전환할 때 하나뿐입니다
+	BoxComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	ChargeWidgetComp->SetVisibility(true);
 	UpdateChargeWidget(0.0f);
-	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable);
+	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
 	SetActorTickEnabled(true);
 }
 
-void ARSBossFlameCrater::AdvanceCharging(float DeltaSeconds)
+void ARSBossFireball::AdvanceCharging(float DeltaSeconds)
 {
 	StateElapsedTime += DeltaSeconds;
-	const float Progress = FMath::Clamp(StateElapsedTime / FlameCraterDefinition.ChargeDuration, 0.0f, 1.0f);
+	const float Progress = FMath::Clamp(StateElapsedTime / FireballDefinition.ChargeDuration, 0.0f, 1.0f);
 	UpdateChargeWidget(Progress);
 
 	if (Progress >= 1.0f)
@@ -358,14 +359,14 @@ void ARSBossFlameCrater::AdvanceCharging(float DeltaSeconds)
 	}
 }
 
-void ARSBossFlameCrater::RequestFireFieldTransition()
+void ARSBossFireball::RequestFireFieldTransition()
 {
-	if (FlameCraterState != ERSBossFlameCraterState::Charging)
+	if (FireballState != ERSBossFireballState::Charging)
 	{
 		return;
 	}
 
-	FlameCraterState = ERSBossFlameCraterState::ChargeCompletedPending;
+	FireballState = ERSBossFireballState::ChargeCompletedPending;
 	ChargeCompletionFrame = GFrameCounter;
 	SetActorTickEnabled(false);
 
@@ -375,9 +376,9 @@ void ARSBossFlameCrater::RequestFireFieldTransition()
 	}
 }
 
-void ARSBossFlameCrater::CompleteFireFieldTransition()
+void ARSBossFireball::CompleteFireFieldTransition()
 {
-	if (FlameCraterState != ERSBossFlameCraterState::ChargeCompletedPending)
+	if (FireballState != ERSBossFireballState::ChargeCompletedPending)
 	{
 		return;
 	}
@@ -396,16 +397,19 @@ void ARSBossFlameCrater::CompleteFireFieldTransition()
 	BeginFireField();
 }
 
-void ARSBossFlameCrater::BeginFireField()
+void ARSBossFireball::BeginFireField()
 {
-	if (FlameCraterState != ERSBossFlameCraterState::ChargeCompletedPending)
+	if (FireballState != ERSBossFireballState::ChargeCompletedPending)
 	{
 		return;
 	}
 
-	FlameCraterState = ERSBossFlameCraterState::FireField;
-	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable);
-	CapsuleComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FireballState = ERSBossFireballState::FireField;
+	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
+
+	// 장판이 되는 순간 화염구 본체는 사라지고 장판 Niagara가 그 자리를 대신합니다
+	FireballNiagaraComp->Deactivate();
+	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
 	UpdateFireFieldNiagaraScale();
 
@@ -416,32 +420,32 @@ void ARSBossFlameCrater::BeginFireField()
 
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().SetTimer(FireFieldDamageTimerHandle, this, &ThisClass::ApplyFireFieldDamage, FlameCraterDefinition.DamageInterval, true, FlameCraterDefinition.DamageInterval);
-		World->GetTimerManager().SetTimer(FireFieldLifetimeTimerHandle, this, &ThisClass::RequestCleanup, FlameCraterDefinition.FireFieldDuration, false);
+		World->GetTimerManager().SetTimer(FireFieldDamageTimerHandle, this, &ThisClass::ApplyFireFieldDamage, FireballDefinition.DamageInterval, true, FireballDefinition.DamageInterval);
+		World->GetTimerManager().SetTimer(FireFieldLifetimeTimerHandle, this, &ThisClass::RequestCleanup, FireballDefinition.FireFieldDuration, false);
 	}
 }
 
-void ARSBossFlameCrater::UpdateFireFieldNiagaraScale()
+void ARSBossFireball::UpdateFireFieldNiagaraScale()
 {
 	if (!FireFieldNiagaraComp || !FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
 	{
 		return;
 	}
 
-	const float HorizontalScale = FlameCraterDefinition.FireFieldRadius / FireFieldNiagaraBaseRadius;
+	const float HorizontalScale = FireballDefinition.FireFieldRadius / FireFieldNiagaraBaseRadius;
 	FireFieldNiagaraComp->SetRelativeScale3D(FVector(HorizontalScale, HorizontalScale, 1.0f));
 }
 
-void ARSBossFlameCrater::ApplyFireFieldDamage()
+void ARSBossFireball::ApplyFireFieldDamage()
 {
-	if (FlameCraterState != ERSBossFlameCraterState::FireField)
+	if (FireballState != ERSBossFireballState::FireField)
 	{
 		return;
 	}
 
 	FRSCombatShape FireFieldShape;
 	FireFieldShape.Type = ERSCombatShapeType::Sphere;
-	FireFieldShape.Radius = FlameCraterDefinition.FireFieldRadius;
+	FireFieldShape.Radius = FireballDefinition.FireFieldRadius;
 	FireFieldShape.InnerRadius = 0.0f;
 
 	TArray<AActor*> HitTargets;
@@ -461,20 +465,20 @@ void ARSBossFlameCrater::ApplyFireFieldDamage()
 	}
 }
 
-void ARSBossFlameCrater::UpdateChargeWidget(float Progress)
+void ARSBossFireball::UpdateChargeWidget(float Progress)
 {
 	if (!ChargeWidgetComp)
 	{
 		return;
 	}
 
-	if (URSFlameCraterChargeWidget* ChargeWidget = Cast<URSFlameCraterChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
+	if (URSFireballChargeWidget* ChargeWidget = Cast<URSFireballChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
 	{
 		ChargeWidget->SetChargeProgress(Progress);
 	}
 }
 
-void ARSBossFlameCrater::ClearTimers()
+void ARSBossFireball::ClearTimers()
 {
 	if (UWorld* World = GetWorld())
 	{

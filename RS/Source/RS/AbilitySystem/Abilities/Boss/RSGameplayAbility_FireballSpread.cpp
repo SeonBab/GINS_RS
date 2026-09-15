@@ -1,8 +1,8 @@
-#include "RSGameplayAbility_FlameCraterSpread.h"
+#include "RSGameplayAbility_FireballSpread.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
-#include "Actors/RSBossFlameCrater.h"
+#include "Actors/RSBossFireball.h"
 #include "Combat/RSRandomPointSampling.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -15,9 +15,9 @@
 
 namespace
 {
-	constexpr float FlameCraterSectorAngle = 45.0f;
+	constexpr float FireballSectorAngle = 45.0f;
 
-	bool TryGetEffectiveRadii(const FRSFlameCraterSpreadDefinition& Definition, float& OutMinRadius, float& OutMaxRadius, float& OutLateralInset)
+	bool TryGetEffectiveRadii(const FRSFireballSpreadDefinition& Definition, float& OutMinRadius, float& OutMaxRadius, float& OutLateralInset)
 	{
 		const float RadialInset = Definition.PlacementRadius + Definition.BoundaryMargin;
 		OutMinRadius = Definition.MinSpawnRadius + RadialInset;
@@ -28,7 +28,7 @@ namespace
 	}
 }
 
-bool FRSFlameCraterSpreadDefinition::IsDataValid(FString* OutValidationError) const
+bool FRSFireballSpreadDefinition::IsDataValid(FString* OutValidationError) const
 {
 	if (OutValidationError)
 	{
@@ -67,7 +67,7 @@ bool FRSFlameCraterSpreadDefinition::IsDataValid(FString* OutValidationError) co
 		return false;
 	}
 
-	const float MaximumLateralInset = EffectiveMinRadius * FMath::Sin(FMath::DegreesToRadians(FlameCraterSectorAngle * 0.5f));
+	const float MaximumLateralInset = EffectiveMinRadius * FMath::Sin(FMath::DegreesToRadians(FireballSectorAngle * 0.5f));
 	if (LateralInset >= MaximumLateralInset)
 	{
 		SetValidationError(TEXT("Placement radius, gap, and boundary margin leave no angular sampling range in a 45 degree sector."));
@@ -78,7 +78,7 @@ bool FRSFlameCraterSpreadDefinition::IsDataValid(FString* OutValidationError) co
 	return true;
 }
 
-bool FRSFlameCraterSpreadDefinition::TryGenerateLandingLocations(const FVector& Center, const FVector& HorizontalForward, FRandomStream& InOutRandomStream, TArray<FVector>& OutLocations) const
+bool FRSFireballSpreadDefinition::TryGenerateLandingLocations(const FVector& Center, const FVector& HorizontalForward, FRandomStream& InOutRandomStream, TArray<FVector>& OutLocations) const
 {
 	OutLocations.Reset();
 
@@ -102,8 +102,8 @@ bool FRSFlameCraterSpreadDefinition::TryGenerateLandingLocations(const FVector& 
 		return false;
 	}
 
-	OutLocations.Reserve(FlameCraterCount);
-	for (int32 SectorIndex = 0; SectorIndex < FlameCraterCount; ++SectorIndex)
+	OutLocations.Reserve(FireballCount);
+	for (int32 SectorIndex = 0; SectorIndex < FireballCount; ++SectorIndex)
 	{
 		float Radius = 0.0f;
 		if (!RSRandomPointSampling::TrySampleRadiusInAnnulus(EffectiveMinRadius, EffectiveMaxRadius, InOutRandomStream, Radius))
@@ -114,8 +114,8 @@ bool FRSFlameCraterSpreadDefinition::TryGenerateLandingLocations(const FVector& 
 		}
 
 		const float AngularInset = FMath::RadiansToDegrees(FMath::Asin(LateralInset / Radius));
-		const float SectorMinimumAngle = -90.0f + SectorIndex * FlameCraterSectorAngle + AngularInset;
-		const float SectorMaximumAngle = -90.0f + (SectorIndex + 1) * FlameCraterSectorAngle - AngularInset;
+		const float SectorMinimumAngle = -90.0f + SectorIndex * FireballSectorAngle + AngularInset;
+		const float SectorMaximumAngle = -90.0f + (SectorIndex + 1) * FireballSectorAngle - AngularInset;
 		if (SectorMaximumAngle <= SectorMinimumAngle)
 		{
 			OutLocations.Reset();
@@ -128,28 +128,28 @@ bool FRSFlameCraterSpreadDefinition::TryGenerateLandingLocations(const FVector& 
 		OutLocations.Add(Center + Direction * Radius);
 	}
 
-	return OutLocations.Num() == FlameCraterCount;
+	return OutLocations.Num() == FireballCount;
 }
 
-URSGameplayAbility_FlameCraterSpread::URSGameplayAbility_FlameCraterSpread()
+URSGameplayAbility_FireballSpread::URSGameplayAbility_FireballSpread()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	FGameplayTagContainer AssetTags;
-	AssetTags.AddTag(RSGameplayTags::Ability_Combat_FlameCraterSpread);
+	AssetTags.AddTag(RSGameplayTags::Ability_Combat_FireballSpread);
 	SetAssetTags(AssetTags);
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 }
 
-void URSGameplayAbility_FlameCraterSpread::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_FireballSpread::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	ActiveLandingLocations.Reset();
 	bDropFinished = false;
 	bRoarMontageFinished = !RoarMontage;
 
-	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !FlameCraterClass || !SpreadDefinition.IsDataValid() || !CaptureLandingLocations(ActorInfo))
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !FireballClass || !SpreadDefinition.IsDataValid() || !CaptureLandingLocations(ActorInfo))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 
@@ -185,7 +185,7 @@ void URSGameplayAbility_FlameCraterSpread::ActivateAbility(const FGameplayAbilit
 	DropDelayTask->ReadyForActivation();
 }
 
-void URSGameplayAbility_FlameCraterSpread::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+void URSGameplayAbility_FireballSpread::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	EndAnimationGameplayStatesForMontage(ActorInfo, RoarMontage);
 	ActiveLandingLocations.Reset();
@@ -194,7 +194,7 @@ void URSGameplayAbility_FlameCraterSpread::EndAbility(const FGameplayAbilitySpec
 }
 
 #if WITH_EDITOR
-EDataValidationResult URSGameplayAbility_FlameCraterSpread::IsDataValid(FDataValidationContext& Context) const
+EDataValidationResult URSGameplayAbility_FireballSpread::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
@@ -205,9 +205,9 @@ EDataValidationResult URSGameplayAbility_FlameCraterSpread::IsDataValid(FDataVal
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!FlameCraterClass)
+	if (!FireballClass)
 	{
-		Context.AddError(FText::FromString(TEXT("FlameCraterClass is not configured.")));
+		Context.AddError(FText::FromString(TEXT("FireballClass is not configured.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -221,7 +221,7 @@ EDataValidationResult URSGameplayAbility_FlameCraterSpread::IsDataValid(FDataVal
 }
 #endif
 
-bool URSGameplayAbility_FlameCraterSpread::CaptureLandingLocations(const FGameplayAbilityActorInfo* ActorInfo)
+bool URSGameplayAbility_FireballSpread::CaptureLandingLocations(const FGameplayAbilityActorInfo* ActorInfo)
 {
 	const ACharacter* BossCharacter = ActorInfo ? Cast<ACharacter>(ActorInfo->AvatarActor.Get()) : nullptr;
 	const ACharacter* PlayerCharacter = GetWorld() ? UGameplayStatics::GetPlayerCharacter(GetWorld(), 0) : nullptr;
@@ -244,49 +244,49 @@ bool URSGameplayAbility_FlameCraterSpread::CaptureLandingLocations(const FGamepl
 	return SpreadDefinition.TryGenerateLandingLocations(Center, PlayerDirection, RandomStream, ActiveLandingLocations);
 }
 
-bool URSGameplayAbility_FlameCraterSpread::SpawnFlameCraters()
+bool URSGameplayAbility_FireballSpread::SpawnFireballs()
 {
 	UWorld* World = GetWorld();
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-	if (!World || !AvatarActor || ActiveLandingLocations.Num() != FRSFlameCraterSpreadDefinition::FlameCraterCount)
+	if (!World || !AvatarActor || ActiveLandingLocations.Num() != FRSFireballSpreadDefinition::FireballCount)
 	{
 		return false;
 	}
 
-	TArray<ARSBossFlameCrater*> SpawnedFlameCraters;
-	SpawnedFlameCraters.Reserve(ActiveLandingLocations.Num());
+	TArray<ARSBossFireball*> SpawnedFireballs;
+	SpawnedFireballs.Reserve(ActiveLandingLocations.Num());
 	for (const FVector& LandingLocation : ActiveLandingLocations)
 	{
 		const FTransform SpawnTransform(LandingLocation);
-		ARSBossFlameCrater* FlameCrater = World->SpawnActorDeferred<ARSBossFlameCrater>(FlameCraterClass, SpawnTransform, AvatarActor, Cast<APawn>(AvatarActor), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-		if (!FlameCrater)
+		ARSBossFireball* Fireball = World->SpawnActorDeferred<ARSBossFireball>(FireballClass, SpawnTransform, AvatarActor, Cast<APawn>(AvatarActor), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (!Fireball)
 		{
-			for (ARSBossFlameCrater* SpawnedFlameCrater : SpawnedFlameCraters)
+			for (ARSBossFireball* SpawnedFireball : SpawnedFireballs)
 			{
-				if (SpawnedFlameCrater)
+				if (SpawnedFireball)
 				{
-					SpawnedFlameCrater->RequestCleanup();
+					SpawnedFireball->RequestCleanup();
 				}
 			}
 
 			return false;
 		}
 
-		UGameplayStatics::FinishSpawningActor(FlameCrater, SpawnTransform);
-		SpawnedFlameCraters.Add(FlameCrater);
+		UGameplayStatics::FinishSpawningActor(Fireball, SpawnTransform);
+		SpawnedFireballs.Add(Fireball);
 	}
 
 	return true;
 }
 
-void URSGameplayAbility_FlameCraterSpread::HandleDropDelayFinished()
+void URSGameplayAbility_FireballSpread::HandleDropDelayFinished()
 {
 	if (!IsActive() || bDropFinished)
 	{
 		return;
 	}
 
-	bDropFinished = SpawnFlameCraters();
+	bDropFinished = SpawnFireballs();
 	if (!bDropFinished)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -297,7 +297,7 @@ void URSGameplayAbility_FlameCraterSpread::HandleDropDelayFinished()
 	TryFinishAbility();
 }
 
-void URSGameplayAbility_FlameCraterSpread::HandleRoarMontageFinished()
+void URSGameplayAbility_FireballSpread::HandleRoarMontageFinished()
 {
 	if (!IsActive())
 	{
@@ -308,7 +308,7 @@ void URSGameplayAbility_FlameCraterSpread::HandleRoarMontageFinished()
 	TryFinishAbility();
 }
 
-void URSGameplayAbility_FlameCraterSpread::HandleRoarMontageCancelled()
+void URSGameplayAbility_FireballSpread::HandleRoarMontageCancelled()
 {
 	if (IsActive())
 	{
@@ -316,7 +316,7 @@ void URSGameplayAbility_FlameCraterSpread::HandleRoarMontageCancelled()
 	}
 }
 
-void URSGameplayAbility_FlameCraterSpread::TryFinishAbility()
+void URSGameplayAbility_FireballSpread::TryFinishAbility()
 {
 	if (IsActive() && bDropFinished && bRoarMontageFinished)
 	{

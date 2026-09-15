@@ -57,8 +57,8 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 			return;
 		}
 
-		// 화염 분화구는 공격 자체의 피해량과 관계없이 유효한 한 타마다 체력을 1만 잃습니다
-		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Hazard_FlameCrater_Vulnerable))
+		// 화염구는 공격 자체의 피해량과 관계없이 유효한 한 타마다 체력을 1만 잃습니다
+		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable))
 		{
 			LocalDamage = 1.0f;
 		}
