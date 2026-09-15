@@ -80,8 +80,11 @@ public:
 	/** 현재 사이클 차례의 패턴 종류를 반환합니다 */
 	bool TryGetCurrentPatternType(ERSBossPatternType& OutPatternType) const;
 
-	/** 지정한 종류의 후보 중 사용할 어빌리티를 선택합니다 */
-	bool TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const;
+	/**
+	 * 지정한 종류의 후보 중 사용할 어빌리티를 선택합니다
+	 * 직전 차례와 같은 종류라면 직전에 선택한 후보를 제외하므로 선택 결과를 기록하기 위해 상수 함수가 아닙니다
+	 */
+	bool TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass);
 
 	/** 정상적으로 수행을 마친 패턴 하나만큼 사이클을 진행합니다 */
 	void AdvancePatternCycle();
@@ -177,6 +180,12 @@ private:
 	/** 지정한 종류의 패턴 후보 목록을 반환합니다 */
 	const TArray<TSubclassOf<URSBaseGameplayAbility>>* GetPatternCandidates(ERSBossPatternType PatternType) const;
 
+	/**
+	 * 후보 개수 안에서 사용할 인덱스를 뽑습니다
+	 * 직전 차례와 같은 종류이고 후보가 둘 이상이면 직전에 선택한 인덱스를 제외합니다
+	 */
+	int32 PickPatternIndex(ERSBossPatternType PatternType, int32 CandidateCount);
+
 	/** 소유 보스의 HealthComponent를 반환합니다 */
 	URSHealthComponent* FindHealthComponent() const;
 
@@ -211,6 +220,17 @@ private:
 	/** 활성화를 요청한 특수 패턴마다 증가하며 지속 오브젝트 묶음의 수명을 구분합니다 */
 	UPROPERTY(Transient)
 	int32 SpecialPatternActivationSequence = 0;
+
+	/**
+	 * 직전에 선택한 후보의 인덱스이며 아직 선택한 적이 없으면 `INDEX_NONE`입니다
+	 * 클래스가 아니라 인덱스를 보관하므로 같은 클래스를 여러 칸에 넣어 확률을 높인 구성이 유지됩니다
+	 */
+	UPROPERTY(Transient)
+	int32 LastSelectedPatternIndex = INDEX_NONE;
+
+	/** 직전에 선택한 후보의 패턴 종류이며 요청된 종류가 이와 다르면 제외하지 않습니다 */
+	UPROPERTY(Transient)
+	ERSBossPatternType LastSelectedPatternType = ERSBossPatternType::Basic;
 
 	/** 현재 페이즈의 체력 기준 도달이 이미 발행되었는지 나타냅니다 */
 	UPROPERTY(Transient)
