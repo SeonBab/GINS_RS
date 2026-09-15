@@ -4,7 +4,10 @@
 #include "Components/SceneComponent.h"
 #include "CoreGlobals.h"
 #include "GameFramework/Pawn.h"
+#include "GameplayEffect.h"
+#include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "RSAbilitySystemComponent.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
 #include "RSHealthComponent.h"
@@ -13,6 +16,11 @@
 #include "RSPlayerCharacter.h"
 #include "RSPlayerController.h"
 #include "RSPlayerState.h"
+#include "RSGameplayTags.h"
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
 
 namespace
 {
@@ -206,6 +214,11 @@ void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
 	CompletionRemainingTimeSeconds = FinishedRemainingTimeSeconds;
 	EncounterState = ERSBossEncounterState::Finished;
 
+	if (Result == ERSBossEncounterResult::Clear)
+	{
+		ApplyBossClearDamageImmunity();
+	}
+
 	CleanupOutcomeEvaluation();
 	UnbindAllParticipantDeathObservations();
 	StopTimeLimit();
@@ -214,6 +227,69 @@ void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
 	// Result UI와 종료 시점 Timer가 같은 Snapshot을 관찰하도록 Source는 Reset/EndPlay까지 유지합니다
 	BroadcastEncounterTransitionEvents(OldState);
 }
+
+void ARSBossEncounter::ApplyBossClearDamageImmunity()
+{
+	if (!BossClearDamageImmunityEffectClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s cannot apply boss clear damage immunity because its effect class is unset"), *GetName());
+
+		return;
+	}
+
+	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
+	{
+		ARSPlayerState* Participant = ParticipantReference.Get();
+		const URSHealthSet* HealthSet = Participant ? Participant->GetHealthSet() : nullptr;
+		URSAbilitySystemComponent* AbilitySystemComponent = Participant ? Participant->GetRSAbilitySystemComponent() : nullptr;
+		if (!Participant || !HealthSet || HealthSet->GetHealth() <= 0.0f || !AbilitySystemComponent)
+		{
+			if (Participant)
+			{
+				UE_LOG(LogTemp, Error, TEXT("%s skipped damage immunity for invalid or dead participant %s"), *GetName(), *GetNameSafe(Participant));
+			}
+
+			continue;
+		}
+
+		const FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		const FGameplayEffectSpecHandle EffectSpec = AbilitySystemComponent->MakeOutgoingSpec(BossClearDamageImmunityEffectClass, 1.0f, EffectContext);
+		if (!EffectSpec.IsValid() || !AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*EffectSpec.Data.Get()).IsValid())
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s failed to apply damage immunity to %s"), *GetName(), *GetNameSafe(Participant));
+		}
+	}
+}
+
+#if WITH_EDITOR
+EDataValidationResult ARSBossEncounter::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
+	const UGameplayEffect* ImmunityEffect = BossClearDamageImmunityEffectClass ? BossClearDamageImmunityEffectClass->GetDefaultObject<UGameplayEffect>() : nullptr;
+	if (!ImmunityEffect)
+	{
+		Context.AddError(FText::FromString(TEXT("BossClearDamageImmunityEffectClass is required.")));
+		ValidationResult = EDataValidationResult::Invalid;
+
+		return ValidationResult;
+	}
+
+	if (ImmunityEffect->DurationPolicy != EGameplayEffectDurationType::Infinite)
+	{
+		Context.AddError(FText::FromString(TEXT("BossClearDamageImmunityEffectClass must have Infinite duration.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	const UTargetTagsGameplayEffectComponent* TargetTagsComponent = ImmunityEffect->FindComponent<UTargetTagsGameplayEffectComponent>();
+	if (!TargetTagsComponent || !TargetTagsComponent->GetConfiguredTargetTagChanges().CombinedTags.HasTagExact(RSGameplayTags::State_Immunity_Damage))
+	{
+		Context.AddError(FText::FromString(TEXT("BossClearDamageImmunityEffectClass must grant State.Immunity.Damage.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	return ValidationResult;
+}
+#endif
 
 void ARSBossEncounter::ResetEncounter()
 {

@@ -16,6 +16,11 @@ class UBoxComponent;
 class URSHealthComponent;
 class URSPlayerCameraComponent;
 class USceneComponent;
+class UGameplayEffect;
+
+#if WITH_EDITOR
+class FDataValidationContext;
+#endif
 
 /** 보스전의 진행 상태입니다 */
 UENUM(BlueprintType)
@@ -79,6 +84,11 @@ protected:
 
 	/** 클라이언트가 전투의 진행 상태와 확정 결과를 알 수 있도록 State와 Result를 복제합니다 */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+#if WITH_EDITOR
+	/** Clear 피해 면역 GameplayEffect가 Encounter 계약에 맞는지 검사합니다 */
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 
 public:
 	/** 플레이어를 보스전 참가자로 등록하고 첫 참가자라면 전투를 시작합니다 */
@@ -194,6 +204,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "RS|Boss")
 	TObjectPtr<ARSBossCharacter> BossCharacter;
 
+	/** Clear 이후 살아 있는 참가자에게 적용할 무기한 피해 면역 GameplayEffect입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss")
+	TSubclassOf<UGameplayEffect> BossClearDamageImmunityEffectClass;
+
 private:
 	/** 보스 방에 이미 존재하는 플레이어도 참가자로 등록합니다 */
 	void RegisterOverlappingPlayers();
@@ -209,6 +223,9 @@ private:
 
 	/** BossCharacter와 BossController가 진행 중인 공격, 이동과 공격 대상을 정리하게 합니다 */
 	void NotifyBossEncounterEnded();
+
+	/** Clear가 확정된 시점의 살아 있는 참가자에게 영구 피해 면역을 적용합니다 */
+	void ApplyBossClearDamageImmunity();
 
 	/** Active 참가자의 현재 HealthComponent에 사망 관찰을 중복 없이 연결합니다 */
 	void BindParticipantDeathObservation(ARSPlayerState* Participant);
