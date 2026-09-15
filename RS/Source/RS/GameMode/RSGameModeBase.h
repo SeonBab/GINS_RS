@@ -9,7 +9,6 @@
 #include "RSGameModeBase.generated.h"
 
 class ARSPlayerController;
-class USoundBase;
 
 /** 프로젝트의 기본 플레이어 클래스와 인게임 HUD 구성을 지정합니다 */
 UCLASS()
@@ -45,9 +44,6 @@ public:
 	TOptional<ERSBossResultAction> GetBossResultAction() const { return BossResultAction; }
 
 private:
-	/** 현재 World의 초기 음악을 재생 관리자에 요청합니다 */
-	void PlayInitialMusic();
-
 	/** 현재 World에 배치된 단일 Boss Encounter를 찾아 결과 이벤트를 연결합니다 */
 	void BindBossEncounter();
 
@@ -69,14 +65,6 @@ private:
 
 private:
 	friend class FRSBossEncounterStateTest;
-
-	/** 현재 게임 World가 시작될 때 재생할 음악입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Music", meta = (AllowPrivateAccess = "true"))
-	TSoftObjectPtr<USoundBase> InitialMusic;
-
-	/** 초기 음악이 재생될 때 적용할 Fade In 시간입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Music", meta = (ClampMin = "0.0", AllowPrivateAccess = "true"))
-	float InitialMusicFadeDuration = 1.0f;
 
 	/** 결과 이벤트를 실제로 연결한 Boss Encounter입니다 */
 	TWeakObjectPtr<ARSBossEncounter> BoundBossEncounter;

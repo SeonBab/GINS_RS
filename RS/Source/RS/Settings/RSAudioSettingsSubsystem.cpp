@@ -19,13 +19,15 @@ void URSAudioSettingsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		CurrentAudioSettings = GameUserSettings->GetAudioVolumeSettings();
 	}
 
-	WorldInitializedActorsHandle = FWorldDelegates::OnWorldInitializedActors.AddUObject(this, &ThisClass::HandleWorldInitializedActors);
+	PostWorldInitializationHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &ThisClass::HandlePostWorldInitialization);
+
+	ApplyCurrentAudioSettings(GetAudioWorld());
 }
 
 void URSAudioSettingsSubsystem::Deinitialize()
 {
-	FWorldDelegates::OnWorldInitializedActors.Remove(WorldInitializedActorsHandle);
-	WorldInitializedActorsHandle.Reset();
+	FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationHandle);
+	PostWorldInitializationHandle.Reset();
 
 	if (UWorld* World = AppliedWorld.Get())
 	{
@@ -61,25 +63,19 @@ bool URSAudioSettingsSubsystem::SaveAudioSettings()
 	return true;
 }
 
-void URSAudioSettingsSubsystem::HandleWorldInitializedActors(const FActorsInitializedParams& InitializationParams)
+void URSAudioSettingsSubsystem::HandlePostWorldInitialization(UWorld* World, const UWorld::InitializationValues)
 {
-	UWorld* World = InitializationParams.World;
 	if (!World || !World->IsGameWorld() || World->GetGameInstance() != GetGameInstance())
 	{
 		return;
 	}
 
-	World->OnWorldBeginPlay.AddUObject(this, &ThisClass::HandleWorldBeginPlay, World);
-}
-
-void URSAudioSettingsSubsystem::HandleWorldBeginPlay(UWorld* World)
-{
 	ApplyCurrentAudioSettings(World);
 }
 
 bool URSAudioSettingsSubsystem::ApplyCurrentAudioSettings(UWorld* World)
 {
-	if (!World || !World->IsGameWorld() || !World->GetAudioDevice())
+	if (!World || !World->IsGameWorld())
 	{
 		return false;
 	}
@@ -94,8 +90,7 @@ bool URSAudioSettingsSubsystem::ApplyCurrentAudioSettings(UWorld* World)
 		return false;
 	}
 
-	const bool bNeedsSoundMixPush = AppliedWorld.Get() != World || AppliedSoundMix.Get() != SoundMix;
-	if (bNeedsSoundMixPush)
+	if (AppliedWorld.Get() != World || AppliedSoundMix.Get() != SoundMix)
 	{
 		if (UWorld* PreviousWorld = AppliedWorld.Get())
 		{
