@@ -32,6 +32,23 @@ bool FRSBarrierMemorySafeZoneTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBarrierMemoryBeamTransformTest, "RS.Ability.Boss.BarrierMemory.BeamTransform", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSBarrierMemoryBeamTransformTest::RunTest(const FString& Parameters)
+{
+	// 보스가 월드 +Y를 볼 때 전방 오프셋이 월드 +Y로 나가야 오프셋의 X가 전방이라는 계약이 지켜집니다
+	const FTransform PatternTransform(FRotator(0.0f, 90.0f, 0.0f), FVector(100.0f, 200.0f, 50.0f));
+	const FTransform BeamTransform = URSGameplayAbility_Barrier_Memory_Gimmick::CalculateBeamTransform(PatternTransform, FVector(300.0f, 0.0f, 20.0f));
+
+	TestEqual(TEXT("Forward offset follows the pattern yaw"), BeamTransform.GetLocation(), FVector(100.0f, 500.0f, 70.0f));
+	TestEqual(TEXT("Beam keeps the pattern yaw"), BeamTransform.Rotator().Yaw, 90.0);
+
+	const FTransform ZeroOffsetTransform = URSGameplayAbility_Barrier_Memory_Gimmick::CalculateBeamTransform(PatternTransform, FVector::ZeroVector);
+	TestEqual(TEXT("Zero offset stays at the pattern origin"), ZeroOffsetTransform.GetLocation(), PatternTransform.GetLocation());
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossGroggyTimingTest, "RS.Ability.Boss.Groggy.Timing", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRSBossGroggyTimingTest::RunTest(const FString& Parameters)

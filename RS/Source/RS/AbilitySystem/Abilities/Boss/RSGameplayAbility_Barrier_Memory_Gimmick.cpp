@@ -6,6 +6,7 @@
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "DrawDebugHelpers.h"
 #include "GameplayEffect.h"
 #include "NiagaraComponent.h"
 #include "RSGameplayTags.h"
@@ -23,6 +24,12 @@ namespace
 	constexpr int32 BarrierZoneCount = 4;
 	constexpr float FirstBarrierAngleDegrees = 45.0f;
 	constexpr float BarrierAngleStepDegrees = 90.0f;
+
+	/** 방어막을 만들 때 그린 원은 표시 크기와 판정 반지름을 비교할 수 있도록 예고와 세 공격 동안 남깁니다 */
+	constexpr float BarrierFieldDebugLifeTime = 30.0f;
+
+	/** 판정 프레임의 안전지대는 다음 공격의 원과 섞이지 않게 짧게만 남깁니다 */
+	constexpr float BarrierHitCheckDebugLifeTime = 1.0f;
 }
 
 bool FRSBarrierFieldDefinition::IsDataValid(FString* OutValidationError) const
@@ -94,6 +101,11 @@ bool URSGameplayAbility_Barrier_Memory_Gimmick::IsLocationInsideSafeZone(const F
 	return FVector::DistSquared2D(Location, ZoneCenter) <= FMath::Square(SafeRadius);
 }
 
+FTransform URSGameplayAbility_Barrier_Memory_Gimmick::CalculateBeamTransform(const FTransform& PatternTransform, const FVector& LocalOffset)
+{
+	return FTransform(PatternTransform.GetRotation(), PatternTransform.TransformPosition(LocalOffset));
+}
+
 void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	bIsEndingAbility = false;
@@ -136,7 +148,17 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 		return;
 	}
 
-	PatternCenterTransform = FTransform(PatternCenterLocation);
+	// 세 번의 공격이 같은 곳에 Beam을 내도록 전방을 시작 순간에 한 번만 고정하며, 방어막 각도는 이 회전을 쓰지 않아 월드 기준을 유지합니다
+	FVector HorizontalForward = AvatarActor->GetActorForwardVector();
+	HorizontalForward.Z = 0.0f;
+	if (!HorizontalForward.Normalize())
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
+	PatternCenterTransform = FTransform(HorizontalForward.Rotation(), PatternCenterLocation);
 	StartingColor = FMath::RandBool() ? ERSBarrierColor::Red : ERSBarrierColor::Yellow;
 
 	CreateBarrierField();
@@ -147,6 +169,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 		return;
 	}
 
+	DrawDebugBarrierZones(BarrierFieldDebugLifeTime, false);
 	StartPreviewMontage();
 }
 
@@ -211,6 +234,32 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::DestroyBarrierZones()
 	}
 
 	BarrierZones.Reset();
+}
+
+void URSGameplayAbility_Barrier_Memory_Gimmick::DrawDebugBarrierZones(float LifeTime, bool bHighlightCurrentColor) const
+{
+#if ENABLE_DRAW_DEBUG
+	if (!URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
+	{
+		return;
+	}
+
+	const ERSBarrierColor CurrentColor = GetAlternatingColor(StartingColor, AttackIndex);
+
+	FRSCombatShape ZoneShape;
+	ZoneShape.Type = ERSCombatShapeType::Sphere;
+	ZoneShape.Radius = BarrierField.SafeRadius;
+
+	for (const FRSBarrierZoneRuntimeState& Zone : BarrierZones)
+	{
+		// 이번 공격에 안전한 영역만 자기 색으로 남기면 어디로 가야 했는지가 판정 프레임 기준으로 그대로 보입니다
+		const bool bIsSafeNow = !bHighlightCurrentColor || Zone.Color == CurrentColor;
+		const FColor UnsafeZoneColor(80, 80, 80);
+		const FColor ZoneColor = bIsSafeNow ? (Zone.Color == ERSBarrierColor::Red ? FColor::Red : FColor::Yellow) : UnsafeZoneColor;
+
+		URSCombatFunctionLibrary::DrawDebugCombatShape(GetWorld(), ZoneShape, FTransform(Zone.Center), ZoneColor, LifeTime);
+	}
+#endif
 }
 
 bool URSGameplayAbility_Barrier_Memory_Gimmick::IsPlayerInsideCurrentSafeZone(const AActor& PlayerActor) const
@@ -355,7 +404,21 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::HandleHitCheckEvent(FGameplayEve
 	}
 
 	bReceivedHitCheck = true;
+	DrawDebugBarrierZones(BarrierHitCheckDebugLifeTime, true);
+	PlayBeamPresentation();
 	ExecuteCurrentHitCheck();
+}
+
+void URSGameplayAbility_Barrier_Memory_Gimmick::PlayBeamPresentation()
+{
+	const ERSBarrierColor Color = GetAlternatingColor(StartingColor, AttackIndex);
+	const FRSNiagaraSpawnDefinition& Definition = Color == ERSBarrierColor::Red ? RedBeamNiagara : YellowBeamNiagara;
+
+	// 이미 보이는 공격에 얹는 연출이고 이 시점에는 피해가 나가는 중이므로, 생성하지 못해도 패턴을 취소하지 않고 기록만 남깁니다
+	if (!SpawnNiagaraFromDefinition(Definition, CalculateBeamTransform(PatternCenterTransform, BeamOffset), true))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not create a beam presentation for attack %d"), *GetName(), AttackIndex);
+	}
 }
 
 void URSGameplayAbility_Barrier_Memory_Gimmick::HandlePreviewMontageCompleted()
@@ -481,7 +544,9 @@ EDataValidationResult URSGameplayAbility_Barrier_Memory_Gimmick::IsDataValid(FDa
 		{ TEXT("RedEyeNiagara"), &RedEyeNiagara },
 		{ TEXT("YellowEyeNiagara"), &YellowEyeNiagara },
 		{ TEXT("RedSwordNiagara"), &RedSwordNiagara },
-		{ TEXT("YellowSwordNiagara"), &YellowSwordNiagara }
+		{ TEXT("YellowSwordNiagara"), &YellowSwordNiagara },
+		{ TEXT("RedBeamNiagara"), &RedBeamNiagara },
+		{ TEXT("YellowBeamNiagara"), &YellowBeamNiagara }
 	};
 
 	for (const TPair<const TCHAR*, const FRSNiagaraSpawnDefinition*>& Pair : NiagaraDefinitions)
@@ -502,6 +567,17 @@ EDataValidationResult URSGameplayAbility_Barrier_Memory_Gimmick::IsDataValid(FDa
 	if (BarrierField.RedNiagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform || BarrierField.YellowNiagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform)
 	{
 		AddError(TEXT("Barrier Niagara definitions must use WorldTransform."));
+	}
+
+	// Beam은 소켓이 아니라 패턴이 고정한 전방 위치에 놓이므로 소켓 기준 생성은 BeamOffset을 무시하게 됩니다
+	if (RedBeamNiagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform || YellowBeamNiagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform)
+	{
+		AddError(TEXT("Beam Niagara definitions must use WorldTransform."));
+	}
+
+	if (BeamOffset.ContainsNaN())
+	{
+		AddError(TEXT("BeamOffset must be finite."));
 	}
 
 	auto CountNotify = [](const UAnimMontage* Montage, const FGameplayTag& EventTag)
