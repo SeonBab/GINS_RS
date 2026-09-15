@@ -86,6 +86,10 @@ ARSBossFireball::ARSBossFireball()
 	BoxComp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 	BoxComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
 
+	// 플레이어가 통과할 수 있는 오브젝트이므로 NavMesh를 깎지 않습니다
+	// 깎으면 클릭 이동 경로만 화염구를 피해 돌아가 실제로 지나갈 수 있는 것과 어긋납니다
+	BoxComp->SetCanEverAffectNavigation(false);
+
 	// 충돌 박스는 착지 지점에 고정되고 낙하는 이 VisualRoot만 내려옵니다
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
 	VisualRoot->SetupAttachment(BoxComp);
