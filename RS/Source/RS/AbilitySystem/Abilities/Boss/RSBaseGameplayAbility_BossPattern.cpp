@@ -11,6 +11,16 @@
 #include "NiagaraFunctionLibrary.h"
 #include "RSBossPhaseComponent.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+namespace
+{
+	// 칸 하나마다 Niagara가 하나씩 생기므로 설정 실수로 한 번의 연출이 렌더링을 압도하지 않게 막을 상한입니다
+	constexpr int32 RSMaxNiagaraFillCount = 256;
+}
+
 void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	bAnyTargetHit = false;
@@ -113,9 +123,60 @@ void URSBaseGameplayAbility_BossPattern::FinishPatternWhenMontageEnds()
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const
 {
-	for (const FTransform& NiagaraTransform : NiagaraTransforms)
+	PlayPatternPresentationInternal(nullptr, NiagaraTransforms, SoundLocation);
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FTransform& PresentationTransform) const
+{
+	PlayPatternPresentation(TArray<FTransform>({ PresentationTransform }), PresentationTransform.GetLocation());
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FRSCombatShape& HitShape, const TArray<FTransform>& ShapeTransforms, const FVector& SoundLocation) const
+{
+	PlayPatternPresentationInternal(&HitShape, ShapeTransforms, SoundLocation);
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FRSCombatShape& HitShape, const FTransform& ShapeTransform) const
+{
+	PlayPatternPresentation(HitShape, TArray<FTransform>({ ShapeTransform }), ShapeTransform.GetLocation());
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentationInternal(const FRSCombatShape* HitShape, const TArray<FTransform>& PresentationTransforms, const FVector& SoundLocation) const
+{
+	for (const FRSBossPatternNiagaraEntry& NiagaraEntry : PatternPresentation.Niagaras)
 	{
-		SpawnNiagaraFromDefinition(PatternPresentation.Niagara, NiagaraTransform, true);
+		if (!NiagaraEntry.Niagara.NiagaraSystem)
+		{
+			continue;
+		}
+
+		// 형상을 넘기지 않는 패턴에서는 채울 범위가 없으므로 넘겨받은 지점에서 그대로 재생합니다
+		if (NiagaraEntry.Placement != ERSBossPatternNiagaraPlacement::FillHitShape || !HitShape)
+		{
+			for (const FTransform& PresentationTransform : PresentationTransforms)
+			{
+				SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, PresentationTransform, true);
+			}
+
+			continue;
+		}
+
+		for (const FTransform& PresentationTransform : PresentationTransforms)
+		{
+			TArray<FTransform> FillTransforms;
+			if (!URSCombatFunctionLibrary::BuildShapeFillTransforms(*HitShape, PresentationTransform, NiagaraEntry.FillSpacing, FillTransforms))
+			{
+				// Data Validation이 막지 못한 조합이라도 그 영역의 연출까지 사라지면 안 되므로 기준 지점 하나로 되돌립니다
+				SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, PresentationTransform, true);
+
+				continue;
+			}
+
+			for (const FTransform& FillTransform : FillTransforms)
+			{
+				SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, FillTransform, true);
+			}
+		}
 	}
 
 	// 광역 패턴은 Niagara가 여러 지점에서 나지만 소리까지 겹쳐 울리면 한 번의 공격으로 들리지 않습니다
@@ -127,39 +188,70 @@ void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const TArray<FT
 	URSCombatFunctionLibrary::PlayCameraShake(this, PatternPresentation.CameraShake);
 }
 
-void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FTransform& PresentationTransform) const
+#if WITH_EDITOR
+EDataValidationResult URSBaseGameplayAbility_BossPattern::ValidatePatternPresentation(const FRSCombatShape& HitShape, FDataValidationContext& Context) const
 {
-	PlayPatternPresentation(TArray<FTransform>({ PresentationTransform }), PresentationTransform.GetLocation());
+	EDataValidationResult ValidationResult = EDataValidationResult::Valid;
+
+	// 항목마다 칸을 따로 채우므로 한 항목이 상한을 넘지 않아도 합쳐서 넘을 수 있습니다
+	int32 TotalFillCount = 0;
+	for (int32 EntryIndex = 0; EntryIndex < PatternPresentation.Niagaras.Num(); ++EntryIndex)
+	{
+		const FRSBossPatternNiagaraEntry& NiagaraEntry = PatternPresentation.Niagaras[EntryIndex];
+		if (NiagaraEntry.Placement != ERSBossPatternNiagaraPlacement::FillHitShape)
+		{
+			continue;
+		}
+
+		// 채우기는 칸마다 다른 월드 위치를 써야 의미가 있고, 소켓 기준 생성은 모든 칸을 한 지점에 겹쳐 버립니다
+		if (NiagaraEntry.Niagara.NiagaraSystem && NiagaraEntry.Niagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform)
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("PatternPresentation.Niagaras[%d] must use the WorldTransform spawn mode so the fill can place one system per cell."), EntryIndex)));
+			ValidationResult = EDataValidationResult::Invalid;
+		}
+
+		if (!FMath::IsFinite(NiagaraEntry.FillSpacing) || NiagaraEntry.FillSpacing <= 0.0f)
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("PatternPresentation.Niagaras[%d].FillSpacing must be finite and greater than zero."), EntryIndex)));
+			ValidationResult = EDataValidationResult::Invalid;
+
+			continue;
+		}
+
+		if (!HitShape.IsDataValid())
+		{
+			continue;
+		}
+
+		// 생성 개수는 형상과 간격만으로 정해지므로 런타임에 칸을 버리지 않고 여기서 막습니다
+		TArray<FTransform> FillTransformProbe;
+		if (!URSCombatFunctionLibrary::BuildShapeFillTransforms(HitShape, FTransform::Identity, NiagaraEntry.FillSpacing, FillTransformProbe))
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("PatternPresentation.Niagaras[%d].FillSpacing cannot fill the attack shape. Widen the spacing, or use the Ability Defined placement for a shape the fill does not support."), EntryIndex)));
+			ValidationResult = EDataValidationResult::Invalid;
+
+			continue;
+		}
+
+		TotalFillCount += FillTransformProbe.Num();
+	}
+
+	if (TotalFillCount > RSMaxNiagaraFillCount)
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("The attack shape and PatternPresentation.Niagaras would spawn %d Niagara systems in total and the limit is %d. Increase the fill spacing, reduce the attack shape, or remove a filled entry."), TotalFillCount, RSMaxNiagaraFillCount)));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	return ValidationResult;
 }
+#endif
 
 UNiagaraComponent* URSBaseGameplayAbility_BossPattern::SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const
 {
-	if (!Definition.NiagaraSystem)
-	{
-		return nullptr;
-	}
-
-	if (Definition.SpawnMode == ERSNiagaraSpawnMode::WorldTransform)
-	{
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, true);
-	}
-
+	// 생성 규칙은 보스 패턴만의 것이 아니므로 공용 라이브러리가 소유하고 여기서는 소켓 기준 Mesh만 정합니다
 	USkeletalMeshComponent* MeshComponent = CurrentActorInfo ? CurrentActorInfo->SkeletalMeshComponent.Get() : nullptr;
-	if (!MeshComponent || !MeshComponent->DoesSocketExist(Definition.SocketName))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s skipped Niagara %s because socket %s is unavailable"), *GetName(), *GetNameSafe(Definition.NiagaraSystem), *Definition.SocketName.ToString());
 
-		return nullptr;
-	}
-
-	if (Definition.SpawnMode == ERSNiagaraSpawnMode::SocketSnapshot)
-	{
-		const FTransform SocketTransform = MeshComponent->GetSocketTransform(Definition.SocketName);
-
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Definition.NiagaraSystem, SocketTransform.GetLocation(), SocketTransform.Rotator(), SocketTransform.GetScale3D(), bAutoDestroy, true);
-	}
-
-	return UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
+	return URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(this, MeshComponent, Definition, WorldTransform, bAutoDestroy);
 }
 
 void URSBaseGameplayAbility_BossPattern::HandlePatternMontageFinished()

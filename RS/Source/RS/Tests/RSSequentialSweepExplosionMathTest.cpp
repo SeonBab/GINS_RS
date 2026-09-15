@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Abilities/Boss/RSGameplayAbility_SequentialSweepExplosion.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "Combat/RSSequentialSweepExplosionMath.h"
 #include "RSGameplayTags.h"
 
@@ -104,6 +105,64 @@ bool FRSSequentialSweepExplosionMathTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Location outside outer radius is excluded"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, OutsideRadiusLocation));
 	TestTrue(TEXT("Center belongs to first sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, FVector::ZeroVector));
 	TestTrue(TEXT("Center also belongs to fourth sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 3, FVector::ZeroVector));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSSequentialSweepExplosionSectorFillTest, "RS.Combat.SequentialSweepExplosion.SectorFill", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSSequentialSweepExplosionSectorFillTest::RunTest(const FString& Parameters)
+{
+	constexpr float OuterRadius = 700.0f;
+	constexpr float TotalSweepAngleDegrees = 160.0f;
+	constexpr int32 SectorCount = 4;
+	constexpr float StartAngleOffsetDegrees = -80.0f;
+	constexpr float Spacing = 90.0f;
+
+	const FTransform LockedTransform(FRotator(0.0f, 25.0f, 0.0f), FVector(300.0f, -150.0f, 60.0f));
+
+	bool bAllSectorsBuildFillCells = true;
+	bool bAllFillCellsHitTheirSector = true;
+	int32 TotalFillCount = 0;
+	for (int32 SectorIndex = 0; SectorIndex < SectorCount; ++SectorIndex)
+	{
+		FRSCombatShape SectorShape;
+		FTransform SectorTransform;
+		if (!RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedTransform, OuterRadius, TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, SectorShape, SectorTransform))
+		{
+			bAllSectorsBuildFillCells = false;
+
+			continue;
+		}
+
+		TArray<FTransform> FillTransforms;
+		if (!URSCombatFunctionLibrary::BuildShapeFillTransforms(SectorShape, SectorTransform, Spacing, FillTransforms))
+		{
+			bAllSectorsBuildFillCells = false;
+
+			continue;
+		}
+
+		TotalFillCount += FillTransforms.Num();
+
+		// 연출이 예고한 조각을 벗어나면 폭발 위치를 잘못 알려 주므로 모든 칸이 그 조각의 실제 판정을 통과하는지 확인합니다
+		for (const FTransform& FillTransform : FillTransforms)
+		{
+			if (!RSSequentialSweepExplosionMath::IsLocationInSector(LockedTransform, OuterRadius, TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, FillTransform.GetLocation()))
+			{
+				bAllFillCellsHitTheirSector = false;
+			}
+		}
+	}
+
+	TestTrue(TEXT("Every sector builds fill cells"), bAllSectorsBuildFillCells);
+	TestTrue(TEXT("Every sector fill cell passes that sector hit check"), bAllFillCellsHitTheirSector);
+	TestTrue(TEXT("Sector fill spreads beyond a single cell per sector"), TotalFillCount > SectorCount);
+
+	// 조각 각도가 Cone 상한을 넘으면 형상으로 표현할 수 없으므로 잘못된 범위를 채우기 전에 실패를 알립니다
+	FRSCombatShape WideSectorShape;
+	FTransform WideSectorTransform;
+	TestFalse(TEXT("Sector wider than the cone angle limit fails"), RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedTransform, OuterRadius, 360.0f, 1, 0.0f, 0, WideSectorShape, WideSectorTransform));
 
 	return true;
 }

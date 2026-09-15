@@ -89,6 +89,10 @@ URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
+
+	// 이번에 터지는 조각과 안전한 조각을 구분해서 보여 줘야 하므로 조각 중심 한 점 대신 조각을 채웁니다
+	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
+	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
 void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -286,8 +290,13 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 		return;
 	}
 	// 폭발은 빗나가도 보여야 하므로 적중 여부와 무관하게 재생합니다
-	// Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
-	PlayPatternPresentation(ActiveSliceTransforms, LockedPatternTransform.GetLocation());
+	// Telegraph와 같은 조각 형상을 넘기며, Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
+	FRSCombatShape SliceShape;
+	SliceShape.Type = ERSCombatShapeType::Cone;
+	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
+	SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+
+	PlayPatternPresentation(SliceShape, ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 
 	++CurrentExplosionIndex;
 	if (CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
@@ -386,6 +395,16 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	{
 		Context.AddError(FText::FromString(FString::Printf(TEXT("PizzaPatternDefinition is invalid: %s"), *ValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
+	}
+	else
+	{
+		// 조각은 전부 같은 반지름과 각도를 쓰므로 조각 하나로 연출 채우기 설정을 대표해 검사합니다
+		FRSCombatShape SliceShape;
+		SliceShape.Type = ERSCombatShapeType::Cone;
+		SliceShape.Range = PizzaPatternDefinition.OuterRadius;
+		SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+
+		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 	}
 
 	if (!DamageEffectClass)

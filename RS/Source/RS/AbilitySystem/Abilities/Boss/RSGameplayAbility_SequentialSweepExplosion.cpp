@@ -113,6 +113,10 @@ URSGameplayAbility_SequentialSweepExplosion::URSGameplayAbility_SequentialSweepE
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_SequentialSweepExplosion);
 	SetAssetTags(AssetTags);
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
+
+	// 조각마다 폭발 위치가 옮겨 가는 패턴이라 보스 발밑 한 점으로는 어느 조각이 터졌는지 보이지 않습니다
+	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
+	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
 void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -434,25 +438,15 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	float StartAngleOffsetDegrees = 0.0f;
-	float SweepAngleDegrees = 0.0f;
+	FRSCombatShape TelegraphShape;
+	FTransform TelegraphTransform;
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !WarningSectorHandles.IsValidIndex(SectorIndex)
 		|| WarningSectorHandles[SectorIndex] != INDEX_NONE
-		|| !RSSequentialSweepExplosionMath::TryCalculateSectorAngles(PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, StartAngleOffsetDegrees, SweepAngleDegrees))
+		|| !RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, TelegraphShape, TelegraphTransform))
 	{
 		return false;
 	}
-
-	FRSCombatShape TelegraphShape;
-	TelegraphShape.Type = ERSCombatShapeType::Cone;
-	TelegraphShape.Range = PatternDefinition.OuterRadius;
-	TelegraphShape.Angle = SweepAngleDegrees;
-
-	// 일반 Cone은 중심축 기준 형상이므로 첫 경계에서 조각 각도의 절반만큼 회전시킵니다
-	FTransform TelegraphTransform = LockedAttackTransform;
-	const float TelegraphCenterYaw = LockedAttackTransform.GetRotation().Rotator().Yaw + StartAngleOffsetDegrees + SweepAngleDegrees * 0.5f;
-	TelegraphTransform.SetRotation(FRotator(0.0f, TelegraphCenterYaw, 0.0f).Quaternion());
 
 	URSAttackTelegraphComponent* TelegraphComp = BossCharacter->GetAttackTelegraphComponent();
 	const int32 TelegraphHandle = TelegraphComp ? TelegraphComp->ShowShapeWithExternalFill(TelegraphShape, TelegraphTransform) : INDEX_NONE;
@@ -514,7 +508,17 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
 	// 연쇄 폭발은 빗나가도 이어지는 것이 보여야 하므로 섹터 하나가 판정하는 순간마다 재생합니다
-	PlayPatternPresentation(LockedAttackTransform);
+	// Telegraph와 같은 조각 형상을 넘겨 예고한 부채꼴과 연출이 같은 공간을 쓰게 합니다
+	FRSCombatShape SectorShape;
+	FTransform SectorTransform;
+	if (RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, SectorShape, SectorTransform))
+	{
+		PlayPatternPresentation(SectorShape, SectorTransform);
+	}
+	else
+	{
+		PlayPatternPresentation(LockedAttackTransform);
+	}
 
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
@@ -597,6 +601,21 @@ EDataValidationResult URSGameplayAbility_SequentialSweepExplosion::IsDataValid(F
 	{
 		Context.AddError(FText::FromString(FString::Printf(TEXT("PatternDefinition is invalid: %s"), *ValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
+	}
+	else
+	{
+		// 모든 조각이 같은 반지름과 각도를 쓰므로 첫 조각 하나로 연출 채우기 설정을 대표해 검사합니다
+		FRSCombatShape FirstSectorShape;
+		FTransform FirstSectorTransform;
+		if (!RSSequentialSweepExplosionMath::TryBuildSectorFillShape(FTransform::Identity, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, 0, FirstSectorShape, FirstSectorTransform))
+		{
+			Context.AddError(FText::FromString(TEXT("A sector cannot be expressed as a Cone. A sector angle must satisfy 0 < TotalSweepAngleDegrees / SectorCount <= 180.")));
+			ValidationResult = EDataValidationResult::Invalid;
+		}
+		else
+		{
+			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(FirstSectorShape, Context));
+		}
 	}
 
 	if (!DamageEffectClass)
