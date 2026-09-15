@@ -9,7 +9,6 @@
 #include "RSPlayerCharacter.generated.h"
 
 class UInputMappingContext;
-class UAnimMontage;
 class UAbilitySystemComponent;
 class UNiagaraSystem;
 class URSInputConfig;
@@ -173,11 +172,6 @@ private:
 	/** 사망 시 어빌리티와 이동을 중지하고 Blueprint 사망 연출을 시작합니다 */
 	UFUNCTION()
 	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
-
-protected:
-	/** 사망 상태가 시작될 때 재생할 Animation Montage입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Death")
-	TObjectPtr<UAnimMontage> DeathMontage;
 
 #pragma endregion
 

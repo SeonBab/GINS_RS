@@ -3,6 +3,8 @@
 
 #include "RSBaseCharacter.h"
 
+#include "Animation/AnimMontage.h"
+
 // Sets default values
 ARSBaseCharacter::ARSBaseCharacter()
 {
@@ -22,4 +24,14 @@ void ARSBaseCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+void ARSBaseCharacter::PlayDeathMontage()
+{
+	if (!DeathMontage)
+	{
+		return;
+	}
+
+	PlayAnimMontage(DeathMontage);
 }

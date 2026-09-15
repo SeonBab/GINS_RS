@@ -456,10 +456,7 @@ void ARSPlayerCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponen
 	StopNavigationMovement();
 	GetCharacterMovement()->DisableMovement();
 
-	if (DeathMontage)
-	{
-		PlayAnimMontage(DeathMontage);
-	}
+	PlayDeathMontage();
 
 	ReceiveDeathStarted();
 }
