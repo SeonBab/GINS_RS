@@ -294,6 +294,13 @@ void URSGameplayAbility_FireballSpread::HandleDropDelayFinished()
 		return;
 	}
 
+	// 던지는 순간의 연출을 보스 위치에서 한 번 재생합니다
+	// 화염구 자체는 Actor가 자기 Niagara로 보여 주므로 이 정의의 Niagara는 보통 비워 두며, 빈 항목은 그대로 건너뜁니다
+	if (const AActor* AvatarActor = GetAvatarActorFromActorInfo())
+	{
+		PlayPatternPresentation(AvatarActor->GetActorTransform());
+	}
+
 	TryFinishAbility();
 }
 
