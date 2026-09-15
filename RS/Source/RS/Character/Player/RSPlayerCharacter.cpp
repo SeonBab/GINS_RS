@@ -36,7 +36,7 @@ ARSPlayerCharacter::ARSPlayerCharacter()
 	OutlineMeshComp->SetGenerateOverlapEvents(false);
 
 	WeaponMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMeshComponent"));
-	WeaponMeshComp->SetupAttachment(GetMesh());
+	WeaponMeshComp->SetupAttachment(GetMesh(), TEXT("hand_r_Weapon"));
 	WeaponMeshComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	WeaponMeshComp->SetGenerateOverlapEvents(false);
 	WeaponMeshComp->SetSimulatePhysics(false);

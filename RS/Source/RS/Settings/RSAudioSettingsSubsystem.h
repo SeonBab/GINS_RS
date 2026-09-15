@@ -34,8 +34,11 @@ public:
 	const FRSAudioVolumeSettings& GetCurrentAudioSettings() const { return CurrentAudioSettings; }
 
 private:
-	/** 새 Game World에 현재 음량을 다시 적용합니다 */
-	void HandlePostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues);
+	/** Actor 초기화가 끝난 새 Game World의 BeginPlay 적용을 준비합니다 */
+	void HandleWorldInitializedActors(const FActorsInitializedParams& InitializationParams);
+
+	/** Audio 재생이 시작된 Game World에 현재 음량을 적용합니다 */
+	void HandleWorldBeginPlay(UWorld* World);
 
 	/** 현재 음량을 지정한 World의 Sound Mix에 반영합니다 */
 	bool ApplyCurrentAudioSettings(UWorld* World);
@@ -50,8 +53,8 @@ private:
 	/** 현재 World의 Sound Mix Override에 적용할 값입니다 */
 	FRSAudioVolumeSettings CurrentAudioSettings;
 
-	/** 새 Game World의 초기화를 관찰하는 Delegate Handle입니다 */
-	FDelegateHandle PostWorldInitializationHandle;
+	/** 새 Game World의 Actor 초기화 완료를 관찰하는 Delegate Handle입니다 */
+	FDelegateHandle WorldInitializedActorsHandle;
 
 	/** Sound Mix를 Push한 현재 Game World입니다 */
 	TWeakObjectPtr<UWorld> AppliedWorld;
