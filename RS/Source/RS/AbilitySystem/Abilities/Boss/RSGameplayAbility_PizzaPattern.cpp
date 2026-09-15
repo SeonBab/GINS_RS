@@ -323,6 +323,9 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, CandidateShape, LockedPatternTransform, CandidateTargets);
 
+	// 폭발은 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 폭발 하나가 판정하는 순간에 한 번 흔듭니다
+	URSCombatFunctionLibrary::PlayCameraShake(AvatarActor, ImpactCameraShake);
+
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
 	{

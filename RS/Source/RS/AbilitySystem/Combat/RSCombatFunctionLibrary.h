@@ -177,6 +177,24 @@ struct FRSHitReactionDefinition
 	float KnockbackDuration = 0.5f;
 };
 
+/**
+ * 보는 사람의 카메라를 한 번 흔들 요청이며 에셋을 비우면 흔들지 않습니다
+ * 적중을 기준으로 삼는 플레이어 피드백과 판정을 기준으로 삼는 보스 패턴이 같은 값 구성을 공유하도록 분리했습니다
+ */
+USTRUCT(BlueprintType)
+struct FRSCameraShakeDefinition
+{
+	GENERATED_BODY()
+
+	/** 보는 사람의 카메라를 흔들 Camera Shake입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
+	TSubclassOf<UCameraShakeBase> ShakeClass;
+
+	/** 셰이크 에셋의 진폭에 곱할 배율이며 같은 에셋으로 타격마다 세기를 다르게 합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", UIMin = "0.0", EditCondition = "ShakeClass != nullptr"))
+	float Scale = 1.0f;
+};
+
 /** 카메라 셰이크를 언제 흔들지 정합니다 */
 UENUM(BlueprintType)
 enum class ERSCameraShakeTiming : uint8
@@ -202,17 +220,13 @@ struct FRSHitFeedbackDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
 	TObjectPtr<USoundBase> ImpactSound;
 
-	/** 보는 사람의 카메라를 흔들 Camera Shake입니다 */
+	/** 보는 사람의 카메라를 흔들 셰이크이며 재생 시점은 CameraShakeTiming이 정합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
-	TSubclassOf<UCameraShakeBase> CameraShake;
+	FRSCameraShakeDefinition CameraShake;
 
 	/** 카메라 셰이크를 흔들 시점이며 플레이어 공격은 적중 시, 보스 패턴은 판정마다 흔듭니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (EditCondition = "CameraShake != nullptr"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
 	ERSCameraShakeTiming CameraShakeTiming = ERSCameraShakeTiming::OnHit;
-
-	/** 셰이크 에셋의 진폭에 곱할 배율이며 같은 에셋으로 타격마다 세기를 다르게 합니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", UIMin = "0.0", EditCondition = "CameraShake != nullptr"))
-	float CameraShakeScale = 1.0f;
 
 	/** 적중했을 때 공격자를 멈칫하게 할 시간이며 0이면 히트스톱이 없습니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
@@ -300,6 +314,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Combat")
 	static void PlayHitFeedback(AActor* Attacker, const TArray<AActor*>& HitTargets, const FRSHitFeedbackDefinition& Feedback);
+
+	/**
+	 * 정의에 셰이크 에셋이 있으면 보는 사람의 카메라를 흔듭니다
+	 * 공격자가 아니라 로컬 플레이어의 컨트롤러로 보내므로 AI가 소유한 보스 패턴도 같은 경로를 사용합니다
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Combat", meta = (WorldContext = "WorldContextObject"))
+	static void PlayCameraShake(const UObject* WorldContextObject, const FRSCameraShakeDefinition& ShakeDefinition);
 
 	/** 이번 판정에서 카메라를 흔들어야 하는지 시점 설정과 적중 여부로 판단합니다 */
 	static bool ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets);

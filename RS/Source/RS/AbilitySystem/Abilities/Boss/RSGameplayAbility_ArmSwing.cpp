@@ -383,6 +383,10 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowBegan()
 	HitActors.Reset();
 	bIsAttackWindowActive = true;
 
+	// 팔 휘두르기의 판정은 Window 동안 매 Tick 이어지므로 판정마다 흔들면 화면이 계속 떨립니다
+	// 한 번의 휘두르기를 한 번의 충격으로 보여 주도록 Window가 열리는 순간에만 흔듭니다
+	URSCombatFunctionLibrary::PlayCameraShake(BossCharacter, ImpactCameraShake);
+
 	// 진행률 Curve는 Window 시작에서 0으로 검증되므로 시작점의 공격 폭부터 판정합니다
 	float WindowStartSweepProgress = 0.0f;
 	if (!TryEvaluateSweepProgress(0.0f, WindowStartSweepProgress) || !ExecuteAttackSectorSlice(WindowStartSweepProgress, WindowStartSweepProgress))

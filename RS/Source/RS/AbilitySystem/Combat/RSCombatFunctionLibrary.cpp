@@ -451,9 +451,24 @@ void URSCombatFunctionLibrary::SendHitReaction(const AActor* Instigator, AActor*
 	SendHitReactionInternal(Instigator, TargetActor, ReactionDefinition, false, FVector::ZeroVector);
 }
 
+void URSCombatFunctionLibrary::PlayCameraShake(const UObject* WorldContextObject, const FRSCameraShakeDefinition& ShakeDefinition)
+{
+	if (!ShakeDefinition.ShakeClass)
+	{
+		return;
+	}
+
+	// 셰이크는 보는 사람의 카메라를 흔드는 것이므로 요청자가 아니라 로컬 플레이어의 컨트롤러로 보냅니다
+	// 보스는 AI 컨트롤러라 요청자를 따라가면 흔들 카메라가 없습니다
+	if (APlayerController* ViewerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0))
+	{
+		ViewerController->ClientStartCameraShake(ShakeDefinition.ShakeClass, ShakeDefinition.Scale);
+	}
+}
+
 bool URSCombatFunctionLibrary::ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets)
 {
-	if (!Feedback.CameraShake)
+	if (!Feedback.CameraShake.ShakeClass)
 	{
 		return false;
 	}
@@ -476,14 +491,9 @@ void URSCombatFunctionLibrary::PlayHitFeedback(AActor* Attacker, const TArray<AA
 
 	const bool bHasHitTargets = !HitTargets.IsEmpty();
 
-	// 셰이크는 보는 사람의 카메라를 흔드는 것이므로 공격자가 아니라 로컬 플레이어의 컨트롤러로 보냅니다
-	// 보스는 AI 컨트롤러라 공격자를 따라가면 흔들 카메라가 없습니다
 	if (ShouldPlayCameraShake(Feedback, bHasHitTargets))
 	{
-		if (APlayerController* ViewerController = UGameplayStatics::GetPlayerController(World, 0))
-		{
-			ViewerController->ClientStartCameraShake(Feedback.CameraShake, Feedback.CameraShakeScale);
-		}
+		PlayCameraShake(Attacker, Feedback.CameraShake);
 	}
 
 	if (!bHasHitTargets)

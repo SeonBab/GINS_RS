@@ -136,6 +136,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Presentation")
 	TObjectPtr<USoundBase> ExplosionSound;
 
+	/** 폭발이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Feedback")
+	FRSCameraShakeDefinition ImpactCameraShake;
+
 private:
 	/** 공격 시작 시점에 한 번 캡처해 모든 Telegraph와 HitCheck가 공유하는 Transform입니다 */
 	FTransform LockedPatternTransform = FTransform::Identity;

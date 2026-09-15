@@ -189,6 +189,9 @@ void URSGameplayAbility_RandomFallingRocks::HandleRockImpact(FTransform ImpactTr
 	TArray<AActor*> HitTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, FallingRocksDefinition.AttackShape, ImpactTransform, HitTargets);
 
+	// 낙석은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 흔듭니다
+	URSCombatFunctionLibrary::PlayCameraShake(AvatarActor, ImpactCameraShake);
+
 	const float DamageAmount = FallingRocksDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{

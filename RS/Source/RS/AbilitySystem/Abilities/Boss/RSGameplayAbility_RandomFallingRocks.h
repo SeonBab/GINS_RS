@@ -142,6 +142,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")
 	TObjectPtr<USoundBase> ImpactSound;
 
+	/** 낙석이 판정하는 순간 보는 사람의 카메라를 흔들 셰이크입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Feedback")
+	FRSCameraShakeDefinition ImpactCameraShake;
+
 private:
 	/** 다음 낙석 예약을 기다리는 Task입니다 */
 	UPROPERTY(Transient)
