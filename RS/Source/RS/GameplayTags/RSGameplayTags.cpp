@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "RSGameplayTags.h"
@@ -31,6 +31,7 @@ namespace RSGameplayTags
 
 	// Cooldown
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Dash, "Cooldown.Ability.Dash", "쿨다운이 끝날 때까지 대시 재활성화를 차단합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_DamageImmunityFeedback, "Cooldown.Ability.DamageImmunityFeedback", "쿨다운이 끝날 때까지 대미지 면역 연출 Ability의 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_GetUp_Quick, "Cooldown.Ability.GetUp.Quick", "쿨다운이 끝날 때까지 빠른 기상 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Skill01, "Cooldown.Ability.Skill01", "쿨다운이 끝날 때까지 1번 스킬 슬롯 Ability의 재활성화를 차단합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Cooldown_Ability_Skill02, "Cooldown.Ability.Skill02", "쿨다운이 끝날 때까지 2번 스킬 슬롯 Ability의 재활성화를 차단합니다");
@@ -43,6 +44,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Combat_MeteorHazardDamage, "GameplayEvent.Combat.MeteorHazardDamage", "운석 장판이 찾은 플레이어에게 1회 피해를 적용하도록 보스 ASC에 알립니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_HitReact, "GameplayEvent.CrowdControl.HitReact", "공격이 대상에게 피격 경직을 요청하며 대상의 경직 Ability를 활성화합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_CrowdControl_Knockdown, "GameplayEvent.CrowdControl.Knockdown", "공격이 대상에게 넉다운을 요청하며 대상의 넉다운 Ability를 활성화합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Presentation_DamageImmunity, "GameplayEvent.Presentation.DamageImmunity", "대미지 면역이 피해를 막았음을 대상에게 알리며 대상의 면역 연출 Ability를 활성화합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayEvent_Presentation_Niagara, "GameplayEvent.Presentation.Niagara", "Montage의 특정 시점에 Ability가 Niagara 표현을 재생하도록 알립니다");
 
 	// Input

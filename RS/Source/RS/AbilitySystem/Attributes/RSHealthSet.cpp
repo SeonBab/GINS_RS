@@ -4,6 +4,7 @@
 #include "RSHealthSet.h"
 
 #include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbilityTypes.h"
 #include "GameFramework/Actor.h"
 #include "GameplayEffectExtension.h"
 #include "RSAbilitySystemComponent.h"
@@ -46,14 +47,19 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 		// Damage는 일회성 전달 값이므로 처리 전에 초기화합니다
 		SetDamage(0.0f);
 
-		// 방어 행동의 종류를 알지 않고 대상이 공개한 대미지 면역 계약만 확인합니다
-		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Immunity_Damage))
+		// 막을 피해가 없으면 면역 상태여도 막은 결과가 없으므로 면역보다 먼저 판정합니다
+		if (LocalDamage <= 0.0f)
 		{
 			return;
 		}
 
-		if (LocalDamage <= 0.0f)
+		// 방어 행동의 종류를 알지 않고 대상이 공개한 대미지 면역 계약만 확인합니다
+		if (Data.Target.HasMatchingGameplayTag(RSGameplayTags::State_Immunity_Damage))
 		{
+			// 무적이 피해를 막았다는 사실만 알리고 연출의 종류와 재생 조건은 대상의 Ability가 결정합니다
+			FGameplayEventData ImmuneFeedbackEventData;
+			Data.Target.HandleGameplayEvent(RSGameplayTags::GameplayEvent_Presentation_DamageImmunity, &ImmuneFeedbackEventData);
+
 			return;
 		}
 
