@@ -122,4 +122,107 @@ bool FRSCombatShapeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSConeFillTest, "RS.Combat.ConeFill", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSConeFillTest::RunTest(const FString& Parameters)
+{
+	FRSCombatShape Cone;
+	Cone.Type = ERSCombatShapeType::Cone;
+	Cone.Range = 600.0f;
+	Cone.Angle = 90.0f;
+
+	constexpr float Spacing = 100.0f;
+	const FTransform ConeTransform(FRotator(0.0f, 35.0f, 0.0f), FVector(1200.0f, -400.0f, 250.0f));
+
+	TArray<FTransform> FillTransforms;
+	TestTrue(TEXT("Valid cone builds fill transforms"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, Spacing, FillTransforms));
+	TestTrue(TEXT("Valid cone produces at least one transform"), FillTransforms.Num() > 0);
+
+	// 연출이 판정 범위를 넘지 않아야 하므로 모든 칸이 같은 포함 규칙을 통과하는지 확인합니다
+	const FVector ConeApex = ConeTransform.GetLocation();
+	FVector ConeForward = ConeTransform.GetUnitAxis(EAxis::X);
+	ConeForward.Z = 0.0f;
+	ConeForward.Normalize();
+	const FVector ConeRight = FVector::CrossProduct(FVector::UpVector, ConeForward);
+
+	bool bAllInsideCone = true;
+	bool bAllOnGrid = true;
+	bool bAllKeepPlane = true;
+	bool bAllKeepRotation = true;
+	for (const FTransform& FillTransform : FillTransforms)
+	{
+		const FVector FillLocation = FillTransform.GetLocation();
+		if (!URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FillLocation))
+		{
+			bAllInsideCone = false;
+		}
+
+		const FVector Offset = FillLocation - ConeApex;
+		const float ForwardSteps = FVector::DotProduct(Offset, ConeForward) / Spacing;
+		const float RightSteps = FVector::DotProduct(Offset, ConeRight) / Spacing;
+		if (!FMath::IsNearlyEqual(ForwardSteps, FMath::RoundToFloat(ForwardSteps), 0.01f) || !FMath::IsNearlyEqual(RightSteps, FMath::RoundToFloat(RightSteps), 0.01f))
+		{
+			bAllOnGrid = false;
+		}
+
+		if (!FMath::IsNearlyEqual(FillLocation.Z, ConeApex.Z))
+		{
+			bAllKeepPlane = false;
+		}
+
+		if (!FillTransform.GetRotation().Equals(ConeTransform.GetRotation()))
+		{
+			bAllKeepRotation = false;
+		}
+	}
+
+	TestTrue(TEXT("Every fill transform stays inside the cone"), bAllInsideCone);
+	TestTrue(TEXT("Every fill transform lands on a spacing grid step"), bAllOnGrid);
+	TestTrue(TEXT("Every fill transform keeps the cone plane height"), bAllKeepPlane);
+	TestTrue(TEXT("Every fill transform inherits the cone rotation"), bAllKeepRotation);
+
+	// 간격을 절반으로 줄이면 같은 면적을 네 배로 채우므로 밀도가 간격을 따라 변하는지 확인합니다
+	TArray<FTransform> DenseFillTransforms;
+	TestTrue(TEXT("Halved spacing builds fill transforms"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, Spacing * 0.5f, DenseFillTransforms));
+	TestTrue(TEXT("Halved spacing multiplies the fill count"), DenseFillTransforms.Num() > FillTransforms.Num() * 3);
+
+	// 간격이 범위보다 넓어도 연출이 사라지면 안 되므로 중심선 가운데 한 개로 대신하는지 확인합니다
+	TArray<FTransform> SingleFillTransforms;
+	TestTrue(TEXT("Spacing wider than the range builds fill transforms"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, Cone.Range * 2.0f, SingleFillTransforms));
+	TestEqual(TEXT("Spacing wider than the range fills exactly one cell"), SingleFillTransforms.Num(), 1);
+
+	if (SingleFillTransforms.Num() == 1)
+	{
+		const FVector ExpectedCenter = ConeApex + ConeForward * (Cone.Range * 0.5f);
+		TestTrue(TEXT("The single fill transform sits at the cone center"), SingleFillTransforms[0].GetLocation().Equals(ExpectedCenter));
+		TestTrue(TEXT("The single fill transform stays inside the cone"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, SingleFillTransforms[0].GetLocation()));
+		TestTrue(TEXT("The single fill transform inherits the cone rotation"), SingleFillTransforms[0].GetRotation().Equals(ConeTransform.GetRotation()));
+	}
+
+	// 잘못된 입력에서는 호출자가 이전 결과를 그대로 쓰지 않도록 실패를 알리고 배열을 건드리지 않습니다
+	TArray<FTransform> UntouchedTransforms;
+	UntouchedTransforms.Add(FTransform::Identity);
+
+	TestFalse(TEXT("Zero spacing fails"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, 0.0f, UntouchedTransforms));
+	TestFalse(TEXT("Negative spacing fails"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, -50.0f, UntouchedTransforms));
+
+	FRSCombatShape SphereShape;
+	SphereShape.Type = ERSCombatShapeType::Sphere;
+	SphereShape.Radius = 300.0f;
+	TestFalse(TEXT("Non cone shape fails"), URSCombatFunctionLibrary::BuildConeFillTransforms(SphereShape, ConeTransform, Spacing, UntouchedTransforms));
+
+	FRSCombatShape InvalidCone;
+	InvalidCone.Type = ERSCombatShapeType::Cone;
+	InvalidCone.Range = 0.0f;
+	InvalidCone.Angle = 90.0f;
+	TestFalse(TEXT("Zero range cone fails"), URSCombatFunctionLibrary::BuildConeFillTransforms(InvalidCone, ConeTransform, Spacing, UntouchedTransforms));
+
+	// 간격이 과도하게 좁으면 순회 자체가 폭주하므로 채우기 전에 상한으로 막습니다
+	TestFalse(TEXT("Runaway cell count fails"), URSCombatFunctionLibrary::BuildConeFillTransforms(Cone, ConeTransform, 1.0f, UntouchedTransforms));
+
+	TestEqual(TEXT("Failed calls leave the output array untouched"), UntouchedTransforms.Num(), 1);
+
+	return true;
+}
+
 #endif

@@ -28,6 +28,10 @@ namespace
 	// 판정은 한 프레임만 실행되므로 결과를 눈으로 확인할 수 있을 만큼만 남깁니다
 	constexpr float RSCombatDebugLifeTime = 1.0f;
 
+	// 간격이 좁을수록 순회할 칸이 제곱으로 늘어나므로 채우기 전에 막을 상한입니다
+	// 기획이 쓰는 밀도로는 닿지 않는 값이며, 설정 실수로 프레임이 멈추는 것만 방지합니다
+	constexpr int64 RSConeFillMaxCandidateCells = 4096;
+
 	bool TryGetConeParameters(const FRSCombatShape& Shape, const FTransform& ShapeTransform, FVector& OutHorizontalForward, float& OutRangeSquared, float& OutMinimumDot)
 	{
 		if (Shape.Type != ERSCombatShapeType::Cone || !Shape.IsDataValid())
@@ -296,6 +300,64 @@ bool URSCombatFunctionLibrary::IsLocationInsideCone(const FRSCombatShape& Shape,
 	}
 
 	return IsLocationInsidePreparedCone(ShapeTransform.GetLocation(), HorizontalForward, RangeSquared, MinimumDot, TargetLocation);
+}
+
+bool URSCombatFunctionLibrary::BuildConeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
+{
+	FVector HorizontalForward = FVector::ZeroVector;
+	float RangeSquared = 0.0f;
+	float MinimumDot = 0.0f;
+	if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
+	{
+		return false;
+	}
+
+	if (Spacing <= 0.0f)
+	{
+		return false;
+	}
+
+	// 격자는 꼭짓점을 원점으로 Forward와 Right 방향의 정수 배 위치만 사용하므로 중심선이 항상 채워집니다
+	const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
+	const float HalfWidth = Shape.Range * FMath::Sin(FMath::DegreesToRadians(Shape.Angle * 0.5f));
+
+	const int32 ForwardStepCount = FMath::FloorToInt(Shape.Range / Spacing);
+	const int32 LateralStepCount = FMath::FloorToInt(HalfWidth / Spacing);
+
+	// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
+	const int64 CandidateCellCount = static_cast<int64>(ForwardStepCount + 1) * (static_cast<int64>(LateralStepCount) * 2 + 1);
+	if (CandidateCellCount > RSConeFillMaxCandidateCells)
+	{
+		return false;
+	}
+
+	const FVector ConeApex = ShapeTransform.GetLocation();
+	const FQuat FillRotation = ShapeTransform.GetRotation();
+
+	OutTransforms.Reset();
+	for (int32 ForwardStep = 0; ForwardStep <= ForwardStepCount; ++ForwardStep)
+	{
+		for (int32 LateralStep = -LateralStepCount; LateralStep <= LateralStepCount; ++LateralStep)
+		{
+			const FVector CellLocation = ConeApex + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
+			if (!IsLocationInsidePreparedCone(ConeApex, HorizontalForward, RangeSquared, MinimumDot, CellLocation))
+			{
+				continue;
+			}
+
+			OutTransforms.Emplace(FillRotation, CellLocation);
+		}
+	}
+
+	// 간격이 범위보다 넓으면 격자가 꼭짓점 한 칸으로 무너지는데, 꼭짓점은 보스 발밑이라 공격 범위를 나타내지 못합니다
+	// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 중심선의 가운데에 한 개만 둡니다
+	if (OutTransforms.Num() <= 1)
+	{
+		OutTransforms.Reset();
+		OutTransforms.Emplace(FillRotation, ConeApex + HorizontalForward * (Shape.Range * 0.5f));
+	}
+
+	return true;
 }
 
 void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime)

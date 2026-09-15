@@ -27,6 +27,13 @@ struct FRSBossPatternPresentation
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
 	FRSNiagaraSpawnDefinition Niagara;
 
+	/**
+	 * 공격 범위를 Niagara로 채우는 패턴이 사용할 격자 간격이며 좁을수록 빼곡해집니다
+	 * 범위보다 넓게 두면 범위 중앙에 하나만 생성하며, 연출 지점을 직접 정하는 패턴은 이 값을 사용하지 않습니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation", meta = (ClampMin = "1.0", UIMin = "10.0", ForceUnits = "cm"))
+	float NiagaraFillSpacing = 150.0f;
+
 	/** 한 번의 연출에서 한 번만 재생할 Sound입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
 	TObjectPtr<USoundBase> Sound;

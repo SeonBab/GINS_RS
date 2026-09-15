@@ -1,4 +1,4 @@
-#include "RSGameplayAbility_TargetedSlam.h"
+﻿#include "RSGameplayAbility_TargetedSlam.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
@@ -374,7 +374,17 @@ void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, AttackShape, LockedAttackTransform, HitTargets);
 
 	// 내려찍기는 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 재생합니다
-	PlayPatternPresentation(LockedAttackTransform);
+	// Niagara는 공격 범위를 채운 칸마다 나지만 소리와 셰이크는 한 번의 내려찍기에 하나여야 합니다
+	TArray<FTransform> FillTransforms;
+	if (URSCombatFunctionLibrary::BuildConeFillTransforms(AttackShape, LockedAttackTransform, PatternPresentation.NiagaraFillSpacing, FillTransforms))
+	{
+		PlayPatternPresentation(FillTransforms, LockedAttackTransform.GetLocation());
+	}
+	else
+	{
+		// 채우기에 실패해도 소리와 셰이크는 남아야 하므로 꼭짓점 하나로 재생합니다
+		PlayPatternPresentation(LockedAttackTransform);
+	}
 
 	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
@@ -484,6 +494,35 @@ EDataValidationResult URSGameplayAbility_TargetedSlam::IsDataValid(FDataValidati
 			Context.AddError(FText::FromString(FString::Printf(TEXT("AttackShape is invalid: %s"), *ShapeValidationError)));
 			ValidationResult = EDataValidationResult::Invalid;
 		}
+	}
+
+	constexpr int32 MaxNiagaraFillCount = 256;
+	if (!FMath::IsFinite(PatternPresentation.NiagaraFillSpacing) || PatternPresentation.NiagaraFillSpacing <= 0.0f)
+	{
+		Context.AddError(FText::FromString(TEXT("PatternPresentation.NiagaraFillSpacing must be finite and greater than zero.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+	else if (AttackShape.Type == ERSCombatShapeType::Cone && AttackShape.IsDataValid())
+	{
+		// 생성 개수는 Range, Angle과 간격만으로 정해지므로 런타임에 칸을 버리지 않고 여기서 막습니다
+		TArray<FTransform> FillTransformProbe;
+		if (!URSCombatFunctionLibrary::BuildConeFillTransforms(AttackShape, FTransform::Identity, PatternPresentation.NiagaraFillSpacing, FillTransformProbe))
+		{
+			Context.AddError(FText::FromString(TEXT("PatternPresentation.NiagaraFillSpacing is too small to fill the AttackShape.")));
+			ValidationResult = EDataValidationResult::Invalid;
+		}
+		else if (FillTransformProbe.Num() > MaxNiagaraFillCount)
+		{
+			Context.AddError(FText::FromString(FString::Printf(TEXT("AttackShape and PatternPresentation.NiagaraFillSpacing would spawn %d Niagara systems and the limit is %d. Increase PatternPresentation.NiagaraFillSpacing or reduce the Cone size."), FillTransformProbe.Num(), MaxNiagaraFillCount)));
+			ValidationResult = EDataValidationResult::Invalid;
+		}
+	}
+
+	// 채우기는 칸마다 다른 월드 위치를 써야 의미가 있고, 소켓 기준 생성은 모든 칸을 한 지점에 겹쳐 버립니다
+	if (PatternPresentation.Niagara.NiagaraSystem && PatternPresentation.Niagara.SpawnMode != ERSNiagaraSpawnMode::WorldTransform)
+	{
+		Context.AddError(FText::FromString(TEXT("PatternPresentation Niagara must use the WorldTransform spawn mode so the fill can place one system per cell.")));
+		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	if (!AttackMontage)

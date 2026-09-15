@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -299,6 +299,15 @@ public:
 
 	/** 대상 위치의 중심점이 Cone의 수평 범위 안에 있는지 검사합니다 */
 	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
+
+	/**
+	 * Cone 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다
+	 * 셀 중심이 Cone 안에 있는 칸만 남기므로 결과는 IsLocationInsideCone과 같은 범위를 벗어나지 않습니다
+	 * 각 Transform은 ShapeTransform의 회전과 높이를 그대로 상속하고 Scale은 사용하지 않습니다
+	 * Spacing이 Range보다 넓어 격자가 한 칸으로 무너지면 Cone 중심선의 가운데에 하나만 채우므로 성공한 호출의 결과는 비지 않습니다
+	 * Spacing이 지나치게 좁아 순회할 칸이 상한을 넘으면 아무것도 채우지 않고 실패합니다
+	 */
+	static bool BuildConeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms);
 
 	/**
 	 * 대상 하나에게 이번 타격이 요청하는 피격 반응을 전달합니다
