@@ -44,7 +44,7 @@ namespace
 	}
 
 	/** 실제 공격과 같은 Instant Damage GameplayEffect를 대상 ASC에 적용합니다 */
-	void ApplyTestDamage(UAbilitySystemComponent* TargetAbilitySystemComponent, float DamageAmount)
+	void ApplyDamageImmunityTestDamage(UAbilitySystemComponent* TargetAbilitySystemComponent, float DamageAmount)
 	{
 		UGameplayEffect* DamageEffect = NewObject<UGameplayEffect>(GetTransientPackage());
 		DamageEffect->DurationPolicy = EGameplayEffectDurationType::Instant;
@@ -90,23 +90,23 @@ bool FRSDamageImmunityFeedbackTest::RunTest(const FString& Parameters)
 		});
 
 	// 면역이 없는 피해는 체력을 줄이고 연출을 요청하지 않습니다
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("Damage without immunity reduces health"), AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 90.0f);
 	TestEqual(TEXT("Damage without immunity requests no feedback"), FeedbackEventCount, 0);
 
 	// 면역이 막은 피해는 체력을 유지하고 연출을 한 번 요청합니다
 	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("Damage immunity keeps health"), AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 90.0f);
 	TestEqual(TEXT("Damage immunity requests feedback once"), FeedbackEventCount, 1);
 
 	// 막을 피해가 없으면 면역 상태여도 연출을 요청하지 않습니다
-	ApplyTestDamage(AbilitySystemComp, 0.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 0.0f);
 	TestEqual(TEXT("Zero damage keeps health"), AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 90.0f);
 	TestEqual(TEXT("Zero damage requests no feedback"), FeedbackEventCount, 1);
 
 	// 막은 타격마다 따로 요청하며 연타 제한은 연출 어빌리티의 쿨다운이 담당합니다
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("Each blocked hit requests feedback"), FeedbackEventCount, 2);
 
 	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
@@ -148,22 +148,22 @@ bool FRSDamageImmunityFeedbackAbilityTest::RunTest(const FString& Parameters)
 		});
 
 	// 면역이 없는 피해는 연출 어빌리티를 활성화하지 않습니다
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("Damage without immunity activates no feedback ability"), ActivatedCount, 0);
 
 	// 면역이 막은 피해는 연출 어빌리티를 활성화합니다
 	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("Damage immunity activates the feedback ability"), ActivatedCount, 1);
 
 	// 쿨다운이 도는 동안 이어지는 다단 히트는 같은 연출을 겹쳐 재생하지 않습니다
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestTrue(TEXT("The feedback ability applies its cooldown"), AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::Cooldown_Ability_DamageImmunityFeedback));
 	TestEqual(TEXT("A blocked hit during the cooldown repeats no feedback"), ActivatedCount, 1);
 
 	// 쿨다운이 끝나면 다음 타격의 연출이 다시 나야 하므로 어빌리티가 활성 상태를 남기지 않았는지 확인합니다
 	AbilitySystemComp->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(RSGameplayTags::Cooldown_Ability_DamageImmunityFeedback));
-	ApplyTestDamage(AbilitySystemComp, 10.0f);
+	ApplyDamageImmunityTestDamage(AbilitySystemComp, 10.0f);
 	TestEqual(TEXT("A blocked hit after the cooldown activates the feedback ability again"), ActivatedCount, 2);
 
 	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);

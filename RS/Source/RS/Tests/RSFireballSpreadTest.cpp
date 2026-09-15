@@ -42,7 +42,7 @@ namespace
 	}
 
 	/** 실제 공격과 같은 Instant Damage GameplayEffect를 대상 ASC에 적용합니다 */
-	void ApplyTestDamage(UAbilitySystemComponent* TargetAbilitySystemComponent, float DamageAmount)
+	void ApplyFireballTestDamage(UAbilitySystemComponent* TargetAbilitySystemComponent, float DamageAmount)
 	{
 		UGameplayEffect* DamageEffect = NewObject<UGameplayEffect>(GetTransientPackage());
 		DamageEffect->DurationPolicy = EGameplayEffectDurationType::Instant;
@@ -152,21 +152,21 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fireball starts with three health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
 	TestEqual(TEXT("Fireball starts with three max health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetMaxHealthAttribute()), 3.0f);
 	FireballAbilitySystem->AddLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
-	ApplyTestDamage(FireballAbilitySystem, 50.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	TestEqual(TEXT("Damage immunity takes priority over unit damage"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
 	FireballAbilitySystem->RemoveLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
-	ApplyTestDamage(FireballAbilitySystem, 0.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 0.0f);
 	TestEqual(TEXT("Zero damage does not consume health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
 
 	Fireball->Tick(3.1f);
 	TestEqual(TEXT("Charge completion waits for a later frame before becoming a field"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
-	ApplyTestDamage(FireballAbilitySystem, 50.0f);
-	ApplyTestDamage(FireballAbilitySystem, 50.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	TestEqual(TEXT("Each damage effect removes exactly one health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 1.0f);
 	TestEqual(TEXT("Pending charge completion still accepts same-frame hits"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
-	ApplyTestDamage(FireballAbilitySystem, 50.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	TestEqual(TEXT("The third same-frame damage reduces health to zero"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 0.0f);
 	TestEqual(TEXT("Zero health moves the actor to cleanup before field transition"), Fireball->GetFireballState(), ERSBossFireballState::Cleanup);
 
