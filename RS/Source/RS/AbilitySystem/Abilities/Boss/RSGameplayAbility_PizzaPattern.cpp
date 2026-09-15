@@ -4,7 +4,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
-#include "Combat/RSPizzaPatternMath.h"
+#include "Combat/RSCircularSliceMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
 #include "Tasks/RSAbilityTask_WaitTelegraphFill.h"
@@ -12,6 +12,11 @@
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
 #endif
+
+namespace
+{
+	constexpr int32 PizzaPatternGroupCount = 2;
+}
 
 bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 {
@@ -81,6 +86,57 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 	}
 
 	return true;
+}
+
+int32 FRSPizzaPatternDefinition::CalculateVirtualSliceCount() const
+{
+	return SliceCount >= 2 && SliceCount <= MAX_int32 / PizzaPatternGroupCount ? SliceCount * PizzaPatternGroupCount : 0;
+}
+
+float FRSPizzaPatternDefinition::CalculateSliceAngleDegrees() const
+{
+	return RSCircularSliceMath::CalculateSliceAngleDegrees(CalculateVirtualSliceCount());
+}
+
+bool FRSPizzaPatternDefinition::TryBuildExplosionSliceTransforms(const FTransform& LockedTransform, int32 ExplosionIndex, TArray<FTransform>& OutSliceTransforms) const
+{
+	OutSliceTransforms.Reset();
+	const int32 VirtualSliceCount = CalculateVirtualSliceCount();
+	if (VirtualSliceCount <= 0 || ExplosionIndex < 0)
+	{
+		return false;
+	}
+
+	const int32 GroupParity = ExplosionIndex % PizzaPatternGroupCount;
+	OutSliceTransforms.Reserve(SliceCount);
+	for (int32 GroupSliceIndex = 0; GroupSliceIndex < SliceCount; ++GroupSliceIndex)
+	{
+		const int32 VirtualSliceIndex = GroupSliceIndex * PizzaPatternGroupCount + GroupParity;
+		FTransform SliceTransform;
+		if (!RSCircularSliceMath::TryBuildSliceTransform(LockedTransform, VirtualSliceCount, VirtualSliceIndex, SliceTransform))
+		{
+			OutSliceTransforms.Reset();
+
+			return false;
+		}
+
+		OutSliceTransforms.Add(SliceTransform);
+	}
+
+	return true;
+}
+
+bool FRSPizzaPatternDefinition::IsLocationInExplosionGroup(const FTransform& LockedTransform, int32 ExplosionIndex, const FVector& TargetLocation) const
+{
+	const int32 VirtualSliceCount = CalculateVirtualSliceCount();
+	if (VirtualSliceCount <= 0 || ExplosionIndex < 0)
+	{
+		return false;
+	}
+
+	int32 VirtualSliceIndex = INDEX_NONE;
+	return RSCircularSliceMath::TryCalculateSliceIndex(LockedTransform, VirtualSliceCount, TargetLocation, VirtualSliceIndex)
+		&& VirtualSliceIndex % PizzaPatternGroupCount == ExplosionIndex % PizzaPatternGroupCount;
 }
 
 URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
@@ -199,7 +255,7 @@ bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
 		return false;
 	}
 
-	return RSPizzaPatternMath::TryCalculateLockedPatternTransform(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
+	return RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
 }
 
 void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
@@ -211,7 +267,7 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	URSAttackTelegraphComponent* TelegraphComp = AvatarActor ? AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (!AvatarActor || !TelegraphComp || !RSPizzaPatternMath::TryBuildExplosionSliceTransforms(LockedPatternTransform, PizzaPatternDefinition.SliceCount, CurrentExplosionIndex, ActiveSliceTransforms))
+	if (!AvatarActor || !TelegraphComp || !PizzaPatternDefinition.TryBuildExplosionSliceTransforms(LockedPatternTransform, CurrentExplosionIndex, ActiveSliceTransforms))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -221,7 +277,7 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 	FRSCombatShape SliceShape;
 	SliceShape.Type = ERSCombatShapeType::Cone;
 	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-	SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
 
 	ActiveTelegraphHandles.Reset();
 	ActiveTelegraphHandles.Reserve(ActiveSliceTransforms.Num());
@@ -294,7 +350,7 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 	FRSCombatShape SliceShape;
 	SliceShape.Type = ERSCombatShapeType::Cone;
 	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-	SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
 
 	PlayPatternPresentation(SliceShape, ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 
@@ -337,7 +393,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	{
 		const TWeakObjectPtr<AActor> TargetPointer(CandidateTarget);
 		if (!CandidateTarget || HitActors.Contains(TargetPointer)
-			|| !RSPizzaPatternMath::IsLocationInExplosionGroup(LockedPatternTransform, PizzaPatternDefinition.SliceCount, CurrentExplosionIndex, CandidateTarget->GetActorLocation()))
+			|| !PizzaPatternDefinition.IsLocationInExplosionGroup(LockedPatternTransform, CurrentExplosionIndex, CandidateTarget->GetActorLocation()))
 		{
 			continue;
 		}
@@ -402,7 +458,7 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 		FRSCombatShape SliceShape;
 		SliceShape.Type = ERSCombatShapeType::Cone;
 		SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-		SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+		SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
 
 		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 	}
