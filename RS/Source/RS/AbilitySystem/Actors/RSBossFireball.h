@@ -106,9 +106,6 @@ public:
 	/** 화염구가 직접 소유한 ASC를 반환합니다 */
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	/** 화염구가 사용하는 공용 HealthSet을 반환합니다 */
-	const URSHealthSet* GetHealthSet() const { return HealthSet; }
-
 private:
 	/** Owner와 Avatar를 화염구 자신으로 초기화하고 기본 AbilitySet을 부여합니다 */
 	void InitializeAbilitySystem();

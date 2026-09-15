@@ -139,27 +139,12 @@ void ARSBossFireball::BeginPlay()
 	Super::BeginPlay();
 
 	InitializeAbilitySystem();
-	if (PersistentObjectLifetimeComp)
-	{
-		PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
-		PersistentObjectLifetimeComp->StartObserving(GetOwner(), FireballDefinition.SpecialPatternCleanupOffset);
-	}
-
-	if (FireballNiagaraComp)
-	{
-		FireballNiagaraComp->SetAsset(FireballNiagaraSystem);
-	}
-
-	if (FireFieldNiagaraComp)
-	{
-		FireFieldNiagaraComp->SetAsset(FireFieldNiagaraSystem);
-		UpdateFireFieldNiagaraScale();
-	}
-
-	if (ChargeWidgetComp)
-	{
-		ChargeWidgetComp->SetWidgetClass(ChargeWidgetClass);
-	}
+	PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
+	PersistentObjectLifetimeComp->StartObserving(GetOwner(), FireballDefinition.SpecialPatternCleanupOffset);
+	FireballNiagaraComp->SetAsset(FireballNiagaraSystem);
+	FireFieldNiagaraComp->SetAsset(FireFieldNiagaraSystem);
+	UpdateFireFieldNiagaraScale();
+	ChargeWidgetComp->SetWidgetClass(ChargeWidgetClass);
 
 	if (!FireballDefinition.IsDataValid())
 	{
@@ -174,23 +159,14 @@ void ARSBossFireball::BeginPlay()
 void ARSBossFireball::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	ClearTimers();
-	if (PersistentObjectLifetimeComp)
-	{
-		PersistentObjectLifetimeComp->OnCleanupRequired().RemoveAll(this);
-		PersistentObjectLifetimeComp->StopObserving();
-	}
-
-	if (AbilitySystemComp)
-	{
-		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
-		AbilitySystemComp->CancelAbilities();
-		GrantedAbilityHandles.TakeFromAbilitySystem(AbilitySystemComp);
-	}
-
-	if (HealthComp)
-	{
-		HealthComp->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleDeathStarted);
-	}
+	PersistentObjectLifetimeComp->OnCleanupRequired().RemoveAll(this);
+	PersistentObjectLifetimeComp->StopObserving();
+	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
+	AbilitySystemComp->CancelAbilities();
+	GrantedAbilityHandles.TakeFromAbilitySystem(AbilitySystemComp);
+	HealthComp->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleDeathStarted);
+	FireballNiagaraComp->DeactivateImmediate();
+	FireFieldNiagaraComp->DeactivateImmediate();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -236,11 +212,6 @@ UAbilitySystemComponent* ARSBossFireball::GetAbilitySystemComponent() const
 
 void ARSBossFireball::InitializeAbilitySystem()
 {
-	if (!AbilitySystemComp)
-	{
-		return;
-	}
-
 	AbilitySystemComp->InitAbilityActorInfo(this, this);
 
 	if (AbilitySystemComp->IsOwnerActorAuthoritative() && DefaultAbilitySet)
@@ -251,19 +222,13 @@ void ARSBossFireball::InitializeAbilitySystem()
 	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetMaxHealthAttribute(), FireballDefinition.RequiredHitCount);
 	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), FireballDefinition.RequiredHitCount);
 
-	if (HealthComp)
-	{
-		HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
-		HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
-	}
+	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
 }
 
 void ARSBossFireball::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 {
-	if (InHealthComponent == HealthComp)
-	{
-		RequestCleanup();
-	}
+	RequestCleanup();
 }
 
 void ARSBossFireball::RequestCleanup()
@@ -273,36 +238,9 @@ void ARSBossFireball::RequestCleanup()
 		return;
 	}
 
+	// Destroy()가 EndPlay()를 동기적으로 호출하므로 Timer, 태그, Ability와 Niagara 회수는 EndPlay() 한 경로에서만 수행합니다
 	FireballState = ERSBossFireballState::Cleanup;
 	SetActorTickEnabled(false);
-	ClearTimers();
-
-	if (BoxComp)
-	{
-		BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-
-	if (ChargeWidgetComp)
-	{
-		ChargeWidgetComp->SetVisibility(false);
-	}
-
-	if (FireballNiagaraComp)
-	{
-		FireballNiagaraComp->DeactivateImmediate();
-	}
-
-	if (FireFieldNiagaraComp)
-	{
-		FireFieldNiagaraComp->DeactivateImmediate();
-	}
-
-	if (AbilitySystemComp)
-	{
-		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
-		AbilitySystemComp->CancelAbilities();
-	}
-
 	Destroy();
 }
 
@@ -403,11 +341,6 @@ void ARSBossFireball::CompleteFireFieldTransition()
 
 void ARSBossFireball::BeginFireField()
 {
-	if (FireballState != ERSBossFireballState::ChargeCompletedPending)
-	{
-		return;
-	}
-
 	FireballState = ERSBossFireballState::FireField;
 	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
 
@@ -431,7 +364,7 @@ void ARSBossFireball::BeginFireField()
 
 void ARSBossFireball::UpdateFireFieldNiagaraScale()
 {
-	if (!FireFieldNiagaraComp || !FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
+	if (!FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
 	{
 		return;
 	}
@@ -471,11 +404,6 @@ void ARSBossFireball::ApplyFireFieldDamage()
 
 void ARSBossFireball::UpdateChargeWidget(float Progress)
 {
-	if (!ChargeWidgetComp)
-	{
-		return;
-	}
-
 	if (URSFireballChargeWidget* ChargeWidget = Cast<URSFireballChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
 	{
 		ChargeWidget->SetChargeProgress(Progress);
@@ -484,14 +412,11 @@ void ARSBossFireball::UpdateChargeWidget(float Progress)
 
 void ARSBossFireball::ClearTimers()
 {
+	// FTimerManager::ClearTimer()가 Handle을 함께 Invalidate하므로 별도 처리는 두지 않습니다
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(ChargeCompletionTimerHandle);
 		World->GetTimerManager().ClearTimer(FireFieldDamageTimerHandle);
 		World->GetTimerManager().ClearTimer(FireFieldLifetimeTimerHandle);
 	}
-
-	ChargeCompletionTimerHandle.Invalidate();
-	FireFieldDamageTimerHandle.Invalidate();
-	FireFieldLifetimeTimerHandle.Invalidate();
 }
