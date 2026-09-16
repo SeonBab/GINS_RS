@@ -97,7 +97,7 @@ public:
 
 protected:
 	/** Montage를 한 번 요청하고 독립 지연 뒤 첫 A 예고를 시작합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 종료 경로와 관계없이 현재 Telegraph, 대기 Task와 애니메이션 상태를 정리합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

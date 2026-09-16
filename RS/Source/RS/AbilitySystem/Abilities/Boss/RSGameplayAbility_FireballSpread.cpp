@@ -143,22 +143,22 @@ URSGameplayAbility_FireballSpread::URSGameplayAbility_FireballSpread()
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 }
 
-void URSGameplayAbility_FireballSpread::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_FireballSpread::BeginPatternTimeline()
 {
 	ActiveLandingLocations.Reset();
 	bDropFinished = false;
 	bRoarMontageFinished = !RoarMontage;
 
-	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !FireballClass || !SpreadDefinition.IsDataValid() || !CaptureLandingLocations(ActorInfo))
+	if (!CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid() || !FireballClass || !SpreadDefinition.IsDataValid() || !CaptureLandingLocations(CurrentActorInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -333,6 +333,6 @@ void URSGameplayAbility_FireballSpread::TryFinishAbility()
 {
 	if (IsActive() && bDropFinished && bRoarMontageFinished)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 	}
 }

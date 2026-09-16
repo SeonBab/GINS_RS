@@ -126,7 +126,7 @@ URSGameplayAbility_SequentialSweepExplosion::URSGameplayAbility_SequentialSweepE
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_SequentialSweepExplosion::BeginPatternTimeline()
 {
 	ResetTransientState();
 	bIsCleaningUp = false;
@@ -134,8 +134,8 @@ void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGamepla
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	if (!GetBossContext(BossCharacter, BossController)
-		|| !ActorInfo
-		|| !ActorInfo->AbilitySystemComponent.IsValid()
+		|| !CurrentActorInfo
+		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !PatternDefinition.IsDataValid()
@@ -146,7 +146,7 @@ void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGamepla
 		|| !FMath::IsFinite(TargetDriftTolerance) || TargetDriftTolerance < 0.0f
 		|| !FMath::IsFinite(MaxAimDuration) || MaxAimDuration <= 0.0f)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -154,14 +154,14 @@ void URSGameplayAbility_SequentialSweepExplosion::ActivateAbility(const FGamepla
 	AActor* InitialTargetActor = BossController->GetTargetActor();
 	if (!BossController->IsTargetActorValid(InitialTargetActor))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}

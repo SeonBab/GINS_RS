@@ -85,7 +85,7 @@ public:
 
 protected:
 	/** 현재 Target과 설정을 검증하고 Aim을 시작합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 종료 경로와 관계없이 예고, 시간 Task, Focus, 회전 설정과 애니메이션 상태를 정리합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

@@ -33,7 +33,7 @@ URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 {
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
@@ -55,8 +55,8 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	if (!GetBossContext(BossCharacter, BossController)
-		|| !ActorInfo
-		|| !ActorInfo->AbilitySystemComponent.IsValid()
+		|| !CurrentActorInfo
+		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !AttackMontage
@@ -76,7 +76,7 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 		|| ImpactDelay > AttackMontage->GetPlayLength() / MontagePlayRate)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Targeted Slam because its runtime context or configuration is invalid"), *GetName());
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -84,15 +84,15 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	AActor* InitialTargetActor = BossController->GetTargetActor();
 	if (!BossController->IsTargetActorValid(InitialTargetActor))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
 	// 검증이 끝나기 전에 Focus, 회전 설정이나 Telegraph를 바꾸면 실패한 활성화가 외부 상태를 남깁니다
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -161,6 +161,8 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 	bHasCommittedActivation = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// 정리가 끝났으므로 플래그를 되돌립니다. 남겨 두면 다음 활성화의 선딜 구간에서 취소가 이 가드에 막혀 어빌리티가 끝나지 않습니다
+	bIsCleaningUp = false;
 }
 
 void URSGameplayAbility_TargetedSlam::BeginStrike()
@@ -431,7 +433,7 @@ void URSGameplayAbility_TargetedSlam::TryFinishStrike()
 
 	if (CurrentStrikeIndex >= StrikeCount)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 
 		return;
 	}

@@ -43,7 +43,7 @@ public:
 
 protected:
 	/** 이번 실행의 시퀀스와 링 중심을 확정하고 Montage를 요청한 뒤 첫 예고 스텝을 시작합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 어빌리티가 어떤 경로로 끝나도 남아 있는 예고 표시와 애니메이션 상태를 회수합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

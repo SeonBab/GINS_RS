@@ -55,24 +55,24 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	DefaultSequence.SafeRingIndices = { 2, 0, 1 };
 }
 
-void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_ConcentricRings::BeginPatternTimeline()
 {
 	// InstancedPerActor라 인스턴스가 재사용되므로 이전 실행의 상태를 먼저 전부 되돌립니다
 	ActiveSequence.Reset();
 	RingCenterTransform = FTransform::Identity;
 	StepIndex = 0;
 
-	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	const AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	if (!AvatarActor || Rings.IsEmpty() || SequencePool.IsEmpty())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -87,7 +87,7 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 		// 설정이 어긋난 상태이므로 판정 디버그 여부와 상관없이 항상 알립니다
 		UE_LOG(LogTemp, Warning, TEXT("%s picked an empty ring sequence at pool index %d"), *GetName(), PoolIndex);
 
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -96,7 +96,7 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	FVector RingCenterLocation = FVector::ZeroVector;
 	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, RingCenterLocation))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}

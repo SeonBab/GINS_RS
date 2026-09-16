@@ -200,7 +200,7 @@ URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_PizzaPattern::BeginPatternTimeline()
 {
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceShape = FRSCombatShape();
@@ -215,16 +215,16 @@ void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpec
 	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
 
-	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}

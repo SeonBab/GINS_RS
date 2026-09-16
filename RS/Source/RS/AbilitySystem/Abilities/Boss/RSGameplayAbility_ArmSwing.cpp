@@ -46,14 +46,14 @@ URSGameplayAbility_ArmSwing::URSGameplayAbility_ArmSwing()
 	Reaction.Type = ERSHitReactionType::Knockdown;
 }
 
-void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_ArmSwing::BeginPatternTimeline()
 {
 	ResetTransientState();
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!ActorInfo
-		|| !ActorInfo->AbilitySystemComponent.IsValid()
+	if (!CurrentActorInfo
+		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !GetBossContext(BossCharacter, BossController)
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
@@ -81,7 +81,7 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 		|| MaxAimDuration <= 0.0f)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Arm Swing because its runtime context or configuration is invalid"), *GetName());
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -89,7 +89,7 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 	AActor* TargetActor = BossController->GetTargetActor();
 	if (!BossController->IsTargetActorValid(TargetActor))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -99,9 +99,9 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 	AimSnapshotLocation = TargetActor->GetActorLocation();
 
 	// 검증과 선택이 끝나기 전에 Focus나 회전 설정을 바꾸면 실패한 활성화가 외부 상태를 남깁니다
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -178,6 +178,8 @@ void URSGameplayAbility_ArmSwing::EndAbility(const FGameplayAbilitySpecHandle Ha
 	bIsCleaningUp = true;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// 정리가 끝났으므로 플래그를 되돌립니다. 남겨 두면 다음 활성화의 선딜 구간에서 취소가 이 가드에 막혀 어빌리티가 끝나지 않습니다
+	bIsCleaningUp = false;
 }
 
 void URSGameplayAbility_ArmSwing::HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees)
@@ -559,7 +561,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackMontageCompleted()
 	}
 
 	MontageTask = nullptr;
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	FinishPatternWhenMontageEnds();
 }
 
 void URSGameplayAbility_ArmSwing::HandleAttackMontageInterrupted()

@@ -94,8 +94,17 @@ public:
 	virtual bool HasGimmickBreakCondition() const { return true; }
 
 protected:
-	/** 같은 인스턴스를 재사용하므로 이전 실행의 피격 기록이 남지 않게 시작할 때 초기화합니다 */
+	/**
+	 * 이전 실행의 상태를 되돌린 뒤 선딜만큼 기다렸다가 BeginPatternTimeline()을 부릅니다
+	 * 패턴이 이 함수를 재정의하지 않으므로 Super 호출을 빠뜨려 부모의 초기화가 통째로 건너뛰어지는 일이 생기지 않습니다
+	 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+	/**
+	 * 선딜이 끝나 이 패턴의 예고와 판정 타임라인을 시작해도 되는 시점입니다
+	 * 활성화 인자는 따로 받지 않고 CurrentSpecHandle, CurrentActorInfo와 CurrentActivationInfo를 사용합니다
+	 */
+	virtual void BeginPatternTimeline() PURE_VIRTUAL(URSBaseGameplayAbility_BossPattern::BeginPatternTimeline, );
 
 	/** 파훼 판정 결과를 페이즈 컴포넌트에 보고합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
@@ -179,6 +188,20 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
 	FRSBossPatternPresentation PatternPresentation;
 
+	/**
+	 * 활성화 직후 아무것도 하지 않고 서 있을 시간이며 예고와 연출도 이 뒤에 시작합니다
+	 * 0이면 대기 없이 같은 프레임에 타임라인을 시작하므로 이 값을 두기 전과 동작이 같습니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float WindupDuration = 0.0f;
+
+	/**
+	 * 타임라인과 Montage가 모두 끝난 뒤 서 있을 시간이며 기존 종료 시점에 더해집니다
+	 * 취소로 끝나는 경우에는 기다리지 않고 즉시 종료합니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
+	float RecoveryDuration = 0.0f;
+
 private:
 	/**
 	 * 연출 항목을 모두 재생하며 형상이 없으면 채우기 항목도 넘겨받은 지점에서 재생합니다
@@ -191,6 +214,14 @@ private:
 	UFUNCTION()
 	void HandlePatternMontageFinished();
 
+	/** 선딜 대기가 끝나 패턴 타임라인을 시작합니다 */
+	UFUNCTION()
+	void HandleWindupFinished();
+
+	/** 후딜 대기가 끝나 보류한 정상 종료를 진행합니다 */
+	UFUNCTION()
+	void HandleRecoveryFinished();
+
 	/** 타임라인과 Montage가 모두 끝났을 때만 정상 종료합니다 */
 	void TryFinishPattern();
 
@@ -199,6 +230,9 @@ private:
 
 	/** 패턴이 자기 타임라인을 끝내고 정상 종료를 요청했는지 나타냅니다 */
 	bool bPatternTimelineFinished = false;
+
+	/** 후딜을 기다리는 중인지 나타내며 같은 대기를 두 번 시작하지 않게 막습니다 */
+	bool bIsInPatternRecovery = false;
 
 	/** 재생을 요청했고 아직 끝나지 않은 Montage의 개수입니다 */
 	int32 PendingPatternMontageCount = 0;

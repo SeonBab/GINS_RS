@@ -61,7 +61,7 @@ public:
 
 protected:
 	/** 플레이어 방향과 네 착지점을 한 번 확정하고 포효·투하 대기를 시작합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 취소된 포효 Montage의 공용 상태를 회수합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

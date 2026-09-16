@@ -88,7 +88,7 @@ public:
 
 protected:
 	/** 첫 Interval 대기를 시작하고 이후 같은 간격으로 낙석을 예약합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 새 예약을 막고 모든 Pending Rock과 재생 중인 낙하 Niagara를 정리합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

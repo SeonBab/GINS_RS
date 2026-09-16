@@ -26,7 +26,7 @@ URSGameplayAbility_MeteorHazard::URSGameplayAbility_MeteorHazard()
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 }
 
-void URSGameplayAbility_MeteorHazard::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_MeteorHazard::BeginPatternTimeline()
 {
 	CapturedTargetActor.Reset();
 	ActiveMeteorHazard = nullptr;
@@ -34,16 +34,16 @@ void URSGameplayAbility_MeteorHazard::ActivateAbility(const FGameplayAbilitySpec
 	bHazardActivated = false;
 	bRoarMontageFinished = !RoarMontage;
 
-	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !MeteorHazardClass || !CaptureTargetActor(ActorInfo))
+	if (!CurrentActorInfo || !CurrentActorInfo->AbilitySystemComponent.IsValid() || !MeteorHazardClass || !CaptureTargetActor(CurrentActorInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -204,6 +204,6 @@ void URSGameplayAbility_MeteorHazard::TryFinishAbility()
 {
 	if (IsActive() && bHazardActivated && bRoarMontageFinished)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 	}
 }

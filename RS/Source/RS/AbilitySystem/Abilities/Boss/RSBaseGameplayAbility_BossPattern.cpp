@@ -4,6 +4,7 @@
 #include "RSBaseGameplayAbility_BossPattern.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
@@ -27,11 +28,31 @@ void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilityS
 
 	// InstancedPerActor라 인스턴스가 재사용되므로 이전 실행의 Montage 게이트 상태를 먼저 되돌립니다
 	bPatternTimelineFinished = false;
+	bIsInPatternRecovery = false;
 	PendingPatternMontageCount = 0;
 	PatternMontageTasks.Reset();
 	PlayedPatternMontages.Reset();
 
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+	if (WindupDuration <= 0.0f)
+	{
+		BeginPatternTimeline();
+
+		return;
+	}
+
+	UAbilityTask_WaitDelay* WindupTask = UAbilityTask_WaitDelay::WaitDelay(this, WindupDuration);
+	if (!WindupTask)
+	{
+		// 대기를 만들지 못했다고 패턴 자체를 버리면 보스가 아무것도 하지 않는 차례가 생기므로 선딜만 포기합니다
+		BeginPatternTimeline();
+
+		return;
+	}
+
+	WindupTask->OnFinish.AddDynamic(this, &ThisClass::HandleWindupFinished);
+	WindupTask->ReadyForActivation();
 }
 
 void URSBaseGameplayAbility_BossPattern::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
@@ -41,6 +62,7 @@ void URSBaseGameplayAbility_BossPattern::EndAbility(const FGameplayAbilitySpecHa
 	PatternMontageTasks.Reset();
 	PendingPatternMontageCount = 0;
 	bPatternTimelineFinished = false;
+	bIsInPatternRecovery = false;
 
 	for (UAbilityTask_PlayMontageAndWait* MontageTask : TasksToEnd)
 	{
@@ -271,15 +293,44 @@ void URSBaseGameplayAbility_BossPattern::HandlePatternMontageFinished()
 	TryFinishPattern();
 }
 
+void URSBaseGameplayAbility_BossPattern::HandleWindupFinished()
+{
+	BeginPatternTimeline();
+}
+
+void URSBaseGameplayAbility_BossPattern::HandleRecoveryFinished()
+{
+	if (!IsActive())
+	{
+		return;
+	}
+
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
 void URSBaseGameplayAbility_BossPattern::TryFinishPattern()
 {
-	if (!bPatternTimelineFinished || PendingPatternMontageCount > 0 || !IsActive())
+	if (!bPatternTimelineFinished || PendingPatternMontageCount > 0 || !IsActive() || bIsInPatternRecovery)
 	{
 		return;
 	}
 
 	// EndAbility가 남은 Task를 끝내며 다시 이 경로로 돌아올 수 있으므로 요청을 먼저 내립니다
 	bPatternTimelineFinished = false;
+
+	if (RecoveryDuration > 0.0f)
+	{
+		if (UAbilityTask_WaitDelay* RecoveryTask = UAbilityTask_WaitDelay::WaitDelay(this, RecoveryDuration))
+		{
+			// 대기 중에 Montage 신호가 다시 들어와도 같은 대기를 겹쳐 시작하지 않게 막습니다
+			bIsInPatternRecovery = true;
+
+			RecoveryTask->OnFinish.AddDynamic(this, &ThisClass::HandleRecoveryFinished);
+			RecoveryTask->ReadyForActivation();
+
+			return;
+		}
+	}
 
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
