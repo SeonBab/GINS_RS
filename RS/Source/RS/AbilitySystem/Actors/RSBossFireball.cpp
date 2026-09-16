@@ -161,6 +161,7 @@ void ARSBossFireball::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	AbilitySystemComp->CancelAbilities();
 	GrantedAbilityHandles.TakeFromAbilitySystem(AbilitySystemComp);
 	HealthComp->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleDeathStarted);
+	HealthComp->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleHealthChanged);
 	FireballNiagaraComp->DeactivateImmediate();
 	FireFieldNiagaraComp->DeactivateImmediate();
 
@@ -225,12 +226,22 @@ void ARSBossFireball::InitializeAbilitySystem()
 	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), FireballDefinition.RequiredHitCount);
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
+	HealthComp->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
 	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
 }
 
 void ARSBossFireball::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 {
 	RequestCleanup();
+}
+
+void ARSBossFireball::HandleHealthChanged(URSHealthComponent* InHealthComponent, float OldValue, float NewValue)
+{
+	// 충전 중에만 위젯이 보이며 그 밖의 상태에서는 갱신할 칸이 없습니다
+	if (FireballState == ERSBossFireballState::Charging)
+	{
+		UpdateHitPointWidget();
+	}
 }
 
 void ARSBossFireball::RequestCleanup()
@@ -284,6 +295,7 @@ void ARSBossFireball::BeginCharging()
 	BoxComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	ChargeWidgetComp->SetVisibility(true);
 	UpdateChargeWidget(0.0f);
+	UpdateHitPointWidget();
 	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
 	SetActorTickEnabled(true);
 }
@@ -364,8 +376,8 @@ void ARSBossFireball::ApplyFireFieldDamage()
 	}
 
 	FRSCombatShape FireFieldShape;
-	FireFieldShape.Type = ERSCombatShapeType::Sphere;
-	FireFieldShape.Radius = FireballDefinition.FireFieldRadius;
+	FireFieldShape.Type = ERSCombatShapeType::AnnularSector;
+	FireFieldShape.OuterRadius = FireballDefinition.FireFieldRadius;
 	FireFieldShape.InnerRadius = 0.0f;
 
 	TArray<AActor*> HitTargets;
@@ -390,6 +402,15 @@ void ARSBossFireball::UpdateChargeWidget(float Progress)
 	if (URSFireballChargeWidget* ChargeWidget = Cast<URSFireballChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
 	{
 		ChargeWidget->SetChargeProgress(Progress);
+	}
+}
+
+void ARSBossFireball::UpdateHitPointWidget()
+{
+	if (URSFireballChargeWidget* ChargeWidget = Cast<URSFireballChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
+	{
+		// 필요 타격 수를 최대 체력으로 두고 피해를 1로 정규화하므로 남은 체력이 곧 남은 타격 수입니다
+		ChargeWidget->SetHitPoints(FMath::RoundToInt(HealthComp->GetHealth()), FMath::RoundToInt(HealthComp->GetMaxHealth()));
 	}
 }
 
