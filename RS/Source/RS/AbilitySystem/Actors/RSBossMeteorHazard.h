@@ -7,7 +7,6 @@
 #include "RSBossMeteorHazard.generated.h"
 
 class UNiagaraComponent;
-class UNiagaraSystem;
 class USceneComponent;
 class URSAttackTelegraphComponent;
 class URSBossPersistentObjectLifetimeComponent;
@@ -85,7 +84,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 #if WITH_EDITOR
-	/** 시간, 반경과 Niagara 크기 기준을 검사합니다 */
+	/** 시간, 반경과 두 Niagara Component의 Asset 설정을 검사합니다 */
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 #endif
 
@@ -157,9 +156,11 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> SceneRoot;
 
+	/** 100% 전까지 목표 위치에 표시할 낙하 Niagara이며 재생할 System은 Blueprint에서 이 Component의 Asset에 지정합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> FallingNiagaraComp;
 
+	/** 100%에서 고정 위치에 시작할 장판 Niagara이며 재생할 System과 보이는 크기를 Blueprint에서 이 Component의 Asset과 User Parameter로 지정합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> HazardNiagaraComp;
 
@@ -170,18 +171,6 @@ private:
 	/** 운석 예고와 장판의 시간, 범위와 수명 설정입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	FRSBossMeteorHazardDefinition MeteorHazardDefinition;
-
-	/** 100% 전까지 목표 위치에 표시할 낙하 Niagara입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UNiagaraSystem> FallingNiagaraSystem;
-
-	/** 100%에서 고정 위치에 시작할 장판 Niagara입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UNiagaraSystem> HazardNiagaraSystem;
-
-	/** 장판 Niagara 에셋이 Scale 1에서 표현하는 수평 반경입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
-	float HazardNiagaraBaseRadius = 50.0f;
 
 	/** 장판 HitCheck가 플레이어 HurtBox를 찾을 채널입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Damage", meta = (AllowPrivateAccess = "true"))

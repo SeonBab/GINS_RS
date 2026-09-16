@@ -9,7 +9,6 @@
 #include "Curves/CurveFloat.h"
 #include "Engine/World.h"
 #include "NiagaraComponent.h"
-#include "NiagaraSystem.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
 #include "RSFireballChargeWidget.h"
@@ -141,9 +140,6 @@ void ARSBossFireball::BeginPlay()
 	InitializeAbilitySystem();
 	PersistentObjectLifetimeComp->OnCleanupRequired().AddUObject(this, &ThisClass::RequestCleanup);
 	PersistentObjectLifetimeComp->StartObserving(GetOwner(), FireballDefinition.SpecialPatternCleanupOffset);
-	FireballNiagaraComp->SetAsset(FireballNiagaraSystem);
-	FireFieldNiagaraComp->SetAsset(FireFieldNiagaraSystem);
-	UpdateFireFieldNiagaraScale();
 	ChargeWidgetComp->SetWidgetClass(ChargeWidgetClass);
 
 	if (!FireballDefinition.IsDataValid())
@@ -195,9 +191,15 @@ EDataValidationResult ARSBossFireball::IsDataValid(FDataValidationContext& Conte
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
+	if (!FireballNiagaraComp || !FireballNiagaraComp->GetAsset())
 	{
-		Context.AddError(FText::FromString(TEXT("FireFieldNiagaraBaseRadius must be a finite value greater than zero.")));
+		Context.AddError(FText::FromString(TEXT("FireballNiagaraComponent has no Niagara System asset.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!FireFieldNiagaraComp || !FireFieldNiagaraComp->GetAsset())
+	{
+		Context.AddError(FText::FromString(TEXT("FireFieldNiagaraComponent has no Niagara System asset.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -252,10 +254,7 @@ void ARSBossFireball::BeginFalling()
 	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
 
-	if (FireballNiagaraSystem)
-	{
-		FireballNiagaraComp->Activate(true);
-	}
+	FireballNiagaraComp->Activate(true);
 
 	SetActorTickEnabled(true);
 }
@@ -348,29 +347,13 @@ void ARSBossFireball::BeginFireField()
 	FireballNiagaraComp->Deactivate();
 	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
-	UpdateFireFieldNiagaraScale();
-
-	if (FireFieldNiagaraSystem)
-	{
-		FireFieldNiagaraComp->Activate(true);
-	}
+	FireFieldNiagaraComp->Activate(true);
 
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(FireFieldDamageTimerHandle, this, &ThisClass::ApplyFireFieldDamage, FireballDefinition.DamageInterval, true, FireballDefinition.DamageInterval);
 		World->GetTimerManager().SetTimer(FireFieldLifetimeTimerHandle, this, &ThisClass::RequestCleanup, FireballDefinition.FireFieldDuration, false);
 	}
-}
-
-void ARSBossFireball::UpdateFireFieldNiagaraScale()
-{
-	if (!FMath::IsFinite(FireFieldNiagaraBaseRadius) || FireFieldNiagaraBaseRadius <= 0.0f)
-	{
-		return;
-	}
-
-	const float HorizontalScale = FireballDefinition.FireFieldRadius / FireFieldNiagaraBaseRadius;
-	FireFieldNiagaraComp->SetRelativeScale3D(FVector(HorizontalScale, HorizontalScale, 1.0f));
 }
 
 void ARSBossFireball::ApplyFireFieldDamage()
