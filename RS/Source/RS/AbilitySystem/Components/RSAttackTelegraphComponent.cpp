@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RSAttackTelegraphComponent.h"
 
@@ -9,7 +9,6 @@
 namespace
 {
 	constexpr float RadialShapeMode = 0.0f;
-	constexpr float ConeShapeMode = 1.0f;
 	constexpr float AngularSectorShapeMode = 2.0f;
 	constexpr float RadialFillMode = 0.0f;
 	constexpr float AngularFillMode = 1.0f;
@@ -290,40 +289,40 @@ void URSAttackTelegraphComponent::SetUpSlotDecal(FRSTelegraphSlot& Slot, const F
 	// DecalSize가 곧 판정 범위이므로 형상에서 파생시켜 표시와 판정이 1:1로 대응하게 합니다
 	// X는 투영 깊이, Y와 Z는 투영 사각형의 반크기입니다
 	// Box 형상은 아직 예고를 쓰는 소비자가 없어 가장 긴 축으로 정사각형을 만드는 임시 값입니다
+	const bool bIsAnnularSector = Slot.Shape.Type == ERSCombatShapeType::AnnularSector;
+	const FRSAnnularSectorBounds SectorBounds = Slot.Shape.GetAnnularSectorBounds();
+
 	float ShapeHalfSize = Slot.Shape.BoxExtent.GetMax();
-	if (Slot.Shape.Type == ERSCombatShapeType::Sphere)
+	if (bIsAnnularSector)
 	{
-		ShapeHalfSize = Slot.Shape.Radius;
-	}
-	else if (Slot.Shape.Type == ERSCombatShapeType::Cone)
-	{
-		ShapeHalfSize = Slot.Shape.Range;
+		ShapeHalfSize = SectorBounds.OuterRadius;
 	}
 	Slot.Decal->DecalSize = FVector(ProjectionDepth, ShapeHalfSize, ShapeHalfSize);
 
 	// DecalSize에는 Setter가 없어 직접 대입하므로, 슬롯을 재사용할 때 이전 크기가 남지 않도록 렌더 상태를 무효화합니다
 	Slot.Decal->MarkRenderStateDirty();
 
-	// 직접 만든 DecalComponent는 회전을 처리하지 않으므로 바닥을 향하도록 직접 눕힙니다
-	const FRotator GroundProjectionRotation(-90.0f, ShapeTransform.GetRotation().Rotator().Yaw, 0.0f);
-	Slot.Decal->SetWorldLocationAndRotation(ShapeTransform.GetLocation(), GroundProjectionRotation);
-	Slot.ProjectionYawOffset = 0.0f;
+	// 모든 각도를 덮는 형상은 시작 경계가 의미를 갖지 않으므로 회전을 돌리지 않습니다
+	const bool bCoversEveryAngle = !bIsAnnularSector || SectorBounds.CoversEveryAngle();
+	const float ProjectionYawOffset = bCoversEveryAngle ? 0.0f : SectorBounds.StartYawOffset;
 
-	const bool bUseConeMask = Slot.Shape.Type == ERSCombatShapeType::Cone;
-	const float InnerRatio = Slot.Shape.Type == ERSCombatShapeType::Sphere && Slot.Shape.Radius > 0.0f
-		? Slot.Shape.InnerRadius / Slot.Shape.Radius
+	// 직접 만든 DecalComponent는 회전을 처리하지 않으므로 바닥을 향하도록 직접 눕힙니다
+	const FRotator GroundProjectionRotation(-90.0f, ShapeTransform.GetRotation().Rotator().Yaw + ProjectionYawOffset, 0.0f);
+	Slot.Decal->SetWorldLocationAndRotation(ShapeTransform.GetLocation(), GroundProjectionRotation);
+	Slot.ProjectionYawOffset = ProjectionYawOffset;
+
+	// 꽉 찬 원과 도넛은 각도 마스크가 필요 없어 기존 Radial 경로를 그대로 씁니다
+	// 부채꼴만 시작 경계와 Sweep을 읽는 Angular Sector 경로로 보내며, 이제 안쪽 반지름도 함께 반영됩니다
+	const float InnerRatio = bIsAnnularSector && SectorBounds.OuterRadius > 0.0f
+		? SectorBounds.InnerRadius / SectorBounds.OuterRadius
 		: 0.0f;
-	const float ConeHalfAngleCos = bUseConeMask
-		? FMath::Cos(FMath::DegreesToRadians(Slot.Shape.Angle * 0.5f))
-		: 1.0f;
 
 	// 슬롯의 MID는 다른 Shape가 재사용할 수 있으므로 Shape 관련 값을 항상 완전한 상태로 다시 씁니다
 	Slot.MaterialInstance->SetScalarParameterValue(AlphaParameterName, 1.0f);
-	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, bUseConeMask ? ConeShapeMode : RadialShapeMode);
+	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, bCoversEveryAngle ? RadialShapeMode : AngularSectorShapeMode);
 	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, RadialFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, InnerRatio);
-	Slot.MaterialInstance->SetScalarParameterValue(ConeHalfAngleCosParameterName, ConeHalfAngleCos);
-	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, 360.0f);
+	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, bCoversEveryAngle ? 360.0f : SectorBounds.SweepAngleDegrees);
 
 	Slot.Decal->SetVisibility(true);
 }
@@ -363,7 +362,6 @@ bool URSAttackTelegraphComponent::SetUpAnnularSectorDecal(FRSTelegraphSlot& Slot
 	Slot.MaterialInstance->SetScalarParameterValue(ShapeModeParameterName, AngularSectorShapeMode);
 	Slot.MaterialInstance->SetScalarParameterValue(FillModeParameterName, AngularFillMode);
 	Slot.MaterialInstance->SetScalarParameterValue(InnerRatioParameterName, Definition.InnerRadius / Definition.OuterRadius);
-	Slot.MaterialInstance->SetScalarParameterValue(ConeHalfAngleCosParameterName, 1.0f);
 	Slot.MaterialInstance->SetScalarParameterValue(SweepAngleDegreesParameterName, Definition.SweepAngleDegrees);
 
 	return true;

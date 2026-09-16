@@ -72,9 +72,11 @@ private:
 
 	/**
 	 * 이 스텝에서 안전한 링을 뺀 나머지 링 형상을 모읍니다
+	 * 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 각 링의 안쪽 경계를 캡슐 반지름까지 밀어 올립니다
+	 * 예고와 판정이 같은 목록을 써야 표시와 실제 범위가 어긋나지 않으므로 두 스텝이 이 함수를 공유합니다
 	 * 시퀀스 항목이 없는 링을 가리키면 어느 링이 안전한지 알 수 없으므로 채우지 않고 실패를 알립니다
 	 */
-	bool TryGetDangerRingShapes(int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const;
+	bool TryGetDangerRingShapes(const AActor& AvatarActor, int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const;
 
 	/** 예고 스텝입니다. 데미지 없이 공격받을 링들을 표시만 하며 비어 있는 링이 안전한 곳입니다 */
 	void PreviewDangerRings(const AActor& AvatarActor, int32 SequenceIndex);
@@ -86,6 +88,7 @@ private:
 	/**
 	 * 보스를 중심으로 하는 링 목록이며 안쪽부터 반경 오름차순으로 나열합니다
 	 * 가장 안쪽은 도넛이 아니라 꽉 찬 원이어야 합니다. 중심에 구멍이 있으면 어느 링이 안전하든 거기 서서 패턴 전체를 무시할 수 있습니다
+	 * 여기 적은 InnerRadius는 하한이며, 런타임에는 보스 캡슐 반지름보다 안쪽으로 내려가지 않습니다
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings", meta = (AllowPrivateAccess = "true"))
 	TArray<FRSCombatShape> Rings;

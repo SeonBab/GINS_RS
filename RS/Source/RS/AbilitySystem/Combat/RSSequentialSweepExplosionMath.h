@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "RSCombatFunctionLibrary.h"
@@ -24,8 +24,12 @@ namespace RSSequentialSweepExplosionMath
 	/** 지정한 부채꼴의 시작 Offset과 시계 방향 Sweep 각도를 계산합니다 */
 	bool TryCalculateSectorAngles(float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, float& OutStartAngleOffsetDegrees, float& OutSweepAngleDegrees);
 
-	/** 대상 위치가 바깥 반경과 양쪽 각도 경계를 포함한 지정 부채꼴에 속하는지 반환합니다 */
-	bool IsLocationInSector(const FTransform& LockedTransform, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, const FVector& TargetLocation);
+	/**
+	 * 대상 위치가 지정한 조각에 속하는지 반환하며 예고, 연출과 같은 형상을 만들어 공용 커널에 넘깁니다
+	 * 반지름 [Inner, Outer), 각도 [Start, Start + Sweep)의 반개구간이므로 인접한 두 조각이 경계 대상을 나눠 갖지 않습니다
+	 * InnerRadius는 호출자가 이번 활성화에 확정한 하한이며 그 안쪽은 판정에서 빠집니다
+	 */
+	bool IsLocationInSector(const FTransform& LockedTransform, float InnerRadius, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, const FVector& TargetLocation);
 
 	/**
 	 * 지정한 부채꼴을 Telegraph 표시와 연출 채우기가 함께 쓸 Cone 형상과 중심 Transform으로 변환합니다

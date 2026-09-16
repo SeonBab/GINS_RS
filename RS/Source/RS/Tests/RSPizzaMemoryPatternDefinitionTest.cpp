@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include <limits>
 
@@ -22,6 +22,22 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cue timings use the memory cue gap"), CueTimings.CueGap, Definition.MemoryCueGap);
 	TestEqual(TEXT("Cue timings use the recall delay"), CueTimings.RecallDelay, Definition.RecallDelay);
 	TestEqual(TEXT("Cue timings use the explosion interval"), CueTimings.ExplosionInterval, Definition.ExplosionInterval);
+
+	// 예고, 판정과 연출이 같은 조각을 쓰므로 하한도 이 한 곳에서 걸립니다
+	FRSCombatShape SliceShape;
+	TestTrue(TEXT("A slice shape without a floor is built"), Definition.TryMakeSliceShape(0.0f, SliceShape));
+	TestEqual(TEXT("A slice shape without a floor starts at the center"), SliceShape.InnerRadius, 0.0f);
+	TestEqual(TEXT("A slice shape uses the authored outer radius"), SliceShape.OuterRadius, Definition.OuterRadius);
+	TestEqual(TEXT("A slice shape spans one slice"), SliceShape.SweepAngleDegrees, Definition.CalculateSliceAngleDegrees());
+
+	FRSCombatShape FlooredSliceShape;
+	TestTrue(TEXT("A floored slice shape is built"), Definition.TryMakeSliceShape(120.0f, FlooredSliceShape));
+	TestEqual(TEXT("A floored slice shape starts at the floor"), FlooredSliceShape.InnerRadius, 120.0f);
+	TestEqual(TEXT("A floored slice shape keeps its angle"), FlooredSliceShape.SweepAngleDegrees, Definition.CalculateSliceAngleDegrees());
+
+	// 보스가 조각 전체를 삼키면 판정할 면적이 없으므로 패턴이 그 사실을 알아야 합니다
+	FRSCombatShape SwallowedSliceShape;
+	TestFalse(TEXT("A floor beyond the outer radius leaves no slice"), Definition.TryMakeSliceShape(Definition.OuterRadius, SwallowedSliceShape));
 
 	TArray<ERSPizzaMemorySafePair> CopiedSafePairs;
 	TestTrue(TEXT("Default candidate can be copied"), Definition.TryCopySafeZoneSequenceCandidate(0, CopiedSafePairs));

@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 #include "AbilitySystemComponent.h"
@@ -32,49 +32,50 @@ bool FRSCombatShapeTest::RunTest(const FString& Parameters)
 	BoxValidationShape.BoxExtent.Z = 0.0f;
 	TestFalse(TEXT("Box rejects a zero extent"), BoxValidationShape.IsDataValid());
 
-	FRSCombatShape SphereValidationShape;
-	SphereValidationShape.Type = ERSCombatShapeType::Sphere;
-	TestTrue(TEXT("Default sphere data is valid"), SphereValidationShape.IsDataValid());
-	SphereValidationShape.Radius = 0.0f;
-	TestFalse(TEXT("Sphere rejects a zero radius"), SphereValidationShape.IsDataValid());
-	SphereValidationShape.Radius = 100.0f;
-	SphereValidationShape.InnerRadius = 100.0f;
-	TestFalse(TEXT("Sphere rejects an inner radius at its outer boundary"), SphereValidationShape.IsDataValid());
+	FRSCombatShape SectorValidationShape;
+	SectorValidationShape.Type = ERSCombatShapeType::AnnularSector;
 
-	FRSCombatShape Cone;
-	Cone.Type = ERSCombatShapeType::Cone;
-	Cone.Range = 100.0f;
-	Cone.Angle = 90.0f;
+	// 바깥 반지름 기본값 0은 아직 정하지 않았다는 뜻이라 검증에서 걸립니다
+	TestFalse(TEXT("A sector without an outer radius is rejected"), SectorValidationShape.IsDataValid());
+
+	SectorValidationShape.OuterRadius = 100.0f;
 
 	FString ValidationError;
-	TestTrue(TEXT("Valid cone data"), Cone.IsDataValid(&ValidationError));
-	TestTrue(TEXT("Valid cone has no validation error"), ValidationError.IsEmpty());
+	TestTrue(TEXT("A full circle sector is valid"), SectorValidationShape.IsDataValid(&ValidationError));
+	TestTrue(TEXT("Valid sector data has no validation error"), ValidationError.IsEmpty());
 
-	Cone.Range = 0.0f;
-	TestFalse(TEXT("Cone rejects zero range"), Cone.IsDataValid());
-	Cone.Range = 100.0f;
-	Cone.Angle = 0.0f;
-	TestFalse(TEXT("Cone rejects zero angle"), Cone.IsDataValid());
-	Cone.Angle = 180.0f;
-	TestTrue(TEXT("Cone accepts 180 degrees"), Cone.IsDataValid());
-	Cone.Angle = 180.01f;
-	TestFalse(TEXT("Cone rejects angles over 180 degrees"), Cone.IsDataValid());
-	Cone.Angle = 90.0f;
+	SectorValidationShape.InnerRadius = 100.0f;
+	TestFalse(TEXT("A sector rejects an inner radius at its outer boundary"), SectorValidationShape.IsDataValid());
+	SectorValidationShape.InnerRadius = 0.0f;
 
-	const FTransform ConeTransform(FRotator::ZeroRotator, FVector::ZeroVector);
-	TestTrue(TEXT("Cone includes its origin in XY"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(0.0f, 0.0f, 500.0f)));
-	TestTrue(TEXT("Cone includes its range boundary"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(100.0f, 0.0f, 0.0f)));
-	TestFalse(TEXT("Cone excludes beyond its range"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(100.1f, 0.0f, 0.0f)));
+	SectorValidationShape.SweepAngleDegrees = 0.0f;
+	TestFalse(TEXT("A sector rejects a zero sweep"), SectorValidationShape.IsDataValid());
 
-	const float BoundaryCoordinate = 50.0f * FMath::InvSqrt(2.0f);
-	TestTrue(TEXT("Cone includes its angle boundary"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(BoundaryCoordinate, BoundaryCoordinate, 0.0f)));
-	TestFalse(TEXT("Cone excludes outside its angle"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(50.0f, 51.0f, 0.0f)));
-	TestFalse(TEXT("Cone excludes points behind it"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FVector(-10.0f, 0.0f, 0.0f)));
+	// 180도 상한은 Cone 시절의 정책이었고 환형 부채꼴은 한 바퀴까지 표현합니다
+	SectorValidationShape.SweepAngleDegrees = 270.0f;
+	TestTrue(TEXT("A sector accepts a sweep beyond half a turn"), SectorValidationShape.IsDataValid());
+	SectorValidationShape.SweepAngleDegrees = -90.0f;
+	TestTrue(TEXT("A sector accepts a negative sweep as its direction"), SectorValidationShape.IsDataValid());
+	SectorValidationShape.SweepAngleDegrees = 360.01f;
+	TestFalse(TEXT("A sector rejects a sweep beyond a full turn"), SectorValidationShape.IsDataValid());
 
-	const FTransform RotatedConeTransform(FRotator(0.0f, 90.0f, 0.0f), FVector::ZeroVector);
-	TestTrue(TEXT("Cone follows transform yaw"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, RotatedConeTransform, FVector(0.0f, 50.0f, 0.0f)));
-	const FTransform VerticalForwardTransform(FRotator(90.0f, 0.0f, 0.0f), FVector::ZeroVector);
-	TestFalse(TEXT("Cone rejects a transform without horizontal forward"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, VerticalForwardTransform, FVector(10.0f, 0.0f, 0.0f)));
+	// 전방 대칭 90도 부채꼴이라 예전 Cone과 같은 범위를 덮습니다
+	SectorValidationShape.SweepAngleDegrees = 90.0f;
+	SectorValidationShape.StartYawOffset = -45.0f;
+
+	const FTransform SectorTransform(FRotator::ZeroRotator, FVector::ZeroVector);
+	const FRSAnnularSectorBounds ValidationBounds = SectorValidationShape.GetAnnularSectorBounds();
+	TestTrue(TEXT("A pivot touching sector includes its own pivot"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(0.0f, 0.0f, 500.0f)));
+	TestTrue(TEXT("A sector includes a location well inside it"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(50.0f, 0.0f, 0.0f)));
+
+	// 회전과 이동이 없어 왕복 변환에 오차가 없으므로 바깥 경계 값을 그대로 비교할 수 있습니다
+	TestFalse(TEXT("A sector excludes its open outer boundary"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(100.0f, 0.0f, 0.0f)));
+	TestFalse(TEXT("A sector excludes beyond its outer radius"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(100.1f, 0.0f, 0.0f)));
+	TestFalse(TEXT("A sector excludes a location outside its angle"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(50.0f, 51.0f, 0.0f)));
+	TestFalse(TEXT("A sector excludes locations behind it"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ValidationBounds, FVector(-10.0f, 0.0f, 0.0f)));
+
+	const FTransform RotatedSectorTransform(FRotator(0.0f, 90.0f, 0.0f), FVector::ZeroVector);
+	TestTrue(TEXT("A sector follows transform yaw"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(RotatedSectorTransform, ValidationBounds, FVector(0.0f, 50.0f, 0.0f)));
 
 	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("RSCombatShapeTestWorld"), EUniqueObjectNameOptions::GloballyUnique);
 	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
@@ -85,17 +86,19 @@ bool FRSCombatShapeTest::RunTest(const FString& Parameters)
 	AActor* Attacker = TestWorld->SpawnActor<AActor>();
 	ARSCombatShapeTestActor* Target = TestWorld->SpawnActor<ARSCombatShapeTestActor>();
 
-	Target->SetActorLocation(FVector(100.0f, 0.0f, 0.0f));
-	TestTrue(TEXT("FindTargetsInShape includes cone range boundary"), RSCombatShapeTest::ContainsTarget(*Attacker, Cone, ConeTransform, *Target));
+	Target->SetActorLocation(FVector(50.0f, 0.0f, 0.0f));
+	TestTrue(TEXT("FindTargetsInShape includes a target inside the sector"), RSCombatShapeTest::ContainsTarget(*Attacker, SectorValidationShape, SectorTransform, *Target));
 	Target->GetAbilitySystemComponent()->AddLooseGameplayTag(RSGameplayTags::State_Dead);
-	TestFalse(TEXT("FindTargetsInShape keeps excluding dead targets"), RSCombatShapeTest::ContainsTarget(*Attacker, Cone, ConeTransform, *Target));
+	TestFalse(TEXT("FindTargetsInShape keeps excluding dead targets"), RSCombatShapeTest::ContainsTarget(*Attacker, SectorValidationShape, SectorTransform, *Target));
 	Target->GetAbilitySystemComponent()->RemoveLooseGameplayTag(RSGameplayTags::State_Dead);
+	Target->SetActorLocation(FVector(100.0f, 0.0f, 0.0f));
+	TestFalse(TEXT("FindTargetsInShape excludes the open outer boundary"), RSCombatShapeTest::ContainsTarget(*Attacker, SectorValidationShape, SectorTransform, *Target));
 	Target->SetActorLocation(FVector(-10.0f, 0.0f, 0.0f));
-	TestFalse(TEXT("FindTargetsInShape applies cone angle filter"), RSCombatShapeTest::ContainsTarget(*Attacker, Cone, ConeTransform, *Target));
+	TestFalse(TEXT("FindTargetsInShape applies the sector angle filter"), RSCombatShapeTest::ContainsTarget(*Attacker, SectorValidationShape, SectorTransform, *Target));
 
 	FRSCombatShape Sphere;
-	Sphere.Type = ERSCombatShapeType::Sphere;
-	Sphere.Radius = 100.0f;
+	Sphere.Type = ERSCombatShapeType::AnnularSector;
+	Sphere.OuterRadius = 100.0f;
 	Sphere.InnerRadius = 0.0f;
 	Target->SetActorLocation(FVector(100.0f, 0.0f, 0.0f));
 	TestFalse(TEXT("Sphere keeps excluding its outer boundary"), RSCombatShapeTest::ContainsTarget(*Attacker, Sphere, FTransform::Identity, *Target));
@@ -129,9 +132,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSConeFillTest, "RS.Combat.ConeFill", EAutomat
 bool FRSConeFillTest::RunTest(const FString& Parameters)
 {
 	FRSCombatShape Cone;
-	Cone.Type = ERSCombatShapeType::Cone;
-	Cone.Range = 600.0f;
-	Cone.Angle = 90.0f;
+	Cone.Type = ERSCombatShapeType::AnnularSector;
+	Cone.OuterRadius = 600.0f;
+	Cone.StartYawOffset = -45.0f;
+	Cone.SweepAngleDegrees = 90.0f;
+	const FRSAnnularSectorBounds ConeBounds = Cone.GetAnnularSectorBounds();
 
 	constexpr float Spacing = 100.0f;
 	const FTransform ConeTransform(FRotator(0.0f, 35.0f, 0.0f), FVector(1200.0f, -400.0f, 250.0f));
@@ -154,7 +159,7 @@ bool FRSConeFillTest::RunTest(const FString& Parameters)
 	for (const FTransform& FillTransform : FillTransforms)
 	{
 		const FVector FillLocation = FillTransform.GetLocation();
-		if (!URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, FillLocation))
+		if (!URSCombatFunctionLibrary::IsLocationInsideAnnularSector(ConeTransform, ConeBounds, FillLocation))
 		{
 			bAllInsideCone = false;
 		}
@@ -190,14 +195,14 @@ bool FRSConeFillTest::RunTest(const FString& Parameters)
 
 	// 간격이 범위보다 넓어도 연출이 사라지면 안 되므로 중심선 가운데 한 개로 대신하는지 확인합니다
 	TArray<FTransform> SingleFillTransforms;
-	TestTrue(TEXT("Spacing wider than the range builds fill transforms"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Cone, ConeTransform, Cone.Range * 2.0f, SingleFillTransforms));
+	TestTrue(TEXT("Spacing wider than the range builds fill transforms"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Cone, ConeTransform, Cone.OuterRadius * 2.0f, SingleFillTransforms));
 	TestEqual(TEXT("Spacing wider than the range fills exactly one cell"), SingleFillTransforms.Num(), 1);
 
 	if (SingleFillTransforms.Num() == 1)
 	{
-		const FVector ExpectedCenter = ConeApex + ConeForward * (Cone.Range * 0.5f);
+		const FVector ExpectedCenter = ConeApex + ConeForward * (Cone.OuterRadius * 0.5f);
 		TestTrue(TEXT("The single fill transform sits at the cone center"), SingleFillTransforms[0].GetLocation().Equals(ExpectedCenter));
-		TestTrue(TEXT("The single fill transform stays inside the cone"), URSCombatFunctionLibrary::IsLocationInsideCone(Cone, ConeTransform, SingleFillTransforms[0].GetLocation()));
+		TestTrue(TEXT("The single fill transform stays inside the cone"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(ConeTransform, ConeBounds, SingleFillTransforms[0].GetLocation()));
 		TestTrue(TEXT("The single fill transform inherits the cone rotation"), SingleFillTransforms[0].GetRotation().Equals(ConeTransform.GetRotation()));
 	}
 
@@ -214,10 +219,10 @@ bool FRSConeFillTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Box shape fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(BoxShape, ConeTransform, Spacing, UntouchedTransforms));
 
 	FRSCombatShape InvalidCone;
-	InvalidCone.Type = ERSCombatShapeType::Cone;
-	InvalidCone.Range = 0.0f;
-	InvalidCone.Angle = 90.0f;
-	TestFalse(TEXT("Zero range cone fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(InvalidCone, ConeTransform, Spacing, UntouchedTransforms));
+	InvalidCone.Type = ERSCombatShapeType::AnnularSector;
+	InvalidCone.OuterRadius = 0.0f;
+	InvalidCone.SweepAngleDegrees = 90.0f;
+	TestFalse(TEXT("A sector without an outer radius fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(InvalidCone, ConeTransform, Spacing, UntouchedTransforms));
 
 	// 간격이 과도하게 좁으면 순회 자체가 폭주하므로 채우기 전에 상한으로 막습니다
 	TestFalse(TEXT("Runaway cell count fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Cone, ConeTransform, 1.0f, UntouchedTransforms));
@@ -232,8 +237,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSSphereFillTest, "RS.Combat.SphereFill", EAut
 bool FRSSphereFillTest::RunTest(const FString& Parameters)
 {
 	FRSCombatShape Donut;
-	Donut.Type = ERSCombatShapeType::Sphere;
-	Donut.Radius = 700.0f;
+	Donut.Type = ERSCombatShapeType::AnnularSector;
+	Donut.OuterRadius = 700.0f;
 	Donut.InnerRadius = 300.0f;
 
 	constexpr float Spacing = 100.0f;
@@ -253,7 +258,7 @@ bool FRSSphereFillTest::RunTest(const FString& Parameters)
 	{
 		const FVector FillLocation = FillTransform.GetLocation();
 		const float HorizontalDistance = FVector::Dist2D(FillLocation, DonutCenter);
-		if (HorizontalDistance < Donut.InnerRadius || HorizontalDistance > Donut.Radius)
+		if (HorizontalDistance < Donut.InnerRadius || HorizontalDistance > Donut.OuterRadius)
 		{
 			bAllInsideDonut = false;
 		}
@@ -283,13 +288,13 @@ bool FRSSphereFillTest::RunTest(const FString& Parameters)
 
 	// 간격이 범위보다 넓어도 연출이 사라지면 안 되므로 두 반지름 가운데 한 개로 대신하는지 확인합니다
 	TArray<FTransform> SingleFillTransforms;
-	TestTrue(TEXT("Spacing wider than the radius builds fill transforms"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Donut, DonutTransform, Donut.Radius * 2.0f, SingleFillTransforms));
+	TestTrue(TEXT("Spacing wider than the radius builds fill transforms"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Donut, DonutTransform, Donut.OuterRadius * 2.0f, SingleFillTransforms));
 	TestEqual(TEXT("Spacing wider than the radius fills exactly one cell"), SingleFillTransforms.Num(), 1);
 
 	if (SingleFillTransforms.Num() == 1)
 	{
 		const float SingleFillDistance = FVector::Dist2D(SingleFillTransforms[0].GetLocation(), DonutCenter);
-		TestTrue(TEXT("The single fill transform sits between both radii"), SingleFillDistance >= Donut.InnerRadius && SingleFillDistance <= Donut.Radius);
+		TestTrue(TEXT("The single fill transform sits between both radii"), SingleFillDistance >= Donut.InnerRadius && SingleFillDistance <= Donut.OuterRadius);
 		TestTrue(TEXT("The single fill transform inherits the donut rotation"), SingleFillTransforms[0].GetRotation().Equals(DonutTransform.GetRotation()));
 	}
 
@@ -300,8 +305,8 @@ bool FRSSphereFillTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Zero spacing fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(Donut, DonutTransform, 0.0f, UntouchedDonutTransforms));
 
 	FRSCombatShape InvalidDonut;
-	InvalidDonut.Type = ERSCombatShapeType::Sphere;
-	InvalidDonut.Radius = 200.0f;
+	InvalidDonut.Type = ERSCombatShapeType::AnnularSector;
+	InvalidDonut.OuterRadius = 200.0f;
 	InvalidDonut.InnerRadius = 400.0f;
 	TestFalse(TEXT("Inner radius larger than the outer radius fails"), URSCombatFunctionLibrary::BuildShapeFillTransforms(InvalidDonut, DonutTransform, Spacing, UntouchedDonutTransforms));
 
@@ -357,6 +362,242 @@ bool FRSActorGroundLocationTest::RunTest(const FString& Parameters)
 	TestWorld->RemoveFromRoot();
 	GEngine->DestroyWorldContext(TestWorld);
 	TestWorld->DestroyWorld(false);
+
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSPatternStartRadiusTest, "RS.Combat.PatternStartRadius", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSPatternStartRadiusTest::RunTest(const FString& Parameters)
+{
+	// 잘못된 입력에서 호출자가 이전 값을 그대로 쓰지 않도록 실패를 알리고 출력을 건드리지 않습니다
+	float UntouchedRadius = 7.0f;
+	TestFalse(TEXT("A null actor fails"), URSCombatFunctionLibrary::TryGetActorHorizontalRadius(nullptr, UntouchedRadius));
+	TestEqual(TEXT("A failed call leaves the output untouched"), UntouchedRadius, 7.0f);
+
+	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("RSPatternStartRadiusTestWorld"), EUniqueObjectNameOptions::GloballyUnique);
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	UWorld* TestWorld = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+	TestWorld->AddToRoot();
+	WorldContext.SetCurrentWorld(TestWorld);
+	TestWorld->InitializeActorsForPlay(FURL());
+
+	constexpr float CapsuleRadius = 40.0f;
+
+	ACharacter* TestCharacter = TestWorld->SpawnActor<ACharacter>();
+	TestCharacter->GetCapsuleComponent()->SetCapsuleSize(CapsuleRadius, 120.0f);
+
+	float HorizontalRadius = 0.0f;
+	TestTrue(TEXT("A character succeeds"), URSCombatFunctionLibrary::TryGetActorHorizontalRadius(TestCharacter, HorizontalRadius));
+	TestEqual(TEXT("A character reports its capsule radius"), HorizontalRadius, CapsuleRadius);
+
+	// 크기를 키운 보스의 시작 반경이 함께 커져야 하므로 Scale을 무시하지 않는지 확인합니다
+	constexpr float CapsuleScale = 2.0f;
+	TestCharacter->SetActorScale3D(FVector(CapsuleScale));
+	TestTrue(TEXT("A scaled character succeeds"), URSCombatFunctionLibrary::TryGetActorHorizontalRadius(TestCharacter, HorizontalRadius));
+	TestEqual(TEXT("A scaled character reports its scaled capsule radius"), HorizontalRadius, CapsuleRadius * CapsuleScale);
+
+	// 캡슐이 없는 액터도 같은 계약으로 받아야 호출처가 액터 타입을 나누지 않습니다
+	ARSCombatShapeTestActor* CapsulelessActor = TestWorld->SpawnActor<ARSCombatShapeTestActor>();
+	TestTrue(TEXT("An actor without a capsule succeeds"), URSCombatFunctionLibrary::TryGetActorHorizontalRadius(CapsulelessActor, HorizontalRadius));
+	TestEqual(TEXT("An actor without a capsule reports its simple collision radius"), HorizontalRadius, CapsulelessActor->GetSimpleCollisionRadius());
+
+	TestWorld->RemoveFromRoot();
+	GEngine->DestroyWorldContext(TestWorld);
+	TestWorld->DestroyWorld(false);
+
+	// 에셋이 적은 안쪽 경계가 하한보다 크면 에셋 값이 이겨야 합니다. 하한은 바닥이지 덮어쓰기가 아닙니다
+	FRSCombatShape WideDonut;
+	WideDonut.Type = ERSCombatShapeType::AnnularSector;
+	WideDonut.OuterRadius = 800.0f;
+	WideDonut.InnerRadius = 300.0f;
+	TestTrue(TEXT("A floor below the authored inner radius keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(WideDonut, 100.0f));
+	TestEqual(TEXT("A floor below the authored inner radius changes nothing"), WideDonut.InnerRadius, 300.0f);
+
+	// 0으로 적힌 링이 보스 캡슐 안쪽을 덮지 않게 하는 것이 이 계약의 목적입니다
+	FRSCombatShape FullDisc;
+	FullDisc.Type = ERSCombatShapeType::AnnularSector;
+	FullDisc.OuterRadius = 800.0f;
+	TestTrue(TEXT("A floor above the authored inner radius keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(FullDisc, 100.0f));
+	TestEqual(TEXT("A floor above the authored inner radius raises the inner radius"), FullDisc.InnerRadius, 100.0f);
+
+	// 하한이 없거나 의미 없는 값이면 형상을 그대로 두고 성공을 알립니다
+	FRSCombatShape UnfloorredDisc;
+	UnfloorredDisc.Type = ERSCombatShapeType::AnnularSector;
+	UnfloorredDisc.OuterRadius = 800.0f;
+	TestTrue(TEXT("A non-positive floor keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(UnfloorredDisc, 0.0f));
+	TestEqual(TEXT("A non-positive floor changes nothing"), UnfloorredDisc.InnerRadius, 0.0f);
+
+	// 형상 전체가 보스 안에 있으면 남는 판정이 없으므로 호출자가 그 형상을 건너뛸 수 있어야 합니다
+	FRSCombatShape SwallowedDisc;
+	SwallowedDisc.Type = ERSCombatShapeType::AnnularSector;
+	SwallowedDisc.OuterRadius = 80.0f;
+	TestFalse(TEXT("A floor at or beyond the outer radius leaves no area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(SwallowedDisc, 80.0f));
+
+	FRSCombatShape InvalidDisc;
+	InvalidDisc.Type = ERSCombatShapeType::AnnularSector;
+	InvalidDisc.OuterRadius = 0.0f;
+	TestFalse(TEXT("An invalid shape leaves no area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(InvalidDisc, 100.0f));
+
+	// 부채꼴도 같은 하한을 받으므로 보스 발밑에서 시작하지 않습니다
+	FRSCombatShape Wedge;
+	Wedge.Type = ERSCombatShapeType::AnnularSector;
+	Wedge.OuterRadius = 800.0f;
+	Wedge.StartYawOffset = -22.5f;
+	Wedge.SweepAngleDegrees = 45.0f;
+	TestTrue(TEXT("A sector keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(Wedge, 100.0f));
+	TestEqual(TEXT("A sector raises its inner radius to the floor"), Wedge.InnerRadius, 100.0f);
+	TestEqual(TEXT("A sector keeps its angle"), Wedge.SweepAngleDegrees, 45.0f);
+
+	// ArmSwing은 형상을 에셋으로 적지 않고 매 틱 경계를 계산해 내므로 하한 규칙을 경계 층에서 그대로 받아야 합니다
+	FRSAnnularSectorBounds AuthoredBounds;
+	AuthoredBounds.OuterRadius = 800.0f;
+	AuthoredBounds.InnerRadius = 300.0f;
+	AuthoredBounds.SweepAngleDegrees = 40.0f;
+	TestTrue(TEXT("A floor below the calculated inner radius keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(AuthoredBounds, 100.0f));
+	TestEqual(TEXT("A floor below the calculated inner radius changes nothing"), AuthoredBounds.InnerRadius, 300.0f);
+
+	FRSAnnularSectorBounds CenteredBounds;
+	CenteredBounds.OuterRadius = 800.0f;
+	CenteredBounds.SweepAngleDegrees = 40.0f;
+	TestTrue(TEXT("A floor above the calculated inner radius keeps area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(CenteredBounds, 100.0f));
+	TestEqual(TEXT("A floor above the calculated inner radius raises the inner radius"), CenteredBounds.InnerRadius, 100.0f);
+	TestEqual(TEXT("A floored bound keeps its angle"), CenteredBounds.SweepAngleDegrees, 40.0f);
+
+	FRSAnnularSectorBounds UnflooredBounds;
+	UnflooredBounds.OuterRadius = 800.0f;
+	UnflooredBounds.SweepAngleDegrees = 40.0f;
+	TestTrue(TEXT("A non-positive floor keeps the bounds"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(UnflooredBounds, 0.0f));
+	TestEqual(TEXT("A non-positive floor changes nothing on the bounds"), UnflooredBounds.InnerRadius, 0.0f);
+
+	// 면적이 남지 않는 순간을 호출자가 알아야 그 구간의 판정을 건너뛸 수 있습니다
+	FRSAnnularSectorBounds SwallowedBounds;
+	SwallowedBounds.OuterRadius = 80.0f;
+	SwallowedBounds.SweepAngleDegrees = 40.0f;
+	TestFalse(TEXT("A floor at or beyond the outer bound leaves no area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(SwallowedBounds, 80.0f));
+
+	FRSAnnularSectorBounds InvalidBounds;
+	InvalidBounds.SweepAngleDegrees = 40.0f;
+	TestFalse(TEXT("Invalid bounds leave no area"), URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(InvalidBounds, 100.0f));
+
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSAnnularSectorTest, "RS.Combat.AnnularSector", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSAnnularSectorTest::RunTest(const FString& Parameters)
+{
+	// 회전과 이동을 함께 준 Transform으로 검사해야 로컬 변환을 건너뛴 구현이 통과하지 않습니다
+	const FTransform SectorTransform(FRotator(0.0f, 90.0f, 0.0f), FVector(10.0f, 20.0f, 30.0f));
+	const auto LocationAt = [&SectorTransform](float YawDegrees, float Radius)
+		{
+			return SectorTransform.TransformPosition(FRotator(0.0f, YawDegrees, 0.0f).Vector() * Radius);
+		};
+
+	FRSAnnularSectorBounds Bounds;
+	Bounds.InnerRadius = 100.0f;
+	Bounds.OuterRadius = 500.0f;
+	Bounds.StartYawOffset = -45.0f;
+	Bounds.SweepAngleDegrees = 90.0f;
+
+	TestTrue(TEXT("A center location inside the sector is included"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, Bounds, LocationAt(0.0f, 300.0f)));
+	TestFalse(TEXT("A center location inside the inner radius is excluded"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, Bounds, LocationAt(0.0f, 99.0f)));
+	TestFalse(TEXT("A center location beyond the outer radius is excluded"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, Bounds, LocationAt(0.0f, 501.0f)));
+	TestFalse(TEXT("A center location outside the swept angle is excluded"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, Bounds, LocationAt(60.0f, 300.0f)));
+
+	// 평면 전투이므로 높이는 판정에 들어가지 않습니다
+	TestTrue(TEXT("A flat sector ignores the target height"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, Bounds, LocationAt(0.0f, 300.0f) + FVector(0.0f, 0.0f, 1000.0f)));
+
+	// 회전과 이동이 없으면 왕복 변환에 오차가 없어 경계 값을 그대로 비교할 수 있습니다
+	FRSAnnularSectorBounds ExactBounds;
+	ExactBounds.InnerRadius = 100.0f;
+	ExactBounds.OuterRadius = 500.0f;
+	ExactBounds.StartYawOffset = -45.0f;
+	ExactBounds.SweepAngleDegrees = 90.0f;
+
+	TestTrue(TEXT("The inner boundary belongs to the sector"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(FTransform::Identity, ExactBounds, FVector(100.0f, 0.0f, 0.0f)));
+	TestFalse(TEXT("The outer boundary does not belong to the sector"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(FTransform::Identity, ExactBounds, FVector(500.0f, 0.0f, 0.0f)));
+
+	// 반개구간이 실제로 사는 이유입니다. 이어 붙는 두 형상이 경계를 공유해도 대상은 정확히 한쪽에만 걸려야 합니다
+	// 경계 좌표에 부동소수점 오차가 있어도 두 형상이 같은 값을 보므로 이 단언은 흔들리지 않습니다
+	FRSAnnularSectorBounds InnerRing;
+	InnerRing.InnerRadius = 0.0f;
+	InnerRing.OuterRadius = 600.0f;
+	InnerRing.SweepAngleDegrees = 360.0f;
+
+	FRSAnnularSectorBounds OuterRing;
+	OuterRing.InnerRadius = 600.0f;
+	OuterRing.OuterRadius = 800.0f;
+	OuterRing.SweepAngleDegrees = 360.0f;
+
+	const FVector SharedRadiusLocation = LocationAt(0.0f, 600.0f);
+	const bool bInnerRingHit = URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, InnerRing, SharedRadiusLocation);
+	const bool bOuterRingHit = URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, OuterRing, SharedRadiusLocation);
+	TestTrue(TEXT("A target on a shared ring boundary is hit by exactly one ring"), bInnerRingHit != bOuterRingHit);
+	TestTrue(TEXT("A shared ring boundary belongs to the outer ring"), bOuterRingHit);
+
+	FRSAnnularSectorBounds FirstSlice;
+	FirstSlice.OuterRadius = 800.0f;
+	FirstSlice.StartYawOffset = 0.0f;
+	FirstSlice.SweepAngleDegrees = 90.0f;
+
+	FRSAnnularSectorBounds SecondSlice;
+	SecondSlice.OuterRadius = 800.0f;
+	SecondSlice.StartYawOffset = 90.0f;
+	SecondSlice.SweepAngleDegrees = 90.0f;
+
+	const FVector SharedAngleLocation = LocationAt(90.0f, 300.0f);
+	const bool bFirstSliceHit = URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, FirstSlice, SharedAngleLocation);
+	const bool bSecondSliceHit = URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, SecondSlice, SharedAngleLocation);
+	TestTrue(TEXT("A target on a shared slice boundary is hit by exactly one slice"), bFirstSliceHit != bSecondSliceHit);
+	TestTrue(TEXT("A shared slice boundary belongs to the slice that starts there"), bSecondSliceHit);
+
+	// 360도는 시작 경계와 끝 경계가 같은 지점이라 반개구간을 그대로 적용하면 그 한 방향이 빠집니다
+	FRSAnnularSectorBounds FullDonut;
+	FullDonut.InnerRadius = 100.0f;
+	FullDonut.OuterRadius = 800.0f;
+	FullDonut.StartYawOffset = 35.0f;
+	FullDonut.SweepAngleDegrees = 360.0f;
+	TestTrue(TEXT("A full donut includes its own start boundary"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, FullDonut, LocationAt(35.0f, 400.0f)));
+	TestTrue(TEXT("A full donut includes the opposite direction"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, FullDonut, LocationAt(-145.0f, 400.0f)));
+
+	// 부호가 방향이므로 음수 Sweep은 시작 경계에서 반대쪽으로 펼쳐집니다
+	FRSAnnularSectorBounds MirroredSlice;
+	MirroredSlice.OuterRadius = 800.0f;
+	MirroredSlice.StartYawOffset = 0.0f;
+	MirroredSlice.SweepAngleDegrees = -90.0f;
+	TestTrue(TEXT("A negative sweep covers its directed side"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, MirroredSlice, LocationAt(-45.0f, 300.0f)));
+	TestFalse(TEXT("A negative sweep excludes the opposite side"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, MirroredSlice, LocationAt(45.0f, 300.0f)));
+
+	// 안쪽 반지름이 0이면 중심에는 방향이 없으므로 반지름 검사만으로 판단합니다
+	FRSAnnularSectorBounds PivotTouchingSlice;
+	PivotTouchingSlice.OuterRadius = 500.0f;
+	PivotTouchingSlice.StartYawOffset = 0.0f;
+	PivotTouchingSlice.SweepAngleDegrees = 90.0f;
+	TestTrue(TEXT("A pivot touching sector includes its own pivot"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, PivotTouchingSlice, SectorTransform.GetLocation()));
+
+	FRSAnnularSectorBounds HollowSlice = PivotTouchingSlice;
+	HollowSlice.InnerRadius = 100.0f;
+	TestFalse(TEXT("A hollow sector excludes the pivot"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, HollowSlice, SectorTransform.GetLocation()));
+
+	// 판정할 수 없는 경계는 조용히 비우지 않고 거부합니다
+	FRSAnnularSectorBounds CollapsedBounds = Bounds;
+	CollapsedBounds.OuterRadius = CollapsedBounds.InnerRadius;
+	TestFalse(TEXT("An outer radius at the inner radius is rejected"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, CollapsedBounds, LocationAt(0.0f, 300.0f)));
+
+	FRSAnnularSectorBounds ZeroSweepBounds = Bounds;
+	ZeroSweepBounds.SweepAngleDegrees = 0.0f;
+	TestFalse(TEXT("A zero sweep is rejected"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, ZeroSweepBounds, LocationAt(0.0f, 300.0f)));
+
+	FRSAnnularSectorBounds OverSweptBounds = Bounds;
+	OverSweptBounds.SweepAngleDegrees = 361.0f;
+	TestFalse(TEXT("A sweep beyond a full turn is rejected"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, OverSweptBounds, LocationAt(0.0f, 300.0f)));
+
+	FRSAnnularSectorBounds NegativeInnerBounds = Bounds;
+	NegativeInnerBounds.InnerRadius = -1.0f;
+	TestFalse(TEXT("A negative inner radius is rejected"), URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, NegativeInnerBounds, LocationAt(0.0f, 300.0f)));
 
 	return true;
 }

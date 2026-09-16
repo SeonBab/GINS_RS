@@ -66,8 +66,11 @@ struct FRSPizzaPatternDefinition
 	/** 가상 조각 하나의 각도를 반환하며 설정이 잘못되면 0입니다 */
 	float CalculateSliceAngleDegrees() const;
 
-	/** 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만듭니다 */
-	FRSCombatShape MakeSliceShape() const;
+	/**
+	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만들고 안쪽 경계를 하한까지 밀어 올립니다
+	 * 하한이 조각을 전부 삼켜 판정할 면적이 남지 않으면 실패를 알립니다
+	 */
+	bool TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const;
 
 	/** 공용 타임라인이 단계별 대기에 사용할 시간값을 만듭니다 */
 	FRSPizzaCueTimings MakeCueTimings() const;
@@ -108,8 +111,8 @@ private:
 	UFUNCTION()
 	void HandleAttackStartDelayFinished();
 
-	/** 보스의 현재 Capsule 바닥과 Forward를 월드 고정 Transform으로 캡처합니다 */
-	bool TryCaptureLockedPatternTransform();
+	/** 보스의 현재 Capsule 바닥과 Forward, 그리고 모든 경로가 공유할 조각 형상을 캡처합니다 */
+	bool TryCaptureLockedPatternState();
 
 	/** 현재 순서의 폭발 그룹을 완성된 Fill로 표시하고 유지 Task를 시작합니다 */
 	bool BeginCurrentTelegraphCue();
@@ -165,6 +168,9 @@ protected:
 private:
 	/** 공격 시작 시점에 한 번 캡처해 모든 Telegraph와 HitCheck가 공유하는 Transform입니다 */
 	FTransform LockedPatternTransform = FTransform::Identity;
+
+	/** 공격 시작 시점에 보스 캡슐 하한까지 밀어 올려 캡처한 조각 형상이며 예고, 판정과 연출이 함께 읽습니다 */
+	FRSCombatShape ActiveSliceShape;
 
 	/** 현재 그룹의 각 조각 Transform이며 표시와 폭발 연출이 함께 사용합니다 */
 	TArray<FTransform> ActiveSliceTransforms;

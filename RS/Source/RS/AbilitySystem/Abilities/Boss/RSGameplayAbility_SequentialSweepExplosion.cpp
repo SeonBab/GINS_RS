@@ -1,4 +1,4 @@
-#include "RSGameplayAbility_SequentialSweepExplosion.h"
+﻿#include "RSGameplayAbility_SequentialSweepExplosion.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimMontage.h"
@@ -214,6 +214,7 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
+	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;
@@ -322,6 +323,15 @@ void URSGameplayAbility_SequentialSweepExplosion::ConfirmAttack()
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
+	}
+
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, CapturedMinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its sectors start at the pattern origin"), *GetName());
+
+		CapturedMinimumInnerRadius = 0.0f;
 	}
 
 	State = ERSSequentialSweepExplosionState::Attacking;
@@ -434,6 +444,17 @@ void URSGameplayAbility_SequentialSweepExplosion::HandleTimelineElapsedTimeUpdat
 	}
 }
 
+bool URSGameplayAbility_SequentialSweepExplosion::TryBuildFlooredSectorShape(int32 SectorIndex, FRSCombatShape& OutSectorShape, FTransform& OutSectorTransform) const
+{
+	if (!RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, OutSectorShape, OutSectorTransform))
+	{
+		return false;
+	}
+
+	// 예고, 판정과 연출이 이 한 곳에서만 형상을 받으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSectorShape, CapturedMinimumInnerRadius);
+}
+
 bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 SectorIndex)
 {
 	ARSBossCharacter* BossCharacter = nullptr;
@@ -443,7 +464,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !WarningSectorHandles.IsValidIndex(SectorIndex)
 		|| WarningSectorHandles[SectorIndex] != INDEX_NONE
-		|| !RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, TelegraphShape, TelegraphTransform))
+		|| !TryBuildFlooredSectorShape(SectorIndex, TelegraphShape, TelegraphTransform))
 	{
 		return false;
 	}
@@ -498,34 +519,37 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		return false;
 	}
 
-	// 공용 Sphere의 외곽은 후보 수집용이므로 1cm 넓게 잡고 실제 포함 여부는 패턴 Math가 확정합니다
-	FRSCombatShape CandidateShape;
-	CandidateShape.Type = ERSCombatShapeType::Sphere;
-	CandidateShape.Radius = PatternDefinition.OuterRadius + 1.0f;
-	CandidateShape.InnerRadius = 0.0f;
-
-	TArray<AActor*> CandidateTargets;
-	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
-
 	// 연쇄 폭발은 빗나가도 이어지는 것이 보여야 하므로 섹터 하나가 판정하는 순간마다 재생합니다
 	// Telegraph와 같은 조각 형상을 넘겨 예고한 부채꼴과 연출이 같은 공간을 쓰게 합니다
 	FRSCombatShape SectorShape;
 	FTransform SectorTransform;
-	if (RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, SectorShape, SectorTransform))
+	if (!TryBuildFlooredSectorShape(SectorIndex, SectorShape, SectorTransform))
 	{
-		PlayPatternPresentation(SectorShape, SectorTransform);
-	}
-	else
-	{
+		// 하한이 조각을 전부 삼키면 판정할 면적이 남지 않으므로 연출만 남기고 이 조각은 아무도 맞히지 않습니다
 		PlayPatternPresentation(LockedAttackTransform);
+		HitActors.Reset();
+
+		return true;
 	}
+
+	PlayPatternPresentation(SectorShape, SectorTransform);
+
+	// 공용 Sphere의 외곽은 후보 수집용이므로 1cm 넓게 잡고 실제 포함 여부는 패턴 Math가 확정합니다
+	FRSCombatShape CandidateShape;
+	CandidateShape.Type = ERSCombatShapeType::AnnularSector;
+	CandidateShape.OuterRadius = PatternDefinition.OuterRadius + 1.0f;
+	// 후보를 모으는 원반도 조각과 같은 안쪽 경계를 써야 보스 발밑이 판정에서 함께 빠집니다
+	CandidateShape.InnerRadius = SectorShape.InnerRadius;
+
+	TArray<AActor*> CandidateTargets;
+	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
 	HitActors.Reset();
 	for (AActor* CandidateTarget : CandidateTargets)
 	{
 		const TWeakObjectPtr<AActor> TargetPointer(CandidateTarget);
 		if (!CandidateTarget || HitActors.Contains(TargetPointer)
-			|| !RSSequentialSweepExplosionMath::IsLocationInSector(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, CandidateTarget->GetActorLocation()))
+			|| !RSSequentialSweepExplosionMath::IsLocationInSector(LockedAttackTransform, SectorShape.InnerRadius, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, CandidateTarget->GetActorLocation()))
 		{
 			continue;
 		}
@@ -541,7 +565,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		float SectorSweepAngleDegrees = 0.0f;
 		if (RSSequentialSweepExplosionMath::TryCalculateSectorAngles(PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, SectorStartAngleDegrees, SectorSweepAngleDegrees))
 		{
-			URSCombatFunctionLibrary::DrawDebugCombatSector(BossCharacter->GetWorld(), LockedAttackTransform, PatternDefinition.OuterRadius, SectorStartAngleDegrees, SectorSweepAngleDegrees, HitActors.IsEmpty() ? FColor::Silver : FColor::Red, 1.0f);
+			URSCombatFunctionLibrary::DrawDebugCombatAnnularSector(BossCharacter->GetWorld(), LockedAttackTransform, SectorShape.InnerRadius, PatternDefinition.OuterRadius, SectorStartAngleDegrees, SectorSweepAngleDegrees, HitActors.IsEmpty() ? FColor::Silver : FColor::Red, 1.0f);
 		}
 	}
 
@@ -576,6 +600,7 @@ void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
+	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;

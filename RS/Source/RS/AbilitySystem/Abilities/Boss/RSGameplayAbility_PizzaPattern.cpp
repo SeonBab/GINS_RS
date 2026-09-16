@@ -114,14 +114,19 @@ float FRSPizzaPatternDefinition::CalculateSliceAngleDegrees() const
 	return RSCircularSliceMath::CalculateSliceAngleDegrees(CalculateVirtualSliceCount());
 }
 
-FRSCombatShape FRSPizzaPatternDefinition::MakeSliceShape() const
+bool FRSPizzaPatternDefinition::TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const
 {
-	FRSCombatShape SliceShape;
-	SliceShape.Type = ERSCombatShapeType::Cone;
-	SliceShape.Range = OuterRadius;
-	SliceShape.Angle = CalculateSliceAngleDegrees();
+	OutSliceShape = FRSCombatShape();
 
-	return SliceShape;
+	// 조각 Transform이 조각 중심을 향하므로 첫 경계를 조각 각도의 절반만큼 뒤로 물립니다
+	const float SliceAngleDegrees = CalculateSliceAngleDegrees();
+	OutSliceShape.Type = ERSCombatShapeType::AnnularSector;
+	OutSliceShape.OuterRadius = OuterRadius;
+	OutSliceShape.StartYawOffset = -SliceAngleDegrees * 0.5f;
+	OutSliceShape.SweepAngleDegrees = SliceAngleDegrees;
+
+	// 잘못된 설정과 보스가 삼킨 조각을 같은 실패로 돌려주므로 호출자가 두 경우를 나누지 않습니다
+	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSliceShape, MinimumInnerRadius);
 }
 
 FRSPizzaCueTimings FRSPizzaPatternDefinition::MakeCueTimings() const
@@ -191,6 +196,7 @@ URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	LockedPatternTransform = FTransform::Identity;
+	ActiveSliceShape = FRSCombatShape();
 	ActiveSliceTransforms.Reset();
 	ActiveTelegraphHandles.Reset();
 	Timeline.Reset();
@@ -267,6 +273,7 @@ void URSGameplayAbility_PizzaPattern::EndAbility(const FGameplayAbilitySpecHandl
 	HideActiveTelegraphs();
 
 	LockedPatternTransform = FTransform::Identity;
+	ActiveSliceShape = FRSCombatShape();
 	ActiveSliceTransforms.Reset();
 	Timeline.Reset();
 	HitActors.Reset();
@@ -290,13 +297,13 @@ void URSGameplayAbility_PizzaPattern::HandleAttackStartDelayFinished()
 		return;
 	}
 
-	if (!TryCaptureLockedPatternTransform() || !Timeline.Initialize(PizzaPatternDefinition.ExplosionCount) || !BeginCurrentTelegraphCue())
+	if (!TryCaptureLockedPatternState() || !Timeline.Initialize(PizzaPatternDefinition.ExplosionCount) || !BeginCurrentTelegraphCue())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 	}
 }
 
-bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
+bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternState()
 {
 	const ACharacter* Character = CurrentActorInfo ? Cast<ACharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
 	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
@@ -305,7 +312,23 @@ bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
 		return false;
 	}
 
-	return RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
+	if (!RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform))
+	{
+		return false;
+	}
+
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
+	float MinimumInnerRadius = 0.0f;
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(Character, MinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its slices start at the pattern origin"), *GetName());
+
+		MinimumInnerRadius = 0.0f;
+	}
+
+	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	return PizzaPatternDefinition.TryMakeSliceShape(MinimumInnerRadius, ActiveSliceShape);
 }
 
 bool URSGameplayAbility_PizzaPattern::BeginCurrentTelegraphCue()
@@ -319,12 +342,11 @@ bool URSGameplayAbility_PizzaPattern::BeginCurrentTelegraphCue()
 	}
 
 	// 폭발 순서는 예고 순서로만 읽히므로 각 그룹은 채우는 과정 없이 완성된 상태로 한 번에 보여 줍니다
-	const FRSCombatShape SliceShape = PizzaPatternDefinition.MakeSliceShape();
 	ActiveTelegraphHandles.Reset();
 	ActiveTelegraphHandles.Reserve(ActiveSliceTransforms.Num());
 	for (const FTransform& SliceTransform : ActiveSliceTransforms)
 	{
-		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(SliceShape, SliceTransform);
+		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(ActiveSliceShape, SliceTransform);
 		if (TelegraphHandle == INDEX_NONE || !TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f))
 		{
 			if (TelegraphHandle != INDEX_NONE)
@@ -498,9 +520,10 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	}
 
 	FRSCombatShape CandidateShape;
-	CandidateShape.Type = ERSCombatShapeType::Sphere;
-	CandidateShape.Radius = PizzaPatternDefinition.OuterRadius;
-	CandidateShape.InnerRadius = 0.0f;
+	CandidateShape.Type = ERSCombatShapeType::AnnularSector;
+	CandidateShape.OuterRadius = PizzaPatternDefinition.OuterRadius;
+	// 후보를 모으는 원반도 조각과 같은 안쪽 경계를 써야 보스 발밑이 판정에서 함께 빠집니다
+	CandidateShape.InnerRadius = ActiveSliceShape.InnerRadius;
 
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, CandidateShape, LockedPatternTransform, CandidateTargets);
@@ -526,7 +549,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 void URSGameplayAbility_PizzaPattern::PlayCurrentExplosionPresentation()
 {
 	// 예고와 같은 조각 형상을 넘기며, Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
-	PlayPatternPresentation(PizzaPatternDefinition.MakeSliceShape(), ActiveSliceTransforms, LockedPatternTransform.GetLocation());
+	PlayPatternPresentation(ActiveSliceShape, ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 }
 
 void URSGameplayAbility_PizzaPattern::HideActiveTelegraphs()
@@ -558,7 +581,12 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	else
 	{
 		// 조각은 전부 같은 반지름과 각도를 쓰므로 조각 하나로 연출 채우기 설정을 대표해 검사합니다
-		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(PizzaPatternDefinition.MakeSliceShape(), Context));
+		// 에디터에는 보스가 없으므로 하한을 걸지 않고 기획이 적은 값 자체가 성립하는지만 봅니다
+		FRSCombatShape SliceShape;
+		if (PizzaPatternDefinition.TryMakeSliceShape(0.0f, SliceShape))
+		{
+			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
+		}
 	}
 
 	if (!DamageEffectClass)

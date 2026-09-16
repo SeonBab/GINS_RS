@@ -81,9 +81,9 @@ URSGameplayAbility_Barrier_Memory_Gimmick::URSGameplayAbility_Barrier_Memory_Gim
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
-	AttackShape.Type = ERSCombatShapeType::Sphere;
+	AttackShape.Type = ERSCombatShapeType::AnnularSector;
 	AttackShape.InnerRadius = 0.0f;
-	AttackShape.Radius = 0.0f;
+	AttackShape.OuterRadius = 0.0f;
 }
 
 ERSBarrierColor URSGameplayAbility_Barrier_Memory_Gimmick::GetAlternatingColor(ERSBarrierColor StartingColorValue, int32 Index)
@@ -121,8 +121,8 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 
 	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
 	FString RuntimeValidationError;
-	const bool bHasValidAttackShape = AttackShape.Type == ERSCombatShapeType::Sphere && AttackShape.InnerRadius == 0.0f && AttackShape.IsDataValid(&RuntimeValidationError)
-		&& AttackShape.Radius >= BarrierField.DistanceFromCenter + BarrierField.SafeRadius;
+	const bool bHasValidAttackShape = AttackShape.Type == ERSCombatShapeType::AnnularSector && AttackShape.InnerRadius == 0.0f && AttackShape.IsDataValid(&RuntimeValidationError)
+		&& AttackShape.OuterRadius >= BarrierField.DistanceFromCenter + BarrierField.SafeRadius;
 	if (!AvatarActor || !ActorInfo->AbilitySystemComponent.IsValid() || !RoarMontage || !AttackMontage
 		|| !FMath::IsFinite(RoarMontagePlayRate) || RoarMontagePlayRate <= 0.0f || !FMath::IsFinite(AttackMontagePlayRate) || AttackMontagePlayRate <= 0.0f
 		|| !BarrierField.IsDataValid(&RuntimeValidationError) || !bHasValidAttackShape)
@@ -247,8 +247,8 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::DrawDebugBarrierZones(float Life
 	const ERSBarrierColor CurrentColor = GetAlternatingColor(StartingColor, AttackIndex);
 
 	FRSCombatShape ZoneShape;
-	ZoneShape.Type = ERSCombatShapeType::Sphere;
-	ZoneShape.Radius = BarrierField.SafeRadius;
+	ZoneShape.Type = ERSCombatShapeType::AnnularSector;
+	ZoneShape.OuterRadius = BarrierField.SafeRadius;
 
 	for (const FRSBarrierZoneRuntimeState& Zone : BarrierZones)
 	{
@@ -530,13 +530,15 @@ EDataValidationResult URSGameplayAbility_Barrier_Memory_Gimmick::IsDataValid(FDa
 	}
 
 	FString ShapeError;
-	if (AttackShape.Type != ERSCombatShapeType::Sphere || !AttackShape.IsDataValid(&ShapeError) || AttackShape.InnerRadius != 0.0f)
+	// 방어막 판정은 보스를 중심으로 모든 방향을 덮어야 하므로 부채꼴도 도넛도 허용하지 않습니다
+	if (AttackShape.Type != ERSCombatShapeType::AnnularSector || !AttackShape.IsDataValid(&ShapeError)
+		|| AttackShape.InnerRadius != 0.0f || !AttackShape.GetAnnularSectorBounds().CoversEveryAngle())
 	{
-		AddError(FString::Printf(TEXT("AttackShape must be a valid Sphere with InnerRadius 0: %s"), *ShapeError));
+		AddError(FString::Printf(TEXT("AttackShape must be a valid full circle Annular Sector with InnerRadius 0: %s"), *ShapeError));
 	}
-	else if (AttackShape.Radius < BarrierField.DistanceFromCenter + BarrierField.SafeRadius)
+	else if (AttackShape.OuterRadius < BarrierField.DistanceFromCenter + BarrierField.SafeRadius)
 	{
-		AddError(TEXT("AttackShape.Radius must cover DistanceFromCenter + SafeRadius."));
+		AddError(TEXT("AttackShape.OuterRadius must cover DistanceFromCenter + SafeRadius."));
 	}
 
 	const TPair<const TCHAR*, const FRSNiagaraSpawnDefinition*> NiagaraDefinitions[] =

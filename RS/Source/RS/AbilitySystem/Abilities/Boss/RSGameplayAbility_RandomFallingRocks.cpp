@@ -61,9 +61,11 @@ bool FRSRandomFallingRocksDefinition::IsDataValid(FString* OutValidationError) c
 		return false;
 	}
 
-	if (AttackShape.Type != ERSCombatShapeType::Sphere || AttackShape.InnerRadius != 0.0f || !AttackShape.IsDataValid())
+	// 낙석 충돌은 떨어진 지점을 중심으로 모든 방향을 같게 덮어야 하므로 부채꼴도 도넛도 허용하지 않습니다
+	if (AttackShape.Type != ERSCombatShapeType::AnnularSector || AttackShape.InnerRadius != 0.0f
+		|| !AttackShape.GetAnnularSectorBounds().CoversEveryAngle() || !AttackShape.IsDataValid())
 	{
-		SetValidationError(TEXT("AttackShape must be a valid Sphere with InnerRadius equal to zero."));
+		SetValidationError(TEXT("AttackShape must be a valid full circle Annular Sector with InnerRadius equal to zero."));
 
 		return false;
 	}
@@ -85,8 +87,8 @@ URSGameplayAbility_RandomFallingRocks::URSGameplayAbility_RandomFallingRocks()
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
-	FallingRocksDefinition.AttackShape.Type = ERSCombatShapeType::Sphere;
-	FallingRocksDefinition.AttackShape.Radius = 150.0f;
+	FallingRocksDefinition.AttackShape.Type = ERSCombatShapeType::AnnularSector;
+	FallingRocksDefinition.AttackShape.OuterRadius = 150.0f;
 	FallingRocksDefinition.AttackShape.InnerRadius = 0.0f;
 }
 

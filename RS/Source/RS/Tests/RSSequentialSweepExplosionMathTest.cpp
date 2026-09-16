@@ -91,20 +91,30 @@ bool FRSSequentialSweepExplosionMathTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Total duration includes final interval"), FMath::IsNearlyEqual(RSSequentialSweepExplosionMath::CalculateTotalDuration(1.0f, 0.2f, 4), 1.6f));
 
 	const FTransform ForwardLockedTransform(FRotator::ZeroRotator, FVector::ZeroVector);
-	const FVector SharedBoundaryLocation = FRotator(0.0f, -30.0f, 0.0f).Vector() * 500.0f;
-	TestTrue(TEXT("Shared boundary belongs to first sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, SharedBoundaryLocation));
-	TestTrue(TEXT("Shared boundary also belongs to second sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 1, SharedBoundaryLocation));
+	// 각도 경계의 소유만 보려는 단언이므로 바깥 반경 경계에서 떨어진 지점을 씁니다
+	const FVector SharedBoundaryLocation = FRotator(0.0f, -30.0f, 0.0f).Vector() * 250.0f;
+	TestFalse(TEXT("Shared boundary does not belong to the first sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, SharedBoundaryLocation));
+	TestTrue(TEXT("Shared boundary belongs to the second sector alone"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 1, SharedBoundaryLocation));
 
 	const FVector FirstSectorMiddleLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 250.0f;
-	TestTrue(TEXT("First sector contains its middle"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, FirstSectorMiddleLocation));
-	TestFalse(TEXT("Second sector excludes first sector middle"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 1, FirstSectorMiddleLocation));
+	TestTrue(TEXT("First sector contains its middle"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, FirstSectorMiddleLocation));
+	TestFalse(TEXT("Second sector excludes first sector middle"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 1, FirstSectorMiddleLocation));
 
 	const FVector OuterBoundaryLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 500.0f;
 	const FVector OutsideRadiusLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 500.1f;
-	TestTrue(TEXT("Outer radius boundary is included"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, OuterBoundaryLocation));
-	TestFalse(TEXT("Location outside outer radius is excluded"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, OutsideRadiusLocation));
-	TestTrue(TEXT("Center belongs to first sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 0, FVector::ZeroVector));
-	TestTrue(TEXT("Center also belongs to fourth sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 500.0f, 120.0f, 4, -60.0f, 3, FVector::ZeroVector));
+	const FVector InsideOuterBoundaryLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 499.9f;
+	TestFalse(TEXT("Outer radius boundary is excluded"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, OuterBoundaryLocation));
+	TestTrue(TEXT("Just inside the outer radius is included"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, InsideOuterBoundaryLocation));
+	TestFalse(TEXT("Location outside outer radius is excluded"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, OutsideRadiusLocation));
+	TestTrue(TEXT("Center belongs to first sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 0, FVector::ZeroVector));
+	TestTrue(TEXT("Center also belongs to fourth sector"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 0.0f, 500.0f, 120.0f, 4, -60.0f, 3, FVector::ZeroVector));
+
+	// 보스 캡슐 하한 안쪽은 판정에서 빠지고, 하한 경계에 선 대상은 그대로 맞아야 안전 지대가 생기지 않습니다
+	const FVector InsideFloorLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 99.0f;
+	const FVector FloorBoundaryLocation = FRotator(0.0f, -45.0f, 0.0f).Vector() * 100.0f;
+	TestFalse(TEXT("A location inside the floor is excluded"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 100.0f, 500.0f, 120.0f, 4, -60.0f, 0, InsideFloorLocation));
+	TestTrue(TEXT("A location at the floor boundary is included"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 100.0f, 500.0f, 120.0f, 4, -60.0f, 0, FloorBoundaryLocation));
+	TestFalse(TEXT("The center is excluded once a floor applies"), RSSequentialSweepExplosionMath::IsLocationInSector(ForwardLockedTransform, 100.0f, 500.0f, 120.0f, 4, -60.0f, 0, FVector::ZeroVector));
 
 	return true;
 }
@@ -148,7 +158,7 @@ bool FRSSequentialSweepExplosionSectorFillTest::RunTest(const FString& Parameter
 		// 연출이 예고한 조각을 벗어나면 폭발 위치를 잘못 알려 주므로 모든 칸이 그 조각의 실제 판정을 통과하는지 확인합니다
 		for (const FTransform& FillTransform : FillTransforms)
 		{
-			if (!RSSequentialSweepExplosionMath::IsLocationInSector(LockedTransform, OuterRadius, TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, FillTransform.GetLocation()))
+			if (!RSSequentialSweepExplosionMath::IsLocationInSector(LockedTransform, 0.0f, OuterRadius, TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, FillTransform.GetLocation()))
 			{
 				bAllFillCellsHitTheirSector = false;
 			}
@@ -159,10 +169,18 @@ bool FRSSequentialSweepExplosionSectorFillTest::RunTest(const FString& Parameter
 	TestTrue(TEXT("Every sector fill cell passes that sector hit check"), bAllFillCellsHitTheirSector);
 	TestTrue(TEXT("Sector fill spreads beyond a single cell per sector"), TotalFillCount > SectorCount);
 
-	// 조각 각도가 Cone 상한을 넘으면 형상으로 표현할 수 없으므로 잘못된 범위를 채우기 전에 실패를 알립니다
-	FRSCombatShape WideSectorShape;
-	FTransform WideSectorTransform;
-	TestFalse(TEXT("Sector wider than the cone angle limit fails"), RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedTransform, OuterRadius, 360.0f, 1, 0.0f, 0, WideSectorShape, WideSectorTransform));
+	// 환형 부채꼴은 한 바퀴까지 표현하므로, Cone 상한 180도 때문에 조용히 실패하던 조각 하나짜리 360도 구성이 이제 성립합니다
+	FRSCombatShape FullTurnSectorShape;
+	FTransform FullTurnSectorTransform;
+	TestTrue(TEXT("A single sector covering a full turn builds a shape"), RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedTransform, OuterRadius, 360.0f, 1, 0.0f, 0, FullTurnSectorShape, FullTurnSectorTransform));
+	TestTrue(TEXT("A full turn sector covers every angle"), FullTurnSectorShape.GetAnnularSectorBounds().CoversEveryAngle());
+
+	// 시작 각도를 형상이 들고 있으므로 Transform은 고정된 공격 기준을 그대로 씁니다
+	FRSCombatShape OffsetSectorShape;
+	FTransform OffsetSectorTransform;
+	TestTrue(TEXT("An offset sector builds a shape"), RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedTransform, OuterRadius, 180.0f, 2, -90.0f, 1, OffsetSectorShape, OffsetSectorTransform));
+	TestTrue(TEXT("An offset sector keeps the locked attack rotation"), OffsetSectorTransform.GetRotation().Equals(LockedTransform.GetRotation()));
+	TestTrue(TEXT("An offset sector carries its own start angle"), FMath::IsNearlyEqual(OffsetSectorShape.StartYawOffset, 0.0f));
 
 	return true;
 }

@@ -1,8 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RSCombatFunctionLibrary.h"
 #include "RSArmSwingMath.generated.h"
 
 /** Arm Swing의 순간 수평 환형 부채꼴 크기입니다 */
@@ -45,32 +46,26 @@ struct FRSArmSwingPathDefinition
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
 
-/** 특정 진행 구간이 실제로 판정할 환형 부채꼴 경계입니다 */
-struct FRSArmSwingSectorBounds
-{
-	float InnerRadius = 0.0f;
-	float OuterRadius = 0.0f;
-	float StartYawOffset = 0.0f;
-	float SweepAngleDegrees = 0.0f;
-};
-
 /** Arm Swing 전용 공간 계산을 제공합니다 */
 struct RS_API FRSArmSwingMath
 {
-	/** 후보 원의 열린 바깥 경계가 최종 Sector의 닫힌 경계를 선제 탈락시키지 않게 하는 내부 여유입니다 */
+	/**
+	 * 후보 수집과 최종 판정이 바깥 경계를 각자 계산하므로 부동소수점 오차만큼 어긋날 수 있어 두는 내부 여유입니다
+	 * 후보를 넓히기만 하고 실제 적중 여부는 최종 Sector 필터가 그대로 소유합니다
+	 */
 	static constexpr float CandidateQueryRadiusMargin = 1.0f;
 
 	/** Capsule 발밑과 Actor 전방에서 공격 중 고정할 월드 Transform을 계산합니다 */
 	static bool TryCalculateLockedAttackTransform(const FTransform& CapsuleTransform, float ScaledCapsuleHalfHeight, const FVector& ActorForward, FTransform& OutLockedAttackTransform);
 
-	/** 지정한 진행률 구간의 이동각과 순간 각도 폭을 합친 환형 부채꼴 경계를 계산합니다 */
-	static bool TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSArmSwingSectorBounds& OutBounds);
+	/**
+	 * 지정한 진행률 구간의 이동각과 순간 각도 폭을 합친 환형 부채꼴 경계를 계산하고 안쪽 반지름을 하한까지 밀어 올립니다
+	 * 예고와 판정이 모두 이 계산을 지나므로 하한을 인자로 받아야 두 경로가 같은 안쪽 경계를 봅니다
+	 */
+	static bool TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds);
 
 	/** 전체 회전 경로와 실제 판정이 공유할 Telegraph 경계를 계산합니다 */
-	static bool TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSArmSwingSectorBounds& OutBounds);
-
-	/** 대상 중심점이 지정한 환형 부채꼴 경계 안에 있는지 검사합니다 */
-	static bool IsLocationInsideSector(const FTransform& LockedAttackTransform, const FRSArmSwingSectorBounds& SectorBounds, const FVector& TargetLocation);
+	static bool TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds);
 
 	/** 대상 위치의 반지름 방향에서 Sector 이동 방향의 수평 접선을 계산합니다 */
 	static bool TryCalculateTargetTangentDirection(const FTransform& LockedAttackTransform, const FRSArmSwingPathDefinition& PathDefinition, float SweepProgress, const FVector& TargetLocation, FVector& OutTangentDirection);

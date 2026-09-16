@@ -19,13 +19,38 @@ class USoundBase;
 class FDataValidationContext;
 #endif
 
+/**
+ * 수평 환형 부채꼴의 경계이며 위치와 회전은 담지 않습니다
+ * 안쪽·바깥 반지름과 시작 각도, 부호 있는 각도 폭으로 꽉 찬 원, 도넛과 부채꼴을 모두 표현합니다
+ * SweepAngleDegrees의 부호가 펼쳐지는 방향이며 절댓값이 360도면 모든 각도를 덮습니다
+ */
+struct FRSAnnularSectorBounds
+{
+	/** 판정에서 제외할 안쪽 반지름이며 0이면 중심까지 채웁니다 */
+	float InnerRadius = 0.0f;
+
+	/** 판정에 포함할 바깥 반지름이며 InnerRadius보다 커야 합니다 */
+	float OuterRadius = 0.0f;
+
+	/** 배치 Transform의 Forward에서 첫 경계까지의 상대 각도입니다 */
+	float StartYawOffset = 0.0f;
+
+	/** 첫 경계에서 펼쳐질 각도이며 부호가 방향을 결정합니다 */
+	float SweepAngleDegrees = 0.0f;
+
+	/** 판정 가능한 경계인지 검사하며 형상과 판정 커널이 이 규칙 하나를 공유합니다 */
+	bool IsDataValid(FString* OutValidationError = nullptr) const;
+
+	/** 절댓값이 360도라 각도 검사가 의미를 갖지 않는지 반환합니다 */
+	bool CoversEveryAngle() const;
+};
+
 /** 판정 범위의 형상 종류입니다 */
 UENUM(BlueprintType)
 enum class ERSCombatShapeType : uint8
 {
-	Box		UMETA(DisplayName = "Box",		ToolTip = "배치 회전을 따르는 직육면체입니다."),
-	Sphere	UMETA(DisplayName = "Sphere",	ToolTip = "수평 거리로 판정하며 InnerRadius를 주면 도넛이 됩니다."),
-	Cone	UMETA(DisplayName = "Cone",		ToolTip = "Transform Forward를 중심으로 하는 수평 부채꼴입니다.")
+	Box				UMETA(DisplayName = "Box",				ToolTip = "배치 회전을 따르는 직육면체입니다."),
+	AnnularSector	UMETA(DisplayName = "Annular Sector",	ToolTip = "수평 환형 부채꼴입니다. Sweep이 360도면 꽉 찬 원이나 도넛이 되고 그보다 작으면 부채꼴이 됩니다.")
 };
 
 /**
@@ -45,21 +70,27 @@ struct FRSCombatShape
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (EditCondition = "Type == ERSCombatShapeType::Box"))
 	FVector BoxExtent = FVector(60.0f, 60.0f, 90.0f);
 
-	/** 판정에 포함할 바깥 반지름입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Sphere"))
-	float Radius = 100.0f;
-
-	/** 판정에서 제외할 안쪽 반지름이며 0보다 크면 가운데가 비어 있는 도넛이 됩니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Sphere"))
+	/**
+	 * 판정에서 제외할 안쪽 반지름이며 0보다 크면 가운데가 비어 있는 도넛이 됩니다
+	 * 보스 원점 기준 패턴에서는 런타임에 보스 캡슐 반지름까지 올라가므로 여기 적는 값은 하한입니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::AnnularSector"))
 	float InnerRadius = 0.0f;
 
-	/** Cone 꼭짓점에서 외곽까지의 수평 거리입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "1.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::Cone"))
-	float Range = 500.0f;
+	/** 판정에 포함할 바깥 반지름이며 기본값 0은 아직 정하지 않았다는 뜻이라 검증에서 걸립니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::AnnularSector"))
+	float OuterRadius = 0.0f;
 
-	/** Cone의 양쪽 경계 사이 전체 각도입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "1.0", UIMax = "180.0", ForceUnits = "deg", EditCondition = "Type == ERSCombatShapeType::Cone"))
-	float Angle = 90.0f;
+	/** 배치 Transform의 Forward에서 부채꼴의 첫 경계까지의 상대 각도입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ForceUnits = "deg", EditCondition = "Type == ERSCombatShapeType::AnnularSector"))
+	float StartYawOffset = 0.0f;
+
+	/** 첫 경계에서 펼쳐질 각도이며 부호가 방향을 결정하고 절댓값이 360도면 모든 각도를 덮습니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "-360.0", ClampMax = "360.0", ForceUnits = "deg", EditCondition = "Type == ERSCombatShapeType::AnnularSector"))
+	float SweepAngleDegrees = 360.0f;
+
+	/** 환형 부채꼴 계산이 읽을 경계를 반환하며 Box에서는 의미를 갖지 않습니다 */
+	FRSAnnularSectorBounds GetAnnularSectorBounds() const;
 
 	/** Shape 종류별 데이터가 판정 가능한 범위인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
@@ -300,8 +331,14 @@ public:
 	/** 복합 판정의 후보만 수집하고 중간 형상은 디버그로 그리지 않습니다 */
 	static void FindTargetsInShapeWithoutDebugDraw(const AActor* Attacker, ECollisionChannel TargetChannel, const FRSCombatShape& Shape, const FTransform& ShapeTransform, TArray<AActor*>& OutTargets);
 
-	/** 대상 위치의 중심점이 Cone의 수평 범위 안에 있는지 검사합니다 */
-	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
+	/**
+	 * 대상 위치의 수평 중심점이 환형 부채꼴 경계 안에 있는지 검사합니다
+	 * 반지름은 [Inner, Outer), 각도는 [Start, Start + Sweep)의 반개구간이며 경계는 바깥쪽 형상의 것입니다
+	 * 이 규약 덕분에 이어 붙는 링이나 조각이 경계를 공유해도 한 대상이 두 형상에 걸리거나 어느 쪽에서도 빠지지 않습니다
+	 * 절댓값이 360도인 Sweep은 시작 경계와 끝 경계가 같은 지점이므로 각도 검사를 하지 않고 모두 포함합니다
+	 * 판정할 수 없는 경계는 조용히 비우지 않고 거부하므로 잘못된 데이터가 적중 0건으로 보이지 않습니다
+	 */
+	static bool IsLocationInsideAnnularSector(const FTransform& SectorTransform, const FRSAnnularSectorBounds& SectorBounds, const FVector& TargetLocation);
 
 	/**
 	 * 패턴 공간의 기준이 될 액터의 캡슐 바닥 위치를 얻습니다
@@ -309,6 +346,29 @@ public:
 	 * 캡슐이 없는 액터는 Simple Collision의 반높이로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
 	 */
 	static bool TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation);
+
+	/**
+	 * 패턴 공간의 기준이 될 액터의 수평 반지름을 얻습니다
+	 * 판정이 대상의 중심점을 쓰므로 이 반지름 안쪽에는 아무도 들어올 수 없고, 패턴은 여기서부터 판정과 표시를 시작합니다
+	 * 캡슐이 없는 액터는 Simple Collision의 반지름으로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
+	 */
+	static bool TryGetActorHorizontalRadius(const AActor* Actor, float& OutHorizontalRadius);
+
+	/**
+	 * 환형 부채꼴 경계의 안쪽 반지름을 지정한 하한까지 밀어 올리고 판정할 면적이 남았는지 알립니다
+	 * 하한 규칙을 경계 층이 소유하므로 형상을 에셋으로 적는 패턴과 경계를 계산해 내는 ArmSwing이 같은 규칙을 씁니다
+	 * 이미 들어 있는 값이 하한보다 크면 그 값이 이깁니다. 하한은 바닥이지 덮어쓰기가 아닙니다
+	 * 하한이 바깥 경계 이상이면 경계 전체가 기준 액터 안에 있다는 뜻이므로 호출자가 그 형상을 건너뛸 수 있도록 실패를 알립니다
+	 */
+	static bool TryApplyMinimumInnerRadius(FRSAnnularSectorBounds& InOutBounds, float MinimumInnerRadius);
+
+	/**
+	 * 형상의 안쪽 경계를 지정한 하한까지 밀어 올리고 판정할 면적이 남았는지 알립니다
+	 * 에셋에 적힌 값이 하한보다 크면 그 값이 이깁니다. 하한은 바닥이지 덮어쓰기가 아닙니다
+	 * 하한이 바깥 경계 이상이면 형상 전체가 기준 액터 안에 있다는 뜻이므로 호출자가 그 형상을 건너뛸 수 있도록 실패를 알립니다
+	 * 보스 원점을 전제하지 않는 형상까지 자르지 않도록, 패턴이 보스 Transform을 캡처하는 지점에서만 호출합니다
+	 */
+	static bool TryApplyMinimumInnerRadius(FRSCombatShape& InOutShape, float MinimumInnerRadius);
 
 	/**
 	 * 판정 형상 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다
@@ -363,8 +423,6 @@ public:
 	 */
 	static void DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime);
 
-	/** 시작 경계와 회전 각도로 정의한 수평 부채꼴을 디버그로 그립니다 */
-	static void DrawDebugCombatSector(const UWorld* World, const FTransform& ShapeTransform, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime);
 
 	/** 안쪽·바깥쪽 반지름과 부호 있는 회전 각도로 정의한 수평 환형 부채꼴을 디버그로 그립니다 */
 	static void DrawDebugCombatAnnularSector(const UWorld* World, const FTransform& ShapeTransform, float InnerRadius, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime);

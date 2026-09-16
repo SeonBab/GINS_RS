@@ -150,6 +150,9 @@ private:
 	/** Telegraph와 HitCheck가 함께 사용하는 공격 확정 시점의 월드 Transform입니다 */
 	FTransform LockedAttackTransform = FTransform::Identity;
 
+	/** 공격 확정 시점에 보스 캡슐 하한까지 밀어 올린 AttackShape 사본이며 예고, 판정과 연출이 함께 읽습니다 */
+	FRSCombatShape ActiveAttackShape;
+
 	/** 현재 Strike Pre-Aim이 시작된 World gameplay time입니다 */
 	float PreAimStartTime = 0.0f;
 

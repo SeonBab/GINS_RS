@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RSCombatFunctionLibrary.h"
 
@@ -36,105 +36,11 @@ namespace
 	// 기획이 쓰는 밀도로는 닿지 않는 값이며, 설정 실수로 프레임이 멈추는 것만 방지합니다
 	constexpr int64 RSShapeFillMaxCandidateCells = 4096;
 
-	bool TryGetConeParameters(const FRSCombatShape& Shape, const FTransform& ShapeTransform, FVector& OutHorizontalForward, float& OutRangeSquared, float& OutMinimumDot)
+	bool BuildAnnularSectorFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
 	{
-		if (Shape.Type != ERSCombatShapeType::Cone || !Shape.IsDataValid())
-		{
-			return false;
-		}
+		const FRSAnnularSectorBounds Bounds = Shape.GetAnnularSectorBounds();
 
-		OutHorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
-		OutHorizontalForward.Z = 0.0f;
-		if (!OutHorizontalForward.Normalize())
-		{
-			return false;
-		}
-
-		OutRangeSquared = FMath::Square(Shape.Range);
-		OutMinimumDot = FMath::Cos(FMath::DegreesToRadians(Shape.Angle * 0.5f));
-
-		return true;
-	}
-
-	bool IsLocationInsidePreparedCone(const FVector& ShapeLocation, const FVector& HorizontalForward, float RangeSquared, float MinimumDot, const FVector& TargetLocation)
-	{
-		FVector Offset = TargetLocation - ShapeLocation;
-		Offset.Z = 0.0f;
-
-		const float DistanceSquared = Offset.SizeSquared();
-		if (DistanceSquared > RangeSquared && !FMath::IsNearlyEqual(DistanceSquared, RangeSquared))
-		{
-			return false;
-		}
-
-		// 꼭짓점에서는 방향이 정의되지 않지만 거리상 Cone 안이므로 각도 검사를 생략합니다
-		if (FMath::IsNearlyZero(DistanceSquared))
-		{
-			return true;
-		}
-
-		const FVector DirectionToTarget = Offset.GetSafeNormal();
-		const float ForwardDot = FVector::DotProduct(HorizontalForward, DirectionToTarget);
-
-		return ForwardDot >= MinimumDot || FMath::IsNearlyEqual(ForwardDot, MinimumDot);
-	}
-
-	bool BuildConeFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
-	{
-		FVector HorizontalForward = FVector::ZeroVector;
-		float RangeSquared = 0.0f;
-		float MinimumDot = 0.0f;
-		if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
-		{
-			return false;
-		}
-
-		// 격자는 꼭짓점을 원점으로 Forward와 Right 방향의 정수 배 위치만 사용하므로 중심선이 항상 채워집니다
-		const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
-		const float HalfWidth = Shape.Range * FMath::Sin(FMath::DegreesToRadians(Shape.Angle * 0.5f));
-
-		const int32 ForwardStepCount = FMath::FloorToInt(Shape.Range / Spacing);
-		const int32 LateralStepCount = FMath::FloorToInt(HalfWidth / Spacing);
-
-		// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
-		const int64 CandidateCellCount = static_cast<int64>(ForwardStepCount + 1) * (static_cast<int64>(LateralStepCount) * 2 + 1);
-		if (CandidateCellCount > RSShapeFillMaxCandidateCells)
-		{
-			return false;
-		}
-
-		const FVector ConeApex = ShapeTransform.GetLocation();
-		const FQuat FillRotation = ShapeTransform.GetRotation();
-
-		OutTransforms.Reset();
-		for (int32 ForwardStep = 0; ForwardStep <= ForwardStepCount; ++ForwardStep)
-		{
-			for (int32 LateralStep = -LateralStepCount; LateralStep <= LateralStepCount; ++LateralStep)
-			{
-				const FVector CellLocation = ConeApex + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
-				if (!IsLocationInsidePreparedCone(ConeApex, HorizontalForward, RangeSquared, MinimumDot, CellLocation))
-				{
-					continue;
-				}
-
-				OutTransforms.Emplace(FillRotation, CellLocation);
-			}
-		}
-
-		// 간격이 범위보다 넓으면 격자가 꼭짓점 한 칸으로 무너지는데, 꼭짓점은 보스 발밑이라 공격 범위를 나타내지 못합니다
-		// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 중심선의 가운데에 한 개만 둡니다
-		if (OutTransforms.Num() <= 1)
-		{
-			OutTransforms.Reset();
-			OutTransforms.Emplace(FillRotation, ConeApex + HorizontalForward * (Shape.Range * 0.5f));
-		}
-
-		return true;
-	}
-
-	bool BuildSphereFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
-	{
-		// 격자 축을 형상 회전에 맞춰야 같은 링이라도 배치가 회전을 따라가며 Cone 채우기와 규칙이 같아집니다
+		// 격자 축을 형상 회전에 맞춰야 같은 형상이라도 배치가 회전을 따라갑니다
 		FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
 		HorizontalForward.Z = 0.0f;
 		if (!HorizontalForward.Normalize())
@@ -143,7 +49,7 @@ namespace
 		}
 
 		const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
-		const int32 StepCount = FMath::FloorToInt(Shape.Radius / Spacing);
+		const int32 StepCount = FMath::FloorToInt(Bounds.OuterRadius / Spacing);
 
 		// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
 		const int64 AxisCellCount = static_cast<int64>(StepCount) * 2 + 1;
@@ -152,21 +58,17 @@ namespace
 			return false;
 		}
 
-		const FVector SphereCenter = ShapeTransform.GetLocation();
+		const FVector SectorCenter = ShapeTransform.GetLocation();
 		const FQuat FillRotation = ShapeTransform.GetRotation();
-		const float OuterRadiusSquared = FMath::Square(Shape.Radius);
-		const float InnerRadiusSquared = FMath::Square(Shape.InnerRadius);
 
 		OutTransforms.Reset();
 		for (int32 ForwardStep = -StepCount; ForwardStep <= StepCount; ++ForwardStep)
 		{
 			for (int32 LateralStep = -StepCount; LateralStep <= StepCount; ++LateralStep)
 			{
-				const FVector CellLocation = SphereCenter + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
-
-				// 도넛의 빈 가운데에 연출이 생기면 안전지대가 위험해 보이므로 안쪽 반지름 안쪽은 버립니다
-				const float DistanceSquared = FVector::DistSquared2D(CellLocation, SphereCenter);
-				if (DistanceSquared > OuterRadiusSquared || DistanceSquared < InnerRadiusSquared)
+				// 판정과 같은 커널로 걸러야 연출이 판정 범위를 벗어나거나 빈 가운데를 채우지 않습니다
+				const FVector CellLocation = SectorCenter + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
+				if (!URSCombatFunctionLibrary::IsLocationInsideAnnularSector(ShapeTransform, Bounds, CellLocation))
 				{
 					continue;
 				}
@@ -175,16 +77,77 @@ namespace
 			}
 		}
 
-		// 간격이 범위보다 넓으면 격자가 중심 한 칸으로 무너지는데, 도넛에서는 그 칸이 비어 있어야 할 안전지대입니다
-		// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 두 반지름의 가운데에 한 개만 둡니다
+		// 간격이 형상보다 넓으면 격자가 한 칸으로 무너집니다
+		// 그 한 칸은 중심이나 꼭짓점이라 공격 범위를 나타내지 못하므로, 두 반지름과 각도의 가운데에 하나만 둡니다
 		if (OutTransforms.Num() <= 1)
 		{
 			OutTransforms.Reset();
-			OutTransforms.Emplace(FillRotation, SphereCenter + HorizontalForward * ((Shape.InnerRadius + Shape.Radius) * 0.5f));
+
+			const float RepresentativeRadius = (Bounds.InnerRadius + Bounds.OuterRadius) * 0.5f;
+			const float RepresentativeYawOffset = Bounds.CoversEveryAngle() ? 0.0f : Bounds.StartYawOffset + Bounds.SweepAngleDegrees * 0.5f;
+			const FVector RepresentativeDirection = HorizontalForward.RotateAngleAxis(RepresentativeYawOffset, FVector::UpVector);
+
+			OutTransforms.Emplace(FillRotation, SectorCenter + RepresentativeDirection * RepresentativeRadius);
 		}
 
 		return true;
 	}
+}
+
+bool FRSAnnularSectorBounds::IsDataValid(FString* OutValidationError) const
+{
+	if (OutValidationError)
+	{
+		OutValidationError->Reset();
+	}
+
+	const auto SetValidationError = [OutValidationError](const TCHAR* ErrorMessage)
+		{
+			if (OutValidationError)
+			{
+				*OutValidationError = ErrorMessage;
+			}
+		};
+
+	if (!FMath::IsFinite(OuterRadius) || !FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || OuterRadius <= InnerRadius)
+	{
+		SetValidationError(TEXT("OuterRadius must be finite and satisfy 0 <= InnerRadius < OuterRadius."));
+
+		return false;
+	}
+
+	if (!FMath::IsFinite(StartYawOffset))
+	{
+		SetValidationError(TEXT("StartYawOffset must be finite."));
+
+		return false;
+	}
+
+	// 각도는 래핑되므로 시작 각도에는 범위 제한이 필요하지 않습니다
+	if (!FMath::IsFinite(SweepAngleDegrees) || FMath::IsNearlyZero(SweepAngleDegrees) || FMath::Abs(SweepAngleDegrees) > 360.0f)
+	{
+		SetValidationError(TEXT("SweepAngleDegrees must be finite, non-zero and within a full turn."));
+
+		return false;
+	}
+
+	return true;
+}
+
+bool FRSAnnularSectorBounds::CoversEveryAngle() const
+{
+	return FMath::IsNearlyEqual(FMath::Abs(SweepAngleDegrees), 360.0f);
+}
+
+FRSAnnularSectorBounds FRSCombatShape::GetAnnularSectorBounds() const
+{
+	FRSAnnularSectorBounds Bounds;
+	Bounds.InnerRadius = InnerRadius;
+	Bounds.OuterRadius = OuterRadius;
+	Bounds.StartYawOffset = StartYawOffset;
+	Bounds.SweepAngleDegrees = SweepAngleDegrees;
+
+	return Bounds;
 }
 
 bool FRSCombatShape::IsDataValid(FString* OutValidationError) const
@@ -194,7 +157,7 @@ bool FRSCombatShape::IsDataValid(FString* OutValidationError) const
 		OutValidationError->Reset();
 	}
 
-	auto SetValidationError = [OutValidationError](const TCHAR* ErrorMessage)
+	const auto SetValidationError = [OutValidationError](const TCHAR* ErrorMessage)
 		{
 			if (OutValidationError)
 			{
@@ -213,37 +176,9 @@ bool FRSCombatShape::IsDataValid(FString* OutValidationError) const
 		}
 		break;
 
-	case ERSCombatShapeType::Sphere:
-		if (!FMath::IsFinite(Radius) || Radius <= 0.0f)
-		{
-			SetValidationError(TEXT("Radius must be finite and greater than zero."));
-
-			return false;
-		}
-
-		if (!FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || InnerRadius >= Radius)
-		{
-			SetValidationError(TEXT("InnerRadius must be finite and satisfy 0 <= InnerRadius < Radius."));
-
-			return false;
-		}
-		break;
-
-	case ERSCombatShapeType::Cone:
-		if (!FMath::IsFinite(Range) || Range <= 0.0f)
-		{
-			SetValidationError(TEXT("Range must be finite and greater than zero."));
-
-			return false;
-		}
-
-		if (!FMath::IsFinite(Angle) || Angle <= 0.0f || Angle > 180.0f)
-		{
-			SetValidationError(TEXT("Angle must be finite and satisfy 0 < Angle <= 180 degrees."));
-
-			return false;
-		}
-		break;
+	// 경계 규칙은 판정 커널과 하나를 공유해야 검증을 통과한 형상이 런타임에 거부되지 않습니다
+	case ERSCombatShapeType::AnnularSector:
+		return GetAnnularSectorBounds().IsDataValid(OutValidationError);
 
 	default:
 		SetValidationError(TEXT("Shape type is not supported."));
@@ -312,20 +247,17 @@ void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker
 	}
 
 	const FVector ShapeLocation = ShapeTransform.GetLocation();
-	const bool bIsSphere = Shape.Type == ERSCombatShapeType::Sphere;
-	const bool bIsCone = Shape.Type == ERSCombatShapeType::Cone;
+	const bool bIsAnnularSector = Shape.Type == ERSCombatShapeType::AnnularSector;
+	const FRSAnnularSectorBounds SectorBounds = Shape.GetAnnularSectorBounds();
 
-	FVector ConeHorizontalForward = FVector::ZeroVector;
-	float ConeRangeSquared = 0.0f;
-	float ConeMinimumDot = 0.0f;
-	if (bIsCone && !TryGetConeParameters(Shape, ShapeTransform, ConeHorizontalForward, ConeRangeSquared, ConeMinimumDot))
+	if (bIsAnnularSector && !SectorBounds.IsDataValid())
 	{
 		return;
 	}
 
 	// 축 정렬 박스를 사용하면 공격자가 대각선을 바라볼 때 판정이 어긋나므로 배치 회전을 함께 넘깁니다
-	// Sphere와 Cone은 실제 형상을 수평 필터에서 자르므로 후보 박스의 회전을 사용하지 않습니다
-	const FQuat QueryRotation = bIsSphere || bIsCone ? FQuat::Identity : ShapeTransform.GetRotation();
+	// 환형 부채꼴은 실제 형상을 수평 필터에서 자르므로 후보 박스의 회전을 사용하지 않습니다
+	const FQuat QueryRotation = bIsAnnularSector ? FQuat::Identity : ShapeTransform.GetRotation();
 
 	// 오버랩 형상은 판정 형상을 나타내지 않습니다. 판정 영역을 감싸기만 하면 되고 실제 판정은 아래 필터가 합니다
 	// 그래서 형상마다 근사를 고르지 않고 항상 감싸는 박스로 모읍니다
@@ -333,12 +265,8 @@ void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker
 	FCollisionShape QueryShape;
 	switch (Shape.Type)
 	{
-	case ERSCombatShapeType::Sphere:
-		QueryShape = FCollisionShape::MakeBox(FVector(Shape.Radius, Shape.Radius, RSCombatQueryVerticalExtent));
-		break;
-
-	case ERSCombatShapeType::Cone:
-		QueryShape = FCollisionShape::MakeBox(FVector(Shape.Range, Shape.Range, RSCombatQueryVerticalExtent));
+	case ERSCombatShapeType::AnnularSector:
+		QueryShape = FCollisionShape::MakeBox(FVector(Shape.OuterRadius, Shape.OuterRadius, RSCombatQueryVerticalExtent));
 		break;
 
 	case ERSCombatShapeType::Box:
@@ -356,9 +284,6 @@ void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker
 	TArray<FOverlapResult> Overlaps;
 	World->OverlapMultiByChannel(Overlaps, ShapeLocation, QueryRotation, TargetChannel, QueryShape, QueryParams);
 
-	const float InnerRadiusSquared = FMath::Square(Shape.InnerRadius);
-	const float RadiusSquared = FMath::Square(Shape.Radius);
-
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
 		AActor* OverlappedActor = Overlap.GetActor();
@@ -375,18 +300,9 @@ void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker
 			continue;
 		}
 
-		if (bIsSphere)
-		{
-			// 후보 박스가 원보다 넓으므로 여기서 실제 형상으로 잘라냅니다
-			// 경계는 액터 중심점으로 판정합니다. 표면 기준으로 바꾸면 안쪽과 바깥쪽 경계의 관대함이 달라집니다
-			// InnerRadius가 0이면 안쪽 조건이 항상 참이 되어 구멍 없는 원이 됩니다
-			const float DistanceSquared = FVector::DistSquared2D(ShapeLocation, OverlappedActor->GetActorLocation());
-			if (DistanceSquared < InnerRadiusSquared || DistanceSquared >= RadiusSquared)
-			{
-				continue;
-			}
-		}
-		else if (bIsCone && !IsLocationInsidePreparedCone(ShapeLocation, ConeHorizontalForward, ConeRangeSquared, ConeMinimumDot, OverlappedActor->GetActorLocation()))
+		// 후보 박스가 형상보다 넓으므로 여기서 실제 형상으로 잘라냅니다
+		// 경계는 액터 중심점으로 판정합니다. 표면 기준으로 바꾸면 안쪽과 바깥쪽 경계의 관대함이 달라집니다
+		if (bIsAnnularSector && !IsLocationInsideAnnularSector(ShapeTransform, SectorBounds, OverlappedActor->GetActorLocation()))
 		{
 			continue;
 		}
@@ -398,19 +314,6 @@ void URSCombatFunctionLibrary::FindTargetsInShapeInternal(const AActor* Attacker
 	{
 		DrawDebugCombatShape(World, Shape, ShapeTransform, OutTargets.IsEmpty() ? FColor::Silver : FColor::Red, RSCombatDebugLifeTime);
 	}
-}
-
-bool URSCombatFunctionLibrary::IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation)
-{
-	FVector HorizontalForward = FVector::ZeroVector;
-	float RangeSquared = 0.0f;
-	float MinimumDot = 0.0f;
-	if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
-	{
-		return false;
-	}
-
-	return IsLocationInsidePreparedCone(ShapeTransform.GetLocation(), HorizontalForward, RangeSquared, MinimumDot, TargetLocation);
 }
 
 bool URSCombatFunctionLibrary::TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation)
@@ -440,6 +343,115 @@ bool URSCombatFunctionLibrary::TryGetActorGroundLocation(const AActor* Actor, FV
 	return true;
 }
 
+bool URSCombatFunctionLibrary::IsLocationInsideAnnularSector(const FTransform& SectorTransform, const FRSAnnularSectorBounds& SectorBounds, const FVector& TargetLocation)
+{
+	if (SectorTransform.ContainsNaN() || TargetLocation.ContainsNaN() || !SectorBounds.IsDataValid())
+	{
+		return false;
+	}
+
+	const FVector LocalOffset = SectorTransform.InverseTransformPositionNoScale(TargetLocation);
+	const float RadiusSquared = FMath::Square(LocalOffset.X) + FMath::Square(LocalOffset.Y);
+
+	// 반지름은 반개구간이라 경계는 바깥쪽 형상의 것입니다
+	// 이어 붙는 링이 경계를 공유해도 한 대상이 두 링에 걸리지 않으므로 호출자가 중복을 지울 필요가 없습니다
+	if (RadiusSquared < FMath::Square(SectorBounds.InnerRadius) || RadiusSquared >= FMath::Square(SectorBounds.OuterRadius))
+	{
+		return false;
+	}
+
+	// 중심에서는 방향이 정의되지 않으므로 반지름 검사를 통과한 것으로 충분합니다
+	// 360도는 시작 경계와 끝 경계가 같은 지점이라 반개구간을 그대로 적용하면 그 한 방향만 빠집니다
+	if (RadiusSquared <= KINDA_SMALL_NUMBER || SectorBounds.CoversEveryAngle())
+	{
+		return true;
+	}
+
+	const float TargetYawOffset = FMath::RadiansToDegrees(FMath::Atan2(LocalOffset.Y, LocalOffset.X));
+	const float DirectedAngle = SectorBounds.SweepAngleDegrees > 0.0f
+		? FRotator::ClampAxis(TargetYawOffset - SectorBounds.StartYawOffset)
+		: FRotator::ClampAxis(SectorBounds.StartYawOffset - TargetYawOffset);
+
+	// 각도도 같은 규약입니다. ClampAxis가 [0, 360)을 돌려주므로 시작 경계는 0이 되어 포함됩니다
+	return DirectedAngle < FMath::Abs(SectorBounds.SweepAngleDegrees);
+}
+
+bool URSCombatFunctionLibrary::TryGetActorHorizontalRadius(const AActor* Actor, float& OutHorizontalRadius)
+{
+	if (!Actor)
+	{
+		return false;
+	}
+
+	const ACharacter* Character = Cast<const ACharacter>(Actor);
+	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
+
+	// 크기를 키운 보스의 시작 반경이 함께 커져야 하므로 Scale을 반영한 반지름을 읽습니다
+	// 캡슐이 없는 액터까지 같은 계약으로 받아야 호출처가 액터 타입을 나누지 않습니다
+	const float HorizontalRadius = CapsuleComp
+		? CapsuleComp->GetScaledCapsuleRadius()
+		: Actor->GetSimpleCollisionRadius();
+
+	// 잘못된 반경으로 판정 범위를 자르는 대신 호출자가 다른 선택을 할 수 있도록 실패를 알립니다
+	if (!FMath::IsFinite(HorizontalRadius) || HorizontalRadius < 0.0f)
+	{
+		return false;
+	}
+
+	OutHorizontalRadius = HorizontalRadius;
+
+	return true;
+}
+
+bool URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(FRSAnnularSectorBounds& InOutBounds, float MinimumInnerRadius)
+{
+	if (!InOutBounds.IsDataValid())
+	{
+		return false;
+	}
+
+	// 하한이 없으면 경계를 그대로 둡니다. 하한은 바닥이지 덮어쓰기가 아닙니다
+	if (!FMath::IsFinite(MinimumInnerRadius) || MinimumInnerRadius <= 0.0f)
+	{
+		return true;
+	}
+
+	// 경계 전체가 기준 액터 안에 있으면 판정할 면적이 남지 않으므로 호출자가 그 형상을 건너뛸 수 있게 알립니다
+	if (MinimumInnerRadius >= InOutBounds.OuterRadius)
+	{
+		return false;
+	}
+
+	InOutBounds.InnerRadius = FMath::Max(InOutBounds.InnerRadius, MinimumInnerRadius);
+
+	return true;
+}
+
+bool URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(FRSCombatShape& InOutShape, float MinimumInnerRadius)
+{
+	if (!InOutShape.IsDataValid())
+	{
+		return false;
+	}
+
+	// Box를 보스 원점 기준으로 쓰는 패턴이 없어 자를 대상이 없습니다
+	if (InOutShape.Type != ERSCombatShapeType::AnnularSector)
+	{
+		return true;
+	}
+
+	// 하한 규칙은 경계 층이 소유하므로 형상은 경계로 바꿔 넘기고 결과만 되돌려 받습니다
+	FRSAnnularSectorBounds Bounds = InOutShape.GetAnnularSectorBounds();
+	if (!TryApplyMinimumInnerRadius(Bounds, MinimumInnerRadius))
+	{
+		return false;
+	}
+
+	InOutShape.InnerRadius = Bounds.InnerRadius;
+
+	return true;
+}
+
 bool URSCombatFunctionLibrary::BuildShapeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
 {
 	if (!FMath::IsFinite(Spacing) || Spacing <= 0.0f || !Shape.IsDataValid())
@@ -449,11 +461,8 @@ bool URSCombatFunctionLibrary::BuildShapeFillTransforms(const FRSCombatShape& Sh
 
 	switch (Shape.Type)
 	{
-	case ERSCombatShapeType::Cone:
-		return BuildConeFill(Shape, ShapeTransform, Spacing, OutTransforms);
-
-	case ERSCombatShapeType::Sphere:
-		return BuildSphereFill(Shape, ShapeTransform, Spacing, OutTransforms);
+	case ERSCombatShapeType::AnnularSector:
+		return BuildAnnularSectorFill(Shape, ShapeTransform, Spacing, OutTransforms);
 
 	default:
 		// Box를 채우는 보스 패턴이 없어 지원하지 않으며, 조용히 비는 대신 호출자가 알 수 있게 실패합니다
@@ -469,96 +478,23 @@ void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const F
 		return;
 	}
 
-	constexpr int32 DebugCircleSegments = 48;
-
-	const FVector ShapeLocation = ShapeTransform.GetLocation();
-
 	switch (Shape.Type)
 	{
 	case ERSCombatShapeType::Box:
-		DrawDebugBox(World, ShapeLocation, Shape.BoxExtent, ShapeTransform.GetRotation(), Color, false, LifeTime);
+		DrawDebugBox(World, ShapeTransform.GetLocation(), Shape.BoxExtent, ShapeTransform.GetRotation(), Color, false, LifeTime);
 		break;
 
-	case ERSCombatShapeType::Sphere:
-		// 판정이 수평 거리 기준이므로 구가 아니라 바닥 평면의 원으로 그려야 실제 범위와 일치합니다
-		DrawDebugCircle(World, ShapeLocation, Shape.Radius, DebugCircleSegments, Color, false, LifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
-
-		if (Shape.InnerRadius > 0.0f)
-		{
-			DrawDebugCircle(World, ShapeLocation, Shape.InnerRadius, DebugCircleSegments, Color, false, LifeTime, 0, 0.0f, FVector::ForwardVector, FVector::RightVector, false);
-		}
-		break;
-
-	case ERSCombatShapeType::Cone:
+	case ERSCombatShapeType::AnnularSector:
 	{
-		if (!Shape.IsDataValid())
-		{
-			break;
-		}
-
-		FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
-		HorizontalForward.Z = 0.0f;
-		if (!HorizontalForward.Normalize())
-		{
-			break;
-		}
-
-		const FVector LeftBoundary = HorizontalForward.RotateAngleAxis(-Shape.Angle * 0.5f, FVector::UpVector);
-		const FVector RightBoundary = HorizontalForward.RotateAngleAxis(Shape.Angle * 0.5f, FVector::UpVector);
-		DrawDebugLine(World, ShapeLocation, ShapeLocation + LeftBoundary * Shape.Range, Color, false, LifeTime);
-		DrawDebugLine(World, ShapeLocation, ShapeLocation + RightBoundary * Shape.Range, Color, false, LifeTime);
-
-		FVector PreviousArcPoint = ShapeLocation + LeftBoundary * Shape.Range;
-		for (int32 SegmentIndex = 1; SegmentIndex <= DebugCircleSegments; ++SegmentIndex)
-		{
-			const float SegmentRatio = static_cast<float>(SegmentIndex) / static_cast<float>(DebugCircleSegments);
-			const float SegmentAngle = FMath::Lerp(-Shape.Angle * 0.5f, Shape.Angle * 0.5f, SegmentRatio);
-			const FVector ArcPoint = ShapeLocation + HorizontalForward.RotateAngleAxis(SegmentAngle, FVector::UpVector) * Shape.Range;
-			DrawDebugLine(World, PreviousArcPoint, ArcPoint, Color, false, LifeTime);
-			PreviousArcPoint = ArcPoint;
-		}
+		// 판정이 수평 거리와 각도 기준이므로 바닥 평면의 환형 부채꼴로 그려야 실제 범위와 일치합니다
+		const FRSAnnularSectorBounds Bounds = Shape.GetAnnularSectorBounds();
+		DrawDebugCombatAnnularSector(World, ShapeTransform, Bounds.InnerRadius, Bounds.OuterRadius, Bounds.StartYawOffset, Bounds.SweepAngleDegrees, Color, LifeTime);
 		break;
 	}
 	}
 #endif
 }
 
-void URSCombatFunctionLibrary::DrawDebugCombatSector(const UWorld* World, const FTransform& ShapeTransform, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime)
-{
-#if ENABLE_DRAW_DEBUG
-	if (!World || ShapeTransform.ContainsNaN() || !FMath::IsFinite(OuterRadius) || OuterRadius <= 0.0f
-		|| !FMath::IsFinite(StartAngleOffsetDegrees) || !FMath::IsFinite(SweepAngleDegrees) || SweepAngleDegrees <= 0.0f || SweepAngleDegrees > 360.0f)
-	{
-		return;
-	}
-
-	FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
-	HorizontalForward.Z = 0.0f;
-	if (!HorizontalForward.Normalize())
-	{
-		return;
-	}
-
-	constexpr int32 DebugCircleSegments = 48;
-	const FVector ShapeLocation = ShapeTransform.GetLocation();
-	const FVector StartBoundary = HorizontalForward.RotateAngleAxis(StartAngleOffsetDegrees, FVector::UpVector);
-	if (!FMath::IsNearlyEqual(SweepAngleDegrees, 360.0f))
-	{
-		const FVector EndBoundary = StartBoundary.RotateAngleAxis(SweepAngleDegrees, FVector::UpVector);
-		DrawDebugLine(World, ShapeLocation, ShapeLocation + StartBoundary * OuterRadius, Color, false, LifeTime);
-		DrawDebugLine(World, ShapeLocation, ShapeLocation + EndBoundary * OuterRadius, Color, false, LifeTime);
-	}
-
-	FVector PreviousArcPoint = ShapeLocation + StartBoundary * OuterRadius;
-	for (int32 SegmentIndex = 1; SegmentIndex <= DebugCircleSegments; ++SegmentIndex)
-	{
-		const float SegmentRatio = static_cast<float>(SegmentIndex) / static_cast<float>(DebugCircleSegments);
-		const FVector ArcPoint = ShapeLocation + StartBoundary.RotateAngleAxis(SweepAngleDegrees * SegmentRatio, FVector::UpVector) * OuterRadius;
-		DrawDebugLine(World, PreviousArcPoint, ArcPoint, Color, false, LifeTime);
-		PreviousArcPoint = ArcPoint;
-	}
-#endif
-}
 
 void URSCombatFunctionLibrary::DrawDebugCombatAnnularSector(const UWorld* World, const FTransform& ShapeTransform, float InnerRadius, float OuterRadius, float StartAngleOffsetDegrees, float SweepAngleDegrees, const FColor& Color, float LifeTime)
 {
