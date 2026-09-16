@@ -105,6 +105,17 @@ int32 FRSPizzaMemoryPatternDefinition::GetSequenceLength() const
 	return SafeZoneSequenceCandidates.IsEmpty() ? 0 : SafeZoneSequenceCandidates[0].SafePairs.Num();
 }
 
+FRSPizzaCueTimings FRSPizzaMemoryPatternDefinition::MakeCueTimings() const
+{
+	FRSPizzaCueTimings CueTimings;
+	CueTimings.CueDuration = MemoryCueDuration;
+	CueTimings.CueGap = MemoryCueGap;
+	CueTimings.RecallDelay = RecallDelay;
+	CueTimings.ExplosionInterval = ExplosionInterval;
+
+	return CueTimings;
+}
+
 bool FRSPizzaMemoryPatternDefinition::TryCopySafeZoneSequenceCandidate(int32 CandidateIndex, TArray<ERSPizzaMemorySafePair>& OutSafePairs) const
 {
 	OutSafePairs.Reset();
@@ -199,93 +210,4 @@ bool FRSPizzaMemoryPatternDefinition::TryIsLocationInSafePair(const FTransform& 
 	OutIsSafe = TargetSliceIndex == FirstSafeSliceIndex || TargetSliceIndex == SecondSafeSliceIndex;
 
 	return true;
-}
-
-bool FRSPizzaMemoryPatternTimeline::Initialize(int32 InSequenceLength)
-{
-	Reset();
-	if (InSequenceLength <= 0)
-	{
-		return false;
-	}
-
-	SequenceLength = InSequenceLength;
-	SequenceIndex = 0;
-	Phase = ERSPizzaMemoryPatternTimelinePhase::MemoryCue;
-
-	return true;
-}
-
-void FRSPizzaMemoryPatternTimeline::Reset()
-{
-	Phase = ERSPizzaMemoryPatternTimelinePhase::Inactive;
-	SequenceLength = 0;
-	SequenceIndex = INDEX_NONE;
-}
-
-bool FRSPizzaMemoryPatternTimeline::Advance()
-{
-	switch (Phase)
-	{
-	case ERSPizzaMemoryPatternTimelinePhase::MemoryCue:
-		Phase = SequenceIndex + 1 < SequenceLength
-			? ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap
-			: ERSPizzaMemoryPatternTimelinePhase::RecallDelay;
-		return true;
-
-	case ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap:
-		++SequenceIndex;
-		Phase = ERSPizzaMemoryPatternTimelinePhase::MemoryCue;
-		return SequenceIndex < SequenceLength;
-
-	case ERSPizzaMemoryPatternTimelinePhase::RecallDelay:
-		SequenceIndex = 0;
-		Phase = ERSPizzaMemoryPatternTimelinePhase::Explosion;
-		return true;
-
-	case ERSPizzaMemoryPatternTimelinePhase::Explosion:
-		Phase = SequenceIndex + 1 < SequenceLength
-			? ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval
-			: ERSPizzaMemoryPatternTimelinePhase::Complete;
-		return true;
-
-	case ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval:
-		++SequenceIndex;
-		Phase = ERSPizzaMemoryPatternTimelinePhase::Explosion;
-		return SequenceIndex < SequenceLength;
-
-	default:
-		return false;
-	}
-}
-
-float FRSPizzaMemoryPatternTimeline::GetCurrentDelaySeconds(const FRSPizzaMemoryPatternDefinition& Definition) const
-{
-	switch (Phase)
-	{
-	case ERSPizzaMemoryPatternTimelinePhase::MemoryCue:
-		return Definition.MemoryCueDuration;
-
-	case ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap:
-		return Definition.MemoryCueGap;
-
-	case ERSPizzaMemoryPatternTimelinePhase::RecallDelay:
-		return Definition.RecallDelay;
-
-	case ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval:
-		return Definition.ExplosionInterval;
-
-	default:
-		return 0.0f;
-	}
-}
-
-ERSPizzaMemoryPatternTimelinePhase FRSPizzaMemoryPatternTimeline::GetPhase() const
-{
-	return Phase;
-}
-
-int32 FRSPizzaMemoryPatternTimeline::GetSequenceIndex() const
-{
-	return SequenceIndex;
 }

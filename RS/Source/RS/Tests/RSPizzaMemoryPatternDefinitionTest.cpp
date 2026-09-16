@@ -17,6 +17,12 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Default definition is valid"), Definition.IsDataValid());
 	TestEqual(TEXT("Default sequence length is four"), Definition.GetSequenceLength(), 4);
 
+	const FRSPizzaCueTimings CueTimings = Definition.MakeCueTimings();
+	TestEqual(TEXT("Cue timings use the memory cue duration"), CueTimings.CueDuration, Definition.MemoryCueDuration);
+	TestEqual(TEXT("Cue timings use the memory cue gap"), CueTimings.CueGap, Definition.MemoryCueGap);
+	TestEqual(TEXT("Cue timings use the recall delay"), CueTimings.RecallDelay, Definition.RecallDelay);
+	TestEqual(TEXT("Cue timings use the explosion interval"), CueTimings.ExplosionInterval, Definition.ExplosionInterval);
+
 	TArray<ERSPizzaMemorySafePair> CopiedSafePairs;
 	TestTrue(TEXT("Default candidate can be copied"), Definition.TryCopySafeZoneSequenceCandidate(0, CopiedSafePairs));
 	TestEqual(TEXT("Copied candidate keeps the sequence length"), CopiedSafePairs.Num(), Definition.GetSequenceLength());

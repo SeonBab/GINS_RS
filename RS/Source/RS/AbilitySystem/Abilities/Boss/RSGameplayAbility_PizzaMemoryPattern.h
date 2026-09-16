@@ -110,7 +110,7 @@ private:
 	TArray<int32> ActiveMemoryCueHandles;
 
 	/** 암기 표시부터 마지막 폭발까지 선택 배열의 인덱스와 실행 단계를 관리합니다 */
-	FRSPizzaMemoryPatternTimeline Timeline;
+	FRSPizzaCueTimeline Timeline;
 
 	/** 같은 폭발에서 여러 HurtBox로 수집된 Actor의 피해와 반응 중복을 막습니다 */
 	TSet<TWeakObjectPtr<AActor>> HitActors;

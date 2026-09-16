@@ -171,7 +171,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::BeginCurrentMemoryCue()
 	const int32 SequenceIndex = Timeline.GetSequenceIndex();
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	URSAttackTelegraphComponent* TelegraphComp = AvatarActor ? AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (Timeline.GetPhase() != ERSPizzaMemoryPatternTimelinePhase::MemoryCue || !TelegraphComp || !ActiveSafePairs.IsValidIndex(SequenceIndex)
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::Cue || !TelegraphComp || !ActiveSafePairs.IsValidIndex(SequenceIndex)
 		|| !PizzaMemoryPatternDefinition.TryBuildDangerousSliceTransforms(LockedPatternTransform, ActiveSafePairs[SequenceIndex], ActiveDangerousSliceTransforms))
 	{
 		return false;
@@ -201,7 +201,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::BeginCurrentMemoryCue()
 		ActiveMemoryCueHandles.Add(TelegraphHandle);
 	}
 
-	MemoryCueDurationTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition));
+	MemoryCueDurationTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition.MakeCueTimings()));
 	MemoryCueDurationTask->OnFinish.AddDynamic(this, &ThisClass::HandleMemoryCueDurationFinished);
 	MemoryCueDurationTask->ReadyForActivation();
 
@@ -226,14 +226,14 @@ void URSGameplayAbility_PizzaMemoryPattern::HandleMemoryCueDurationFinished()
 		return;
 	}
 
-	if (Timeline.GetPhase() == ERSPizzaMemoryPatternTimelinePhase::RecallDelay)
+	if (Timeline.GetPhase() == ERSPizzaCueTimelinePhase::RecallDelay)
 	{
 		BeginRecallDelay();
 
 		return;
 	}
 
-	MemoryCueGapTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition));
+	MemoryCueGapTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition.MakeCueTimings()));
 	MemoryCueGapTask->OnFinish.AddDynamic(this, &ThisClass::HandleMemoryCueGapFinished);
 	MemoryCueGapTask->ReadyForActivation();
 }
@@ -254,14 +254,14 @@ void URSGameplayAbility_PizzaMemoryPattern::HandleMemoryCueGapFinished()
 
 void URSGameplayAbility_PizzaMemoryPattern::BeginRecallDelay()
 {
-	if (Timeline.GetPhase() != ERSPizzaMemoryPatternTimelinePhase::RecallDelay)
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::RecallDelay)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	const float RecallDelay = Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition);
+	const float RecallDelay = Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition.MakeCueTimings());
 	if (RecallDelay <= 0.0f)
 	{
 		HandleRecallDelayFinished();
@@ -311,14 +311,14 @@ void URSGameplayAbility_PizzaMemoryPattern::RunCurrentExplosion()
 		return;
 	}
 
-	if (Timeline.GetPhase() == ERSPizzaMemoryPatternTimelinePhase::Complete)
+	if (Timeline.GetPhase() == ERSPizzaCueTimelinePhase::Complete)
 	{
 		FinishPatternWhenMontageEnds();
 
 		return;
 	}
 
-	ExplosionIntervalTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition));
+	ExplosionIntervalTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaMemoryPatternDefinition.MakeCueTimings()));
 	ExplosionIntervalTask->OnFinish.AddDynamic(this, &ThisClass::HandleExplosionIntervalFinished);
 	ExplosionIntervalTask->ReadyForActivation();
 }
@@ -345,7 +345,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::ExecuteCurrentExplosion()
 {
 	const int32 SequenceIndex = Timeline.GetSequenceIndex();
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-	if (Timeline.GetPhase() != ERSPizzaMemoryPatternTimelinePhase::Explosion || !AvatarActor || !ActiveSafePairs.IsValidIndex(SequenceIndex)
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::Explosion || !AvatarActor || !ActiveSafePairs.IsValidIndex(SequenceIndex)
 		|| !PizzaMemoryPatternDefinition.TryBuildDangerousSliceTransforms(LockedPatternTransform, ActiveSafePairs[SequenceIndex], ActiveDangerousSliceTransforms))
 	{
 		return false;
