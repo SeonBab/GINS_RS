@@ -36,4 +36,12 @@ struct FRSNiagaraSpawnDefinition
 	/** 소켓 기준 생성에서 사용할 소켓 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Niagara", meta = (EditCondition = "SpawnMode != ERSNiagaraSpawnMode::WorldTransform", EditConditionHides))
 	FName SocketName;
+
+	/** 소켓 기준 생성에서 소켓의 회전을 사용할지 정하며, 끄면 회전 없이 생성합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Niagara", meta = (EditCondition = "SpawnMode != ERSNiagaraSpawnMode::WorldTransform", EditConditionHides))
+	bool bUseSocketRotation = true;
+
+	/** 소켓 기준 생성에서 소켓의 스케일을 사용할지 정하며, 끄면 스케일 1로 생성합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Niagara", meta = (EditCondition = "SpawnMode != ERSNiagaraSpawnMode::WorldTransform", EditConditionHides))
+	bool bUseSocketScale = true;
 };
