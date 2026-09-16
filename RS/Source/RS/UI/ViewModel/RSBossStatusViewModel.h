@@ -41,6 +41,15 @@ public:
 	/** 현재 활성 레이어를 포함하여 남은 레이어 수를 반환합니다 */
 	int32 GetRemainingLayerCount() const { return RemainingLayerCount; }
 
+	/** 현재 원본에 설정된 전체 레이어 수를 반환합니다 */
+	int32 GetHealthLayerCount() const { return FMath::Max(HealthLayerCount, 1); }
+
+	/**
+	 * 0부터 레이어 수까지의 연속 체력을 반환합니다
+	 * 레이어 경계를 가로지르는 연출이 하나의 값으로 현재 위치를 다룰 수 있도록 제공합니다
+	 */
+	float GetHealthLayerScaled() const { return HealthNormalized * GetHealthLayerCount(); }
+
 	/** 원인과 무관한 보스 체력 사용자 인터페이스 Shake를 요청합니다 */
 	UFUNCTION(BlueprintCallable, Category = "RS|Boss Status")
 	void RequestHealthBarShake(float Strength);
