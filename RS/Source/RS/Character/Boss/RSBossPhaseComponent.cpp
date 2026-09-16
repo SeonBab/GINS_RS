@@ -85,6 +85,12 @@ bool URSBossPhaseComponent::TryGetCurrentPatternType(ERSBossPatternType& OutPatt
 
 bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass)
 {
+	// 유예 중 실패는 데이터 문제가 아니라 의도한 진행 상태이므로 경고를 남기지 않습니다
+	if (IsCombatStartGraceActive())
+	{
+		return false;
+	}
+
 	const TArray<TSubclassOf<URSBaseGameplayAbility>>* Candidates = GetPatternCandidates(PatternType);
 
 	// 후보가 없는 것은 정상적인 실행 실패가 아니라 에셋 설정 누락입니다
@@ -113,6 +119,27 @@ bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSu
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Select %s %s"), *GetPatternTypeName(PatternType), *GetNameSafe(SelectedAbilityClass));
 
 	return true;
+}
+
+void URSBossPhaseComponent::BeginCombatStartGrace()
+{
+	const UWorld* World = GetWorld();
+	const float GraceSeconds = PhaseData ? PhaseData->CombatStartGraceSeconds : 0.0f;
+
+	CombatStartGraceEndTimeSeconds = (World && GraceSeconds > 0.0f) ? World->GetTimeSeconds() + GraceSeconds : 0.0f;
+
+	if (CombatStartGraceEndTimeSeconds > 0.0f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[BossPhase] Combat start grace %.2fs"), GraceSeconds);
+	}
+}
+
+bool URSBossPhaseComponent::IsCombatStartGraceActive() const
+{
+	// 월드가 없는 검증 경로에는 진행하는 시간이 없으므로 유예도 성립하지 않습니다
+	const UWorld* World = GetWorld();
+
+	return World && World->GetTimeSeconds() < CombatStartGraceEndTimeSeconds;
 }
 
 int32 URSBossPhaseComponent::PickPatternIndex(ERSBossPatternType PatternType, int32 CandidateCount)

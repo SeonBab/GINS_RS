@@ -78,6 +78,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
 	TSubclassOf<URSBaseGameplayAbility> GroggyAbility;
 
+	/**
+	 * 전투가 시작된 뒤 첫 패턴을 시작하기 전에 두는 유예 시간입니다
+	 * 플레이어가 전투 시작 직후 상황을 파악할 시간을 주며 0이면 바로 첫 패턴을 시작합니다
+	 * 페이즈 전환에는 적용하지 않으므로 페이즈마다 두지 않습니다
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase", meta = (ClampMin = "0.0", UIMin = "0.0", Units = "s"))
+	float CombatStartGraceSeconds = 2.0f;
+
 	/** 진행 순서대로 나열한 페이즈 정의입니다 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Boss|Phase")
 	TArray<FRSBossPhaseDefinition> Phases;

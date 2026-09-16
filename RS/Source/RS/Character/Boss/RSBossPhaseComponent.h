@@ -83,8 +83,18 @@ public:
 	/**
 	 * 지정한 종류의 후보 중 사용할 어빌리티를 선택합니다
 	 * 직전 차례와 같은 종류라면 직전에 선택한 후보를 제외하므로 선택 결과를 기록하기 위해 상수 함수가 아닙니다
+	 * 전투 시작 유예 중에는 차례를 소비하지 않고 실패하므로 Behavior Tree가 기존 대기 경로에 머뭅니다
 	 */
 	bool TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass);
+
+	/**
+	 * 전투 시작 유예를 시작해 첫 패턴을 늦춥니다
+	 * 페이즈 전환은 이 유예를 사용하지 않으므로 Encounter 전투 시작 경로에서만 호출합니다
+	 */
+	void BeginCombatStartGrace();
+
+	/** 전투 시작 유예가 끝나지 않아 아직 첫 패턴을 시작할 수 없는지 반환합니다 */
+	bool IsCombatStartGraceActive() const;
 
 	/** 정상적으로 수행을 마친 패턴 하나만큼 사이클을 진행합니다 */
 	void AdvancePatternCycle();
@@ -239,6 +249,13 @@ private:
 	/** 현재 페이즈 기믹에 대한 플레이어의 대응 결과입니다 */
 	UPROPERTY(Transient)
 	ERSBossMainGimmickOutcome MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
+
+	/**
+	 * 전투 시작 유예가 끝나는 월드 시각입니다
+	 * 지나간 시각은 그대로 두어도 유예가 아니므로 전투 종료나 페이즈 전환에서 따로 정리하지 않습니다
+	 */
+	UPROPERTY(Transient)
+	float CombatStartGraceEndTimeSeconds = 0.0f;
 
 	/** 체력 구독을 해제하기 위해 보관한 HealthComponent입니다 */
 	UPROPERTY(Transient)

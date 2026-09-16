@@ -172,6 +172,8 @@ void ARSBossCharacter::BeginEncounterCombat()
 {
 	if (BossPhaseComp)
 	{
+		// 페이즈 전환이 아니라 전투 시작에서만 첫 패턴을 늦추므로 페이즈 진입과 따로 요청합니다
+		BossPhaseComp->BeginCombatStartGrace();
 		BossPhaseComp->EnterCurrentPhase();
 	}
 }
