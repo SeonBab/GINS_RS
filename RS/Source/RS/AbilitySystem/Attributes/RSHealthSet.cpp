@@ -8,6 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "GameplayEffectExtension.h"
 #include "RSAbilitySystemComponent.h"
+#include "RSCombatFunctionLibrary.h"
 #include "RSGameplayTags.h"
 
 URSHealthSet::URSHealthSet()
@@ -74,20 +75,19 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 		// SetHealth는 Attribute 변경 델리게이트를 동기적으로 발생시키므로 사망 처리와 Encounter 종료가
 		// 아래 통지보다 먼저 실행될 수 있습니다
 		// 그 과정에서 AvatarActor가 사용 불가 상태가 되어도 처치 일격의 표시 위치를 잃지 않도록 좌표를 미리 캡처합니다
-		FVector TargetLocation = FVector::ZeroVector;
-		bool bHasTargetLocation = false;
+		FVector TargetGroundLocation = FVector::ZeroVector;
+		bool bHasTargetGroundLocation = false;
 		if (const AActor* TargetAvatarActor = Data.Target.GetAvatarActor())
 		{
 			// 월드 원점도 유효한 앵커이므로 좌표값이 아니라 별도 플래그로 캡처 성공을 판정합니다
-			TargetLocation = TargetAvatarActor->GetActorLocation();
-			bHasTargetLocation = true;
+			bHasTargetGroundLocation = URSCombatFunctionLibrary::TryGetActorGroundLocation(TargetAvatarActor, TargetGroundLocation);
 		}
 
 		SetHealth(FMath::Clamp(OldHealth - LocalDamage, 0.0f, GetMaxHealth()));
 
 		// 요청한 피해량이 아니라 Clamp를 거쳐 실제로 줄어든 값이 외부 시스템이 관찰해야 하는 결과입니다
 		const float AppliedDamage = OldHealth - GetHealth();
-		if (AppliedDamage <= 0.0f || !bHasTargetLocation)
+		if (AppliedDamage <= 0.0f || !bHasTargetGroundLocation)
 		{
 			return;
 		}
@@ -96,7 +96,7 @@ void URSHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackDat
 		// 통지에 실패해도 위의 피해 적용은 이미 끝났으므로 표시 실패가 게임플레이 결과를 바꾸지 않습니다
 		if (URSAbilitySystemComponent* InstigatorAbilitySystemComp = Cast<URSAbilitySystemComponent>(Data.EffectSpec.GetContext().GetOriginalInstigatorAbilitySystemComponent()))
 		{
-			InstigatorAbilitySystemComp->NotifyDamageDealt(AppliedDamage, TargetLocation);
+			InstigatorAbilitySystemComp->NotifyDamageDealt(AppliedDamage, TargetGroundLocation);
 		}
 	}
 	else if (Data.EvaluatedData.Attribute == GetHealingAttribute())

@@ -523,9 +523,9 @@ bool URSAbilitySystemComponent::GetCooldownInfoForAbility(FGameplayAbilitySpecHa
 	return false;
 }
 
-void URSAbilitySystemComponent::NotifyDamageDealt(float AppliedDamage, const FVector& TargetLocation)
+void URSAbilitySystemComponent::NotifyDamageDealt(float AppliedDamage, const FVector& TargetGroundLocation)
 {
-	OnDamageDealt.Broadcast(AppliedDamage, TargetLocation);
+	OnDamageDealt.Broadcast(AppliedDamage, TargetGroundLocation);
 }
 
 void URSAbilitySystemComponent::ApplyHitStop(float Duration, float TimeDilation)

@@ -32,11 +32,12 @@ public:
 
 public:
 	/**
-	 * 피해 이벤트를 관찰할 ASC를 연결합니다
+	 * 피해 이벤트를 관찰할 ASC와 데미지 숫자의 시작 높이를 연결합니다
 	 * 같은 ASC를 다시 전달하면 배선을 그대로 두고 반환하므로 같은 Source의 재등록에 안전합니다
-	 * nullptr은 아무 작업도 하지 않습니다. 해제 경로는 UninitializeViewModel 하나로 유지합니다
+	 * 같은 ASC를 사용하는 새 Pawn이 등록되면 시작 높이만 새 캡슐 높이로 갱신합니다
+	 * nullptr 또는 유효하지 않은 높이는 아무 작업도 하지 않습니다. 해제 경로는 UninitializeViewModel 하나로 유지합니다
 	 */
-	void InitializeViewModel(URSAbilitySystemComponent* InAbilitySystemComponent);
+	void InitializeViewModel(URSAbilitySystemComponent* InAbilitySystemComponent, float InDamageNumberStartHeight);
 
 	/**
 	 * 연결한 ASC의 구독을 해제하고 표시 중인 숫자를 폐기하도록 요청합니다
@@ -65,7 +66,7 @@ private:
 
 	/** 적용된 피해량을 표시 문자열과 월드 앵커로 변환해 요청합니다 */
 	UFUNCTION()
-	void HandleDamageDealt(float AppliedDamage, FVector TargetLocation);
+	void HandleDamageDealt(float AppliedDamage, FVector TargetGroundLocation);
 
 private:
 	/**
@@ -78,9 +79,8 @@ private:
 	TWeakObjectPtr<URSAbilitySystemComponent> ConnectedAbilitySystemComp;
 
 	/**
-	 * 대상 위치에서 데미지 숫자를 띄울 높이(cm)이며 게임플레이 값이 아닌 표시 설정입니다
-	 * 이 ViewModel은 Blueprint 에셋 없이 Subsystem이 C++ 클래스를 직접 생성하므로 편집 지정자를 두지 않습니다
-	 * 앵커 계산이 자동화 테스트 범위에 남도록 값을 계층 위젯으로 옮기지 않고 코드 상수로 유지합니다
+	 * 대상의 바닥에서 데미지 숫자를 띄울 높이(cm)이며 현재 플레이어 Pawn의 캡슐 전체 높이입니다
+	 * 플레이어의 월드 Z가 아니라 체형만 사용하므로 점프와 경사에 따라 표시 높이가 흔들리지 않습니다
 	 */
-	float AnchorHeightOffset = 110.0f;
+	float DamageNumberStartHeight = 0.0f;
 };
