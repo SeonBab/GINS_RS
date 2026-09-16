@@ -1,7 +1,9 @@
 #include "RSBossCharacter.h"
 
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "RSAbilitySet.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSAttackTelegraphComponent.h"
@@ -125,8 +127,11 @@ void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 	}
 }
 
-void ARSBossCharacter::HandleBossPhaseEntered(int32 /*PhaseIndex*/, USoundBase* PhaseMusic, float CrossfadeDuration)
+void ARSBossCharacter::HandleBossPhaseEntered(int32 PhaseIndex, USoundBase* PhaseMusic, float CrossfadeDuration)
 {
+	// 음악이 없는 페이즈에서도 외형은 갱신해야 하므로 음악 조기 반환보다 먼저 적용합니다
+	ApplyPhaseMaterials(PhaseIndex);
+
 	UWorld* World = GetWorld();
 	if (!World || !PhaseMusic)
 	{
@@ -136,6 +141,25 @@ void ARSBossCharacter::HandleBossPhaseEntered(int32 /*PhaseIndex*/, USoundBase* 
 	if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
 	{
 		MusicPlaybackSubsystem->PlayMusic(PhaseMusic, CrossfadeDuration);
+	}
+}
+
+void ARSBossCharacter::ApplyPhaseMaterials(int32 PhaseIndex)
+{
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	for (const FRSBossPhaseMaterialOverride& MaterialOverride : PhaseMaterialOverrides)
+	{
+		if (MaterialOverride.PhaseIndex != PhaseIndex || !MaterialOverride.Material)
+		{
+			continue;
+		}
+
+		MeshComp->SetMaterial(MaterialOverride.MaterialSlotIndex, MaterialOverride.Material);
 	}
 }
 
