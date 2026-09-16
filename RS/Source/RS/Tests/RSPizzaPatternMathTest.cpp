@@ -27,26 +27,32 @@ bool FRSPizzaPatternDefinitionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cue timings use the recall delay"), CueTimings.RecallDelay, Definition.RecallDelay);
 	TestEqual(TEXT("Cue timings use the explosion interval"), CueTimings.ExplosionInterval, Definition.ExplosionInterval);
 
-	// 예고, 판정과 연출이 같은 조각을 쓰므로 하한도 이 한 곳에서 걸립니다
+	// 예고, 판정과 연출이 같은 조각을 쓰므로 안쪽 경계도 이 한 곳에서 실립니다
 	FRSCombatShape SliceShape;
-	TestTrue(TEXT("A slice shape without a floor is built"), Definition.TryMakeSliceShape(0.0f, SliceShape));
-	TestEqual(TEXT("A slice shape without a floor starts at the center"), SliceShape.InnerRadius, 0.0f);
+	TestTrue(TEXT("A slice shape is built"), Definition.TryMakeSliceShape(SliceShape));
+	TestEqual(TEXT("A slice shape without an inner radius starts at the pattern origin"), SliceShape.InnerRadius, 0.0f);
 	TestEqual(TEXT("A slice shape uses the authored outer radius"), SliceShape.OuterRadius, Definition.OuterRadius);
 	TestEqual(TEXT("A slice shape spans one slice"), SliceShape.SweepAngleDegrees, Definition.CalculateSliceAngleDegrees());
 
-	FRSCombatShape FlooredSliceShape;
-	TestTrue(TEXT("A floored slice shape is built"), Definition.TryMakeSliceShape(120.0f, FlooredSliceShape));
-	TestEqual(TEXT("A floored slice shape starts at the floor"), FlooredSliceShape.InnerRadius, 120.0f);
-	TestEqual(TEXT("A floored slice shape keeps its angle"), FlooredSliceShape.SweepAngleDegrees, Definition.CalculateSliceAngleDegrees());
+	// 에셋이 적은 안쪽 경계가 그대로 실려야 에디터에 적은 값과 실제 판정 범위가 같습니다
+	FRSPizzaPatternDefinition InnerRadiusDefinition = Definition;
+	InnerRadiusDefinition.InnerRadius = 120.0f;
+	FRSCombatShape InnerRadiusSliceShape;
+	TestTrue(TEXT("A slice shape with an authored inner radius is built"), InnerRadiusDefinition.TryMakeSliceShape(InnerRadiusSliceShape));
+	TestEqual(TEXT("A slice shape carries the authored inner radius"), InnerRadiusSliceShape.InnerRadius, 120.0f);
+	TestEqual(TEXT("A slice shape with an inner radius keeps its angle"), InnerRadiusSliceShape.SweepAngleDegrees, Definition.CalculateSliceAngleDegrees());
 
-	// 보스가 조각 전체를 삼키면 판정할 면적이 없으므로 패턴이 그 사실을 알아야 합니다
+	// 안쪽 경계가 바깥을 삼키면 판정할 면적이 없으므로 편집 시점과 런타임이 모두 그 사실을 알아야 합니다
+	FRSPizzaPatternDefinition SwallowedDefinition = Definition;
+	SwallowedDefinition.InnerRadius = Definition.OuterRadius;
 	FRSCombatShape SwallowedSliceShape;
-	TestFalse(TEXT("A floor beyond the outer radius leaves no slice"), Definition.TryMakeSliceShape(Definition.OuterRadius, SwallowedSliceShape));
+	TestFalse(TEXT("An inner radius at the outer radius leaves no slice"), SwallowedDefinition.TryMakeSliceShape(SwallowedSliceShape));
+	TestFalse(TEXT("An inner radius at the outer radius fails validation"), SwallowedDefinition.IsDataValid());
 
 	FRSPizzaPatternDefinition InvalidSliceDefinition = Definition;
 	InvalidSliceDefinition.SliceCount = 1;
 	FRSCombatShape InvalidSliceShape;
-	TestFalse(TEXT("An invalid definition builds no slice"), InvalidSliceDefinition.TryMakeSliceShape(0.0f, InvalidSliceShape));
+	TestFalse(TEXT("An invalid definition builds no slice"), InvalidSliceDefinition.TryMakeSliceShape(InvalidSliceShape));
 
 	FRSPizzaPatternDefinition InvalidDefinition = Definition;
 	InvalidDefinition.SliceCount = 1;

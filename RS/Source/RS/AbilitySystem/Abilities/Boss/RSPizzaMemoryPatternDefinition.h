@@ -44,6 +44,10 @@ struct FRSPizzaMemoryPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern")
 	TArray<FRSPizzaMemorySafeZoneSequence> SafeZoneSequenceCandidates;
 
+	/** 패턴 중심에서 모든 조각의 안쪽 경계까지의 거리이며 0이면 패턴 원점부터 판정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Space", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
+	float InnerRadius = 0.0f;
+
 	/** 패턴 중심에서 모든 조각의 외곽까지 이어지는 거리입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Space", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float OuterRadius = 1000.0f;
@@ -92,10 +96,10 @@ struct FRSPizzaMemoryPatternDefinition
 	float CalculateSliceAngleDegrees() const;
 
 	/**
-	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만들고 안쪽 경계를 하한까지 밀어 올립니다
-	 * 하한이 조각을 전부 삼켜 판정할 면적이 남지 않으면 실패를 알립니다
+	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만듭니다
+	 * 설정이 성립하지 않아 판정할 면적이 남지 않으면 실패를 알립니다
 	 */
-	bool TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const;
+	bool TryMakeSliceShape(FRSCombatShape& OutSliceShape) const;
 
 	/** 안전지대 쌍에 대응하는 두 조각 인덱스를 반환합니다 */
 	static bool TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex);

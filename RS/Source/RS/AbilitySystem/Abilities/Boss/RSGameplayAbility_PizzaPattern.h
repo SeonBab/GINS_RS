@@ -25,6 +25,10 @@ struct FRSPizzaPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern", meta = (ClampMin = "1", UIMin = "1"))
 	int32 ExplosionCount = 1;
 
+	/** 패턴 중심에서 조각 안쪽 경계까지의 거리이며 0이면 패턴 원점부터 판정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
+	float InnerRadius = 0.0f;
+
 	/** 패턴 중심에서 조각 외곽까지의 거리입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float OuterRadius = 0.0f;
@@ -67,10 +71,10 @@ struct FRSPizzaPatternDefinition
 	float CalculateSliceAngleDegrees() const;
 
 	/**
-	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만들고 안쪽 경계를 하한까지 밀어 올립니다
-	 * 하한이 조각을 전부 삼켜 판정할 면적이 남지 않으면 실패를 알립니다
+	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만듭니다
+	 * 설정이 성립하지 않아 판정할 면적이 남지 않으면 실패를 알립니다
 	 */
-	bool TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const;
+	bool TryMakeSliceShape(FRSCombatShape& OutSliceShape) const;
 
 	/** 공용 타임라인이 단계별 대기에 사용할 시간값을 만듭니다 */
 	FRSPizzaCueTimings MakeCueTimings() const;

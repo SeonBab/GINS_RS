@@ -253,15 +253,6 @@ void URSGameplayAbility_ArmSwing::ConfirmAttack()
 		return;
 	}
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 Pivot부터 덮을 뿐 판정이 빠지지는 않습니다
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, CapturedMinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its sector starts at the attack pivot"), *GetName());
-
-		CapturedMinimumInnerRadius = 0.0f;
-	}
-
 	State = ERSArmSwingState::Attacking;
 	if (ObserveFacingTask)
 	{
@@ -312,7 +303,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
 		|| !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(SelectedVariant->AttackMontage, AttackWindowStartPosition, AttackWindowEndPosition)
-		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), CapturedMinimumInnerRadius, TelegraphBounds))
+		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), TelegraphBounds))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -497,7 +488,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 
 	const FRSArmSwingPathDefinition PathDefinition = SelectedVariant->GetPathDefinition();
 	FRSAnnularSectorBounds SectorBounds;
-	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, CapturedMinimumInnerRadius, SectorBounds))
+	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
 	{
 		return false;
 	}
@@ -655,7 +646,6 @@ void URSGameplayAbility_ArmSwing::ResetTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;

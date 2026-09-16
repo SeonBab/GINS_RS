@@ -289,25 +289,8 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 
 	LockedAttackTransform = FTransform(HorizontalForward.Rotation(), AttackOrigin);
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	float MinimumInnerRadius = 0.0f;
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, MinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its attack shape starts at the pattern origin"), *GetName());
-
-		MinimumInnerRadius = 0.0f;
-	}
-
-	// 예고, 판정과 연출이 이 한 번의 사본을 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	// 예고, 판정과 연출이 이 한 번의 사본을 함께 읽으므로 세 경로의 형상이 갈라질 수 없습니다
 	ActiveAttackShape = AttackShape;
-	if (!URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(ActiveAttackShape, MinimumInnerRadius))
-	{
-		// 형상 전체가 보스 안에 들어가는 구성이라 하한을 걸면 판정이 사라지므로, 기획이 적은 값을 그대로 쓰고 사실만 알립니다
-		UE_LOG(LogTemp, Warning, TEXT("%s has an attack shape smaller than the boss capsule, so the start radius floor is skipped"), *GetName());
-
-		ActiveAttackShape = AttackShape;
-	}
 
 	State = ERSTargetedSlamState::Attacking;
 

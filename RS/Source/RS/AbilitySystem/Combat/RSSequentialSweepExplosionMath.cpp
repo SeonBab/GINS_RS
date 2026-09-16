@@ -105,7 +105,7 @@ bool RSSequentialSweepExplosionMath::IsLocationInSector(const FTransform& Locked
 		return false;
 	}
 
-	// 하한은 호출자가 이번 활성화에 확정한 값이므로 여기서 다시 올리지 않고 그대로 담습니다
+	// 안쪽 경계는 호출자가 넘긴 값이므로 여기서 바꾸지 않고 그대로 담습니다
 	SectorShape.InnerRadius = InnerRadius;
 
 	return URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, SectorShape.GetAnnularSectorBounds(), TargetLocation);

@@ -19,6 +19,10 @@ struct FRSSequentialSweepExplosionDefinition
 {
 	GENERATED_BODY()
 
+	/** 보스 중심에서 부채꼴 안쪽 경계까지의 거리이며 0이면 보스 원점부터 판정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
+	float InnerRadius = 0.0f;
+
 	/** 보스 중심에서 부채꼴 바깥 경계까지의 거리입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float OuterRadius = 800.0f;
@@ -118,10 +122,10 @@ private:
 
 	/** 지정한 부채꼴 Telegraph를 완성 상태로 표시합니다 */
 	/**
-	 * 지정한 조각의 형상과 Transform을 만들고 안쪽 경계를 이번 활성화의 하한까지 밀어 올립니다
-	 * 예고, 판정과 연출이 모두 이 함수를 지나므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	 * 지정한 조각의 형상과 Transform을 만듭니다
+	 * 예고, 판정과 연출이 모두 이 함수를 지나므로 세 경로의 형상이 갈라질 수 없습니다
 	 */
-	bool TryBuildFlooredSectorShape(int32 SectorIndex, FRSCombatShape& OutSectorShape, FTransform& OutSectorTransform) const;
+	bool TryBuildSectorShape(int32 SectorIndex, FRSCombatShape& OutSectorShape, FTransform& OutSectorTransform) const;
 
 	bool ShowWarningSector(int32 SectorIndex);
 
@@ -182,8 +186,6 @@ private:
 	FVector AimSnapshotLocation = FVector::ZeroVector;
 	FTransform LockedAttackTransform = FTransform::Identity;
 
-	/** 공격 시작 시점에 읽은 보스 캡슐 반지름이며 모든 조각 형상이 이 값을 안쪽 경계 하한으로 씁니다 */
-	float CapturedMinimumInnerRadius = 0.0f;
 	float PreAimStartTime = 0.0f;
 	int32 NextWarningSectorIndex = 0;
 	int32 NextHideSectorIndex = 0;

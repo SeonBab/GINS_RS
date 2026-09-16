@@ -38,6 +38,13 @@ bool FRSSequentialSweepExplosionDefinition::IsDataValid(FString* OutValidationEr
 		return false;
 	}
 
+	if (!FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || InnerRadius >= OuterRadius)
+	{
+		SetValidationError(TEXT("InnerRadius must be finite and satisfy 0 <= InnerRadius < OuterRadius."));
+
+		return false;
+	}
+
 	if (!FMath::IsFinite(TotalSweepAngleDegrees) || TotalSweepAngleDegrees <= 0.0f || TotalSweepAngleDegrees > 360.0f)
 	{
 		SetValidationError(TEXT("TotalSweepAngleDegrees must be finite and satisfy 0 < angle <= 360."));
@@ -214,7 +221,6 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;
@@ -323,15 +329,6 @@ void URSGameplayAbility_SequentialSweepExplosion::ConfirmAttack()
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
-	}
-
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, CapturedMinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its sectors start at the pattern origin"), *GetName());
-
-		CapturedMinimumInnerRadius = 0.0f;
 	}
 
 	State = ERSSequentialSweepExplosionState::Attacking;
@@ -444,7 +441,7 @@ void URSGameplayAbility_SequentialSweepExplosion::HandleTimelineElapsedTimeUpdat
 	}
 }
 
-bool URSGameplayAbility_SequentialSweepExplosion::TryBuildFlooredSectorShape(int32 SectorIndex, FRSCombatShape& OutSectorShape, FTransform& OutSectorTransform) const
+bool URSGameplayAbility_SequentialSweepExplosion::TryBuildSectorShape(int32 SectorIndex, FRSCombatShape& OutSectorShape, FTransform& OutSectorTransform) const
 {
 	if (!RSSequentialSweepExplosionMath::TryBuildSectorFillShape(LockedAttackTransform, PatternDefinition.OuterRadius, PatternDefinition.TotalSweepAngleDegrees, PatternDefinition.SectorCount, PatternDefinition.StartAngleOffsetDegrees, SectorIndex, OutSectorShape, OutSectorTransform))
 	{
@@ -452,7 +449,9 @@ bool URSGameplayAbility_SequentialSweepExplosion::TryBuildFlooredSectorShape(int
 	}
 
 	// 예고, 판정과 연출이 이 한 곳에서만 형상을 받으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
-	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSectorShape, CapturedMinimumInnerRadius);
+	OutSectorShape.InnerRadius = PatternDefinition.InnerRadius;
+
+	return OutSectorShape.IsDataValid();
 }
 
 bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 SectorIndex)
@@ -464,7 +463,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !WarningSectorHandles.IsValidIndex(SectorIndex)
 		|| WarningSectorHandles[SectorIndex] != INDEX_NONE
-		|| !TryBuildFlooredSectorShape(SectorIndex, TelegraphShape, TelegraphTransform))
+		|| !TryBuildSectorShape(SectorIndex, TelegraphShape, TelegraphTransform))
 	{
 		return false;
 	}
@@ -523,7 +522,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 	// Telegraph와 같은 조각 형상을 넘겨 예고한 부채꼴과 연출이 같은 공간을 쓰게 합니다
 	FRSCombatShape SectorShape;
 	FTransform SectorTransform;
-	if (!TryBuildFlooredSectorShape(SectorIndex, SectorShape, SectorTransform))
+	if (!TryBuildSectorShape(SectorIndex, SectorShape, SectorTransform))
 	{
 		// 하한이 조각을 전부 삼키면 판정할 면적이 남지 않으므로 연출만 남기고 이 조각은 아무도 맞히지 않습니다
 		PlayPatternPresentation(LockedAttackTransform);
@@ -600,7 +599,6 @@ void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;
@@ -639,6 +637,9 @@ EDataValidationResult URSGameplayAbility_SequentialSweepExplosion::IsDataValid(F
 		}
 		else
 		{
+			// 안쪽 경계가 채우기 칸 수를 바꾸므로 런타임과 같은 형상으로 검사합니다
+			FirstSectorShape.InnerRadius = PatternDefinition.InnerRadius;
+
 			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(FirstSectorShape, Context));
 		}
 	}
