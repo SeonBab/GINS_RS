@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSPizzaMemoryPatternDefinition.generated.h"
 
 /** 8개 조각에서 서로 반대편인 두 조각으로 구성한 안전지대 쌍입니다 */
@@ -66,12 +67,71 @@ struct FRSPizzaMemoryPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ExplosionInterval = 1.0f;
 
-	/** 후보 목록, 공간과 시간 설정이 런타임에서 사용할 수 있는지 검사합니다 */
+	/** 모든 폭발이 대상에게 공통으로 가할 피해량입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")
+	FScalableFloat Damage = 10.0f;
+
+	/** 모든 폭발이 대상에게 공통으로 요청할 피격 반응입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Reaction")
+	FRSHitReactionDefinition Reaction;
+
+	/** 후보 목록, 공간, 시간과 피해 설정이 런타임에서 사용할 수 있는지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 
 	/** 유효한 후보 목록의 공통 길이를 반환하며 후보가 없으면 0입니다 */
 	int32 GetSequenceLength() const;
 
+	/** 지정한 후보의 안전지대 배열을 런타임 상태로 복사하며 잘못된 인덱스나 빈 후보는 거부합니다 */
+	bool TryCopySafeZoneSequenceCandidate(int32 CandidateIndex, TArray<ERSPizzaMemorySafePair>& OutSafePairs) const;
+
+	/** 고정된 8개 조각 중 하나가 차지하는 각도를 반환합니다 */
+	float CalculateSliceAngleDegrees() const;
+
 	/** 안전지대 쌍에 대응하는 두 조각 인덱스를 반환합니다 */
 	static bool TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex);
+
+	/** 안전지대 두 조각을 제외한 위험 조각 6개의 월드 Transform을 인덱스 오름차순으로 계산합니다 */
+	bool TryBuildDangerousSliceTransforms(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, TArray<FTransform>& OutDangerousSliceTransforms) const;
+
+	/** 대상 위치가 지정한 안전지대 쌍에 속하는지 계산합니다 */
+	bool TryIsLocationInSafePair(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, const FVector& TargetLocation, bool& OutIsSafe) const;
+};
+
+/** 피자 암기 패턴의 암기 시작부터 마지막 폭발까지의 실행 단계입니다 */
+enum class ERSPizzaMemoryPatternTimelinePhase : uint8
+{
+	Inactive,
+	MemoryCue,
+	MemoryCueGap,
+	RecallDelay,
+	Explosion,
+	ExplosionInterval,
+	Complete
+};
+
+/** Ability와 자동 테스트가 공유하는 피자 암기 패턴의 순차 실행 상태입니다 */
+struct FRSPizzaMemoryPatternTimeline
+{
+	/** 유효한 배열 길이로 첫 암기 표시 상태를 시작합니다 */
+	bool Initialize(int32 InSequenceLength);
+
+	/** 실행 상태를 비활성 초기값으로 되돌립니다 */
+	void Reset();
+
+	/** 현재 단계가 끝난 뒤 실행할 다음 단계로 이동합니다 */
+	bool Advance();
+
+	/** 현재 단계가 기다려야 하는 공통 시간을 Definition에서 반환합니다 */
+	float GetCurrentDelaySeconds(const FRSPizzaMemoryPatternDefinition& Definition) const;
+
+	/** 현재 실행 단계를 반환합니다 */
+	ERSPizzaMemoryPatternTimelinePhase GetPhase() const;
+
+	/** 현재 암기 또는 폭발에서 사용할 안전지대 배열 인덱스를 반환합니다 */
+	int32 GetSequenceIndex() const;
+
+private:
+	ERSPizzaMemoryPatternTimelinePhase Phase = ERSPizzaMemoryPatternTimelinePhase::Inactive;
+	int32 SequenceLength = 0;
+	int32 SequenceIndex = INDEX_NONE;
 };

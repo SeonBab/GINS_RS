@@ -1,5 +1,7 @@
 #include "RSPizzaMemoryPatternDefinition.h"
 
+#include "Combat/RSCircularSliceMath.h"
+
 FRSPizzaMemoryPatternDefinition::FRSPizzaMemoryPatternDefinition()
 {
 	FRSPizzaMemorySafeZoneSequence& DefaultSequence = SafeZoneSequenceCandidates.AddDefaulted_GetRef();
@@ -88,12 +90,43 @@ bool FRSPizzaMemoryPatternDefinition::IsDataValid(FString* OutValidationError) c
 		return FailValidation(TEXT("ExplosionInterval must be finite and greater than zero."));
 	}
 
+	const float DamageValue = Damage.GetValueAtLevel(1.0f);
+	constexpr float DamageIntegerTolerance = 0.01f;
+	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
+	{
+		return FailValidation(TEXT("Damage must evaluate to a finite non-negative integer at level 1."));
+	}
+
 	return true;
 }
 
 int32 FRSPizzaMemoryPatternDefinition::GetSequenceLength() const
 {
 	return SafeZoneSequenceCandidates.IsEmpty() ? 0 : SafeZoneSequenceCandidates[0].SafePairs.Num();
+}
+
+bool FRSPizzaMemoryPatternDefinition::TryCopySafeZoneSequenceCandidate(int32 CandidateIndex, TArray<ERSPizzaMemorySafePair>& OutSafePairs) const
+{
+	OutSafePairs.Reset();
+	if (!SafeZoneSequenceCandidates.IsValidIndex(CandidateIndex))
+	{
+		return false;
+	}
+
+	const TArray<ERSPizzaMemorySafePair>& CandidateSafePairs = SafeZoneSequenceCandidates[CandidateIndex].SafePairs;
+	if (CandidateSafePairs.IsEmpty())
+	{
+		return false;
+	}
+
+	OutSafePairs = CandidateSafePairs;
+
+	return true;
+}
+
+float FRSPizzaMemoryPatternDefinition::CalculateSliceAngleDegrees() const
+{
+	return RSCircularSliceMath::CalculateSliceAngleDegrees(SliceCount);
 }
 
 bool FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex)
@@ -111,4 +144,148 @@ bool FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(ERSPizzaMemorySafeP
 	OutSecondSliceIndex = SafePairIndex + SafePairCount;
 
 	return true;
+}
+
+bool FRSPizzaMemoryPatternDefinition::TryBuildDangerousSliceTransforms(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, TArray<FTransform>& OutDangerousSliceTransforms) const
+{
+	OutDangerousSliceTransforms.Reset();
+
+	int32 FirstSafeSliceIndex = INDEX_NONE;
+	int32 SecondSafeSliceIndex = INDEX_NONE;
+	if (!TryGetSafeSliceIndices(SafePair, FirstSafeSliceIndex, SecondSafeSliceIndex))
+	{
+		return false;
+	}
+
+	OutDangerousSliceTransforms.Reserve(SliceCount - 2);
+	for (int32 SliceIndex = 0; SliceIndex < SliceCount; ++SliceIndex)
+	{
+		if (SliceIndex == FirstSafeSliceIndex || SliceIndex == SecondSafeSliceIndex)
+		{
+			continue;
+		}
+
+		FTransform SliceTransform;
+		if (!RSCircularSliceMath::TryBuildSliceTransform(LockedTransform, SliceCount, SliceIndex, SliceTransform))
+		{
+			OutDangerousSliceTransforms.Reset();
+
+			return false;
+		}
+
+		OutDangerousSliceTransforms.Add(SliceTransform);
+	}
+
+	return OutDangerousSliceTransforms.Num() == SliceCount - 2;
+}
+
+bool FRSPizzaMemoryPatternDefinition::TryIsLocationInSafePair(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, const FVector& TargetLocation, bool& OutIsSafe) const
+{
+	OutIsSafe = false;
+
+	int32 FirstSafeSliceIndex = INDEX_NONE;
+	int32 SecondSafeSliceIndex = INDEX_NONE;
+	if (!TryGetSafeSliceIndices(SafePair, FirstSafeSliceIndex, SecondSafeSliceIndex))
+	{
+		return false;
+	}
+
+	int32 TargetSliceIndex = INDEX_NONE;
+	if (!RSCircularSliceMath::TryCalculateSliceIndex(LockedTransform, SliceCount, TargetLocation, TargetSliceIndex))
+	{
+		return false;
+	}
+
+	OutIsSafe = TargetSliceIndex == FirstSafeSliceIndex || TargetSliceIndex == SecondSafeSliceIndex;
+
+	return true;
+}
+
+bool FRSPizzaMemoryPatternTimeline::Initialize(int32 InSequenceLength)
+{
+	Reset();
+	if (InSequenceLength <= 0)
+	{
+		return false;
+	}
+
+	SequenceLength = InSequenceLength;
+	SequenceIndex = 0;
+	Phase = ERSPizzaMemoryPatternTimelinePhase::MemoryCue;
+
+	return true;
+}
+
+void FRSPizzaMemoryPatternTimeline::Reset()
+{
+	Phase = ERSPizzaMemoryPatternTimelinePhase::Inactive;
+	SequenceLength = 0;
+	SequenceIndex = INDEX_NONE;
+}
+
+bool FRSPizzaMemoryPatternTimeline::Advance()
+{
+	switch (Phase)
+	{
+	case ERSPizzaMemoryPatternTimelinePhase::MemoryCue:
+		Phase = SequenceIndex + 1 < SequenceLength
+			? ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap
+			: ERSPizzaMemoryPatternTimelinePhase::RecallDelay;
+		return true;
+
+	case ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap:
+		++SequenceIndex;
+		Phase = ERSPizzaMemoryPatternTimelinePhase::MemoryCue;
+		return SequenceIndex < SequenceLength;
+
+	case ERSPizzaMemoryPatternTimelinePhase::RecallDelay:
+		SequenceIndex = 0;
+		Phase = ERSPizzaMemoryPatternTimelinePhase::Explosion;
+		return true;
+
+	case ERSPizzaMemoryPatternTimelinePhase::Explosion:
+		Phase = SequenceIndex + 1 < SequenceLength
+			? ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval
+			: ERSPizzaMemoryPatternTimelinePhase::Complete;
+		return true;
+
+	case ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval:
+		++SequenceIndex;
+		Phase = ERSPizzaMemoryPatternTimelinePhase::Explosion;
+		return SequenceIndex < SequenceLength;
+
+	default:
+		return false;
+	}
+}
+
+float FRSPizzaMemoryPatternTimeline::GetCurrentDelaySeconds(const FRSPizzaMemoryPatternDefinition& Definition) const
+{
+	switch (Phase)
+	{
+	case ERSPizzaMemoryPatternTimelinePhase::MemoryCue:
+		return Definition.MemoryCueDuration;
+
+	case ERSPizzaMemoryPatternTimelinePhase::MemoryCueGap:
+		return Definition.MemoryCueGap;
+
+	case ERSPizzaMemoryPatternTimelinePhase::RecallDelay:
+		return Definition.RecallDelay;
+
+	case ERSPizzaMemoryPatternTimelinePhase::ExplosionInterval:
+		return Definition.ExplosionInterval;
+
+	default:
+		return 0.0f;
+	}
+}
+
+ERSPizzaMemoryPatternTimelinePhase FRSPizzaMemoryPatternTimeline::GetPhase() const
+{
+	return Phase;
+}
+
+int32 FRSPizzaMemoryPatternTimeline::GetSequenceIndex() const
+{
+	return SequenceIndex;
 }
