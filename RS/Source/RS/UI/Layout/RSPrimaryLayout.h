@@ -22,7 +22,10 @@ enum class ERSWidgetLayer : uint8
 	Modal,
 
 	/** 알림을 가장 앞에 표시하는 계층입니다 */
-	Notification
+	Notification,
+
+	/** 화면 전환 연출을 다른 모든 계층 위에 표시하는 계층입니다 */
+	Transition
 };
 
 /** 플레이어 화면의 루트 위젯과 계층별 위젯 생명주기를 관리합니다 */
@@ -64,4 +67,8 @@ private:
 	/** 알림을 가장 앞에 표시하는 계층입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (BindWidget, AllowPrivateAccess = "true"))
 	TObjectPtr<UPanelWidget> NotificationLayer;
+
+	/** 화면 전환 연출을 다른 모든 계층 위에 표시하는 계층입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (BindWidget, AllowPrivateAccess = "true"))
+	TObjectPtr<UPanelWidget> TransitionLayer;
 };

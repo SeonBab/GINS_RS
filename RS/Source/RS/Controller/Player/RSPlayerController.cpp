@@ -184,6 +184,17 @@ void ARSPlayerController::HandleBossResultActionAccepted()
 	}
 }
 
+bool ARSPlayerController::PlayScreenTransition(const FSimpleDelegate& OnFadedOut)
+{
+	if (!IsLocalController())
+	{
+		return false;
+	}
+
+	ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>();
+	return PlayerHeadUpDisplay && PlayerHeadUpDisplay->PlayScreenTransition(OnFadedOut);
+}
+
 bool ARSPlayerController::OpenInGameMenu()
 {
 	if (!IsLocalController() || bIsInGameMenuOpen || BossResultPresentation.IsSet())

@@ -7,7 +7,9 @@
 #include "RSMainMenuGameMode.h"
 #include "RSMainMenuSettingsWidget.h"
 #include "RSMainMenuWidget.h"
+#include "RSMusicPlaybackSubsystem.h"
 #include "RSQuitConfirmationWidget.h"
+#include "RSScreenFadeWidget.h"
 
 void ARSMainMenuPlayerController::BeginPlay()
 {
@@ -22,6 +24,7 @@ void ARSMainMenuPlayerController::BeginPlay()
 	MainMenuWidget->AddToViewport();
 	ConfigureUserInterfaceInput(MainMenuWidget);
 	MainMenuWidget->RequestInitialFocus(this);
+	CreateScreenFadeWidget();
 }
 
 void ARSMainMenuPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -39,6 +42,11 @@ void ARSMainMenuPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReas
 	if (QuitConfirmationWidget)
 	{
 		QuitConfirmationWidget->RemoveFromParent();
+	}
+
+	if (ScreenFadeWidget)
+	{
+		ScreenFadeWidget->RemoveFromParent();
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -67,6 +75,43 @@ bool ARSMainMenuPlayerController::CreateMainMenuWidget()
 	MainMenuWidget->GetQuitConfirmationRequested().AddUObject(this, &ThisClass::HandleQuitConfirmationRequested);
 
 	return true;
+}
+
+bool ARSMainMenuPlayerController::PlayScreenTransition(const FSimpleDelegate& OnFadedOut)
+{
+	if (!IsLocalController() || !ScreenFadeWidget || !ScreenFadeWidget->PlayFadeOutThen(OnFadedOut))
+	{
+		return false;
+	}
+
+	// 화면과 음악이 같은 길이로 사라지게 합니다
+	if (UWorld* World = GetWorld())
+	{
+		if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
+		{
+			MusicPlaybackSubsystem->StopMusic(ScreenFadeWidget->GetFadeOutDuration());
+		}
+	}
+
+	return true;
+}
+
+void ARSMainMenuPlayerController::CreateScreenFadeWidget()
+{
+	if (ScreenFadeWidget || !ScreenFadeWidgetClass)
+	{
+		return;
+	}
+
+	ScreenFadeWidget = CreateWidget<URSScreenFadeWidget>(this, ScreenFadeWidgetClass);
+	if (!ScreenFadeWidget)
+	{
+		return;
+	}
+
+	// 설정과 종료 확인 화면보다 위에서 화면 전체를 덮어야 합니다
+	ScreenFadeWidget->AddToViewport(100);
+	ScreenFadeWidget->PlayFadeIn();
 }
 
 void ARSMainMenuPlayerController::ConfigureUserInterfaceInput(UUserWidget* FocusWidget)
@@ -198,5 +243,15 @@ void ARSMainMenuPlayerController::HandleQuitConfirmed()
 		QuitConfirmationWidget->RemoveFromParent();
 	}
 
+	// 연출을 사용할 수 없으면 기존 동작대로 즉시 종료합니다
+	const FSimpleDelegate OnFadedOut = FSimpleDelegate::CreateUObject(this, &ThisClass::QuitApplication);
+	if (!PlayScreenTransition(OnFadedOut))
+	{
+		QuitApplication();
+	}
+}
+
+void ARSMainMenuPlayerController::QuitApplication()
+{
 	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 }

@@ -29,9 +29,20 @@ bool ARSMainMenuGameMode::RequestStartGame(ARSMainMenuPlayerController* Requesti
 	}
 
 	bHasCommittedStartGame = true;
-	UGameplayStatics::OpenLevel(this, StartLevel.ToSoftObjectPath().GetLongPackageFName(), true);
+
+	// 연출을 사용할 수 없으면 기존 동작대로 즉시 전환합니다
+	const FSimpleDelegate OnFadedOut = FSimpleDelegate::CreateUObject(this, &ThisClass::OpenStartLevel);
+	if (!RequestingController->PlayScreenTransition(OnFadedOut))
+	{
+		OpenStartLevel();
+	}
 
 	return true;
+}
+
+void ARSMainMenuGameMode::OpenStartLevel()
+{
+	UGameplayStatics::OpenLevel(this, StartLevel.ToSoftObjectPath().GetLongPackageFName(), true);
 }
 
 void ARSMainMenuGameMode::PlayInitialMusic()
