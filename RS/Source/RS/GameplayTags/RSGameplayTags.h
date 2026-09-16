@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -32,6 +32,7 @@ namespace RSGameplayTags
 
 	// Cooldown
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Dash);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_DamageImmunityFeedback);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_GetUp_Quick);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Skill01);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Cooldown_Ability_Skill02);
@@ -44,6 +45,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Combat_MeteorHazardDamage);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_CrowdControl_Knockdown);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Presentation_DamageImmunity);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayEvent_Presentation_Niagara);
 
 	// Input

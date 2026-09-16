@@ -2,12 +2,10 @@
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/RSAttackTelegraphComponent.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/World.h"
-#include "GameFramework/Character.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
@@ -324,13 +322,7 @@ bool ARSBossMeteorHazard::UpdateTargetLocation()
 		return false;
 	}
 
-	const ACharacter* TargetCharacter = Cast<ACharacter>(ActiveTargetActor);
-	const UCapsuleComponent* TargetCapsuleComp = TargetCharacter ? TargetCharacter->GetCapsuleComponent() : nullptr;
-	CurrentTargetLocation = TargetCapsuleComp
-		? TargetCapsuleComp->GetComponentLocation() - FVector::UpVector * TargetCapsuleComp->GetScaledCapsuleHalfHeight()
-		: ActiveTargetActor->GetActorLocation();
-
-	return !CurrentTargetLocation.ContainsNaN();
+	return URSCombatFunctionLibrary::TryGetActorGroundLocation(ActiveTargetActor, CurrentTargetLocation);
 }
 
 void ARSBossMeteorHazard::StartFallingEffect()

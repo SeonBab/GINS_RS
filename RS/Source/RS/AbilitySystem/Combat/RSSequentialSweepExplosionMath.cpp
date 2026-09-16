@@ -148,3 +148,32 @@ bool RSSequentialSweepExplosionMath::IsLocationInSector(const FTransform& Locked
 	return ClockwiseAngleDegrees <= SectorAngleDegrees + AngleBoundaryToleranceDegrees
 		|| FMath::IsNearlyEqual(ClockwiseAngleDegrees, 360.0f, AngleBoundaryToleranceDegrees);
 }
+
+bool RSSequentialSweepExplosionMath::TryBuildSectorFillShape(const FTransform& LockedTransform, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, FRSCombatShape& OutShape, FTransform& OutShapeTransform)
+{
+	OutShape = FRSCombatShape();
+	OutShapeTransform = FTransform::Identity;
+
+	float SectorStartAngleDegrees = 0.0f;
+	float SectorSweepAngleDegrees = 0.0f;
+	if (!TryCalculateSectorAngles(TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, SectorStartAngleDegrees, SectorSweepAngleDegrees))
+	{
+		return false;
+	}
+
+	// 부채꼴은 보스 중심에서 시작하므로 InnerRadius 없이 일반 Cone으로 표현합니다
+	OutShape.Type = ERSCombatShapeType::Cone;
+	OutShape.Range = OuterRadius;
+	OutShape.Angle = SectorSweepAngleDegrees;
+	if (!OutShape.IsDataValid())
+	{
+		return false;
+	}
+
+	// 일반 Cone은 중심축 기준 형상이므로 첫 경계에서 조각 각도의 절반만큼 회전시킵니다
+	const float SectorCenterYaw = LockedTransform.GetRotation().Rotator().Yaw + SectorStartAngleDegrees + SectorSweepAngleDegrees * 0.5f;
+	OutShapeTransform = LockedTransform;
+	OutShapeTransform.SetRotation(FRotator(0.0f, SectorCenterYaw, 0.0f).Quaternion());
+
+	return true;
+}

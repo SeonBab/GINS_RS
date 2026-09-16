@@ -3,8 +3,6 @@
 #include "RSGameplayAbility_RandomFallingRocks.h"
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
-#include "Components/CapsuleComponent.h"
-#include "GameFramework/Character.h"
 #include "Tasks/RSAbilityTask_PendingFallingRock.h"
 #include "Combat/RSRandomPointSampling.h"
 
@@ -202,16 +200,9 @@ bool URSGameplayAbility_RandomFallingRocks::TryGetSpawnCenter(FVector& OutSpawnC
 {
 	OutSpawnCenter = FVector::ZeroVector;
 
-	const ACharacter* Character = CurrentActorInfo ? Cast<ACharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
-	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
-	if (!Character || !CapsuleComp)
-	{
-		return false;
-	}
+	const AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 
-	OutSpawnCenter = Character->GetActorLocation() - FVector::UpVector * CapsuleComp->GetScaledCapsuleHalfHeight();
-
-	return true;
+	return URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, OutSpawnCenter);
 }
 
 #if WITH_EDITOR

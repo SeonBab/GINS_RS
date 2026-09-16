@@ -83,7 +83,7 @@ bool URSBossPhaseComponent::TryGetCurrentPatternType(ERSBossPatternType& OutPatt
 	return true;
 }
 
-bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass) const
+bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSubclassOf<URSBaseGameplayAbility>& OutAbilityClass)
 {
 	const TArray<TSubclassOf<URSBaseGameplayAbility>>* Candidates = GetPatternCandidates(PatternType);
 
@@ -95,8 +95,7 @@ bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSu
 		return false;
 	}
 
-	// 1단계에서는 직전 패턴 제외와 쿨다운 필터를 두지 않으므로 후보 중 하나를 그대로 고릅니다
-	const int32 SelectedIndex = FMath::RandRange(0, Candidates->Num() - 1);
+	const int32 SelectedIndex = PickPatternIndex(PatternType, Candidates->Num());
 	const TSubclassOf<URSBaseGameplayAbility> SelectedAbilityClass = (*Candidates)[SelectedIndex];
 	if (!SelectedAbilityClass)
 	{
@@ -107,9 +106,33 @@ bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSu
 
 	OutAbilityClass = SelectedAbilityClass;
 
+	// 실제 활성화 결과를 기다리지 않고 선택 성공 시점에 기록합니다
+	LastSelectedPatternIndex = SelectedIndex;
+	LastSelectedPatternType = PatternType;
+
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Select %s %s"), *GetPatternTypeName(PatternType), *GetNameSafe(SelectedAbilityClass));
 
 	return true;
+}
+
+int32 URSBossPhaseComponent::PickPatternIndex(ERSBossPatternType PatternType, int32 CandidateCount)
+{
+	// 직전 차례와 종류가 다르면 연속이 아니므로 제외하지 않습니다
+	// 후보가 하나뿐이면 제외할 여지가 없으며 이는 설정 오류가 아닙니다
+	const bool bExcludeLastSelected = LastSelectedPatternIndex != INDEX_NONE
+		&& LastSelectedPatternType == PatternType
+		&& LastSelectedPatternIndex < CandidateCount
+		&& CandidateCount >= 2;
+
+	if (!bExcludeLastSelected)
+	{
+		return FMath::RandRange(0, CandidateCount - 1);
+	}
+
+	// 후보 배열을 복사하지 않고 한 칸 좁은 범위에서 뽑은 뒤 건너뛰어 남은 후보에 균등 분포를 유지합니다
+	const int32 PickedIndex = FMath::RandRange(0, CandidateCount - 2);
+
+	return PickedIndex >= LastSelectedPatternIndex ? PickedIndex + 1 : PickedIndex;
 }
 
 void URSBossPhaseComponent::AdvancePatternCycle()
@@ -298,6 +321,9 @@ void URSBossPhaseComponent::AdvanceToNextPhase()
 	MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 	CurrentCycleIndex = 0;
 
+	// 새 페이즈는 후보 리스트가 달라지므로 이전 페이즈의 선택 이력을 남기지 않습니다
+	LastSelectedPatternIndex = INDEX_NONE;
+
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Phase %d -> %d"), PreviousPhaseIndex, CurrentPhaseIndex);
 
 	EnterCurrentPhase();
@@ -379,6 +405,7 @@ void URSBossPhaseComponent::SetPhasesForTest(const TArray<FRSBossPhaseDefinition
 	LastEnteredPhaseIndex = INDEX_NONE;
 	CurrentCycleIndex = 0;
 	SpecialPatternActivationSequence = 0;
+	LastSelectedPatternIndex = INDEX_NONE;
 	bPhaseTransitionPending = false;
 	MainGimmickOutcome = ERSBossMainGimmickOutcome::None;
 }

@@ -115,6 +115,9 @@ void ARSBossCharacter::HandleDeathStarted(URSHealthComponent* InHealthComponent)
 
 	GetCharacterMovement()->DisableMovement();
 
+	// 실행 중인 패턴 Montage를 멈추는 CancelAbilities() 뒤에 재생해야 사망 Montage가 함께 끊기지 않습니다
+	PlayDeathMontage();
+
 	// Player 사망과 같은 Frame에 발생할 수 있으므로 즉시 확정하지 않고 Clear 후보를 전달합니다
 	if (BossEncounter)
 	{

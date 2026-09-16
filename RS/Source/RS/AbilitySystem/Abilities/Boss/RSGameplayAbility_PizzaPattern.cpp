@@ -4,7 +4,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
-#include "Combat/RSPizzaPatternMath.h"
+#include "Combat/RSCircularSliceMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
 #include "Tasks/RSAbilityTask_WaitTelegraphFill.h"
@@ -12,6 +12,11 @@
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
 #endif
+
+namespace
+{
+	constexpr int32 PizzaPatternGroupCount = 2;
+}
 
 bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 {
@@ -83,12 +88,67 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 	return true;
 }
 
+int32 FRSPizzaPatternDefinition::CalculateVirtualSliceCount() const
+{
+	return SliceCount >= 2 && SliceCount <= MAX_int32 / PizzaPatternGroupCount ? SliceCount * PizzaPatternGroupCount : 0;
+}
+
+float FRSPizzaPatternDefinition::CalculateSliceAngleDegrees() const
+{
+	return RSCircularSliceMath::CalculateSliceAngleDegrees(CalculateVirtualSliceCount());
+}
+
+bool FRSPizzaPatternDefinition::TryBuildExplosionSliceTransforms(const FTransform& LockedTransform, int32 ExplosionIndex, TArray<FTransform>& OutSliceTransforms) const
+{
+	OutSliceTransforms.Reset();
+	const int32 VirtualSliceCount = CalculateVirtualSliceCount();
+	if (VirtualSliceCount <= 0 || ExplosionIndex < 0)
+	{
+		return false;
+	}
+
+	const int32 GroupParity = ExplosionIndex % PizzaPatternGroupCount;
+	OutSliceTransforms.Reserve(SliceCount);
+	for (int32 GroupSliceIndex = 0; GroupSliceIndex < SliceCount; ++GroupSliceIndex)
+	{
+		const int32 VirtualSliceIndex = GroupSliceIndex * PizzaPatternGroupCount + GroupParity;
+		FTransform SliceTransform;
+		if (!RSCircularSliceMath::TryBuildSliceTransform(LockedTransform, VirtualSliceCount, VirtualSliceIndex, SliceTransform))
+		{
+			OutSliceTransforms.Reset();
+
+			return false;
+		}
+
+		OutSliceTransforms.Add(SliceTransform);
+	}
+
+	return true;
+}
+
+bool FRSPizzaPatternDefinition::IsLocationInExplosionGroup(const FTransform& LockedTransform, int32 ExplosionIndex, const FVector& TargetLocation) const
+{
+	const int32 VirtualSliceCount = CalculateVirtualSliceCount();
+	if (VirtualSliceCount <= 0 || ExplosionIndex < 0)
+	{
+		return false;
+	}
+
+	int32 VirtualSliceIndex = INDEX_NONE;
+	return RSCircularSliceMath::TryCalculateSliceIndex(LockedTransform, VirtualSliceCount, TargetLocation, VirtualSliceIndex)
+		&& VirtualSliceIndex % PizzaPatternGroupCount == ExplosionIndex % PizzaPatternGroupCount;
+}
+
 URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
+
+	// 이번에 터지는 조각과 안전한 조각을 구분해서 보여 줘야 하므로 조각 중심 한 점 대신 조각을 채웁니다
+	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
+	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
 void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -195,7 +255,7 @@ bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
 		return false;
 	}
 
-	return RSPizzaPatternMath::TryCalculateLockedPatternTransform(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
+	return RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
 }
 
 void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
@@ -207,7 +267,7 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	URSAttackTelegraphComponent* TelegraphComp = AvatarActor ? AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (!AvatarActor || !TelegraphComp || !RSPizzaPatternMath::TryBuildExplosionSliceTransforms(LockedPatternTransform, PizzaPatternDefinition.SliceCount, CurrentExplosionIndex, ActiveSliceTransforms))
+	if (!AvatarActor || !TelegraphComp || !PizzaPatternDefinition.TryBuildExplosionSliceTransforms(LockedPatternTransform, CurrentExplosionIndex, ActiveSliceTransforms))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -217,7 +277,7 @@ void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
 	FRSCombatShape SliceShape;
 	SliceShape.Type = ERSCombatShapeType::Cone;
 	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-	SliceShape.Angle = RSPizzaPatternMath::CalculateSliceAngleDegrees(PizzaPatternDefinition.SliceCount);
+	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
 
 	ActiveTelegraphHandles.Reset();
 	ActiveTelegraphHandles.Reserve(ActiveSliceTransforms.Num());
@@ -286,8 +346,13 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 		return;
 	}
 	// 폭발은 빗나가도 보여야 하므로 적중 여부와 무관하게 재생합니다
-	// Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
-	PlayPatternPresentation(ActiveSliceTransforms, LockedPatternTransform.GetLocation());
+	// Telegraph와 같은 조각 형상을 넘기며, Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
+	FRSCombatShape SliceShape;
+	SliceShape.Type = ERSCombatShapeType::Cone;
+	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
+	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
+
+	PlayPatternPresentation(SliceShape, ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 
 	++CurrentExplosionIndex;
 	if (CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
@@ -328,7 +393,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	{
 		const TWeakObjectPtr<AActor> TargetPointer(CandidateTarget);
 		if (!CandidateTarget || HitActors.Contains(TargetPointer)
-			|| !RSPizzaPatternMath::IsLocationInExplosionGroup(LockedPatternTransform, PizzaPatternDefinition.SliceCount, CurrentExplosionIndex, CandidateTarget->GetActorLocation()))
+			|| !PizzaPatternDefinition.IsLocationInExplosionGroup(LockedPatternTransform, CurrentExplosionIndex, CandidateTarget->GetActorLocation()))
 		{
 			continue;
 		}
@@ -386,6 +451,16 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	{
 		Context.AddError(FText::FromString(FString::Printf(TEXT("PizzaPatternDefinition is invalid: %s"), *ValidationError)));
 		ValidationResult = EDataValidationResult::Invalid;
+	}
+	else
+	{
+		// 조각은 전부 같은 반지름과 각도를 쓰므로 조각 하나로 연출 채우기 설정을 대표해 검사합니다
+		FRSCombatShape SliceShape;
+		SliceShape.Type = ERSCombatShapeType::Cone;
+		SliceShape.Range = PizzaPatternDefinition.OuterRadius;
+		SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
+
+		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 	}
 
 	if (!DamageEffectClass)

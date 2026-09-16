@@ -41,6 +41,10 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	// 구조체 기본값은 반응 없음이라 이 패턴이 원하는 넉다운을 지정합니다
 	Reaction.Type = ERSHitReactionType::Knockdown;
 
+	// 링 하나를 중심에서만 보여 주면 안전한 안쪽과 위험한 링을 구분할 수 없으므로 링 띠를 채웁니다
+	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
+	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
+
 	// 후보가 하나면 고정 순서가 됩니다
 	FRSRingAttackSequence& DefaultSequence = SequencePool.AddDefaulted_GetRef();
 	DefaultSequence.RingIndices = { 2, 0, 1 };
@@ -84,8 +88,14 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	}
 
 	// 링 중심도 여기서 한 번만 캡처합니다. 예고 중 보스가 움직여도 판정 자리는 바뀌지 않습니다
-	// 액터 위치는 캡슐 중심이라 그대로 쓰면 표시가 공중에 떠서 실제 판정 경계와 어긋나 보입니다
-	const FVector RingCenterLocation = AvatarActor->GetActorLocation() - FVector(0.0f, 0.0f, AvatarActor->GetSimpleCollisionHalfHeight());
+	FVector RingCenterLocation = FVector::ZeroVector;
+	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, RingCenterLocation))
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+
+		return;
+	}
+
 	RingCenterTransform = FTransform(RingCenterLocation);
 
 	// 조기 종료 경로를 모두 지난 뒤에 요청해 실행되지 않을 패턴의 Montage가 재생되지 않게 합니다
@@ -238,7 +248,7 @@ void URSGameplayAbility_ConcentricRings::StrikeRing(const AActor& AvatarActor, i
 	URSCombatFunctionLibrary::FindTargetsInShape(&AvatarActor, TargetChannel, *RingShape, RingCenterTransform, HitTargets);
 
 	// 링은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 링 하나가 판정하는 순간에 재생합니다
-	PlayPatternPresentation(RingCenterTransform);
+	PlayPatternPresentation(*RingShape, RingCenterTransform);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
@@ -298,6 +308,22 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d].InnerRadius (%.0f) must match Rings[%d].Radius (%.0f) so the rings stay ordered without overlaps or gaps."), RingIndex, Ring.InnerRadius, RingIndex - 1, Rings[RingIndex - 1].Radius)));
 			ValidationResult = EDataValidationResult::Invalid;
+		}
+	}
+
+	// 링마다 크기가 달라 채우기 결과도 다르므로 전부 검사하되, 설정 하나가 모든 링에서 같은 오류를 반복하지 않게 첫 실패에서 멈춥니다
+	for (const FRSCombatShape& Ring : Rings)
+	{
+		if (!Ring.IsDataValid())
+		{
+			continue;
+		}
+
+		const EDataValidationResult PresentationResult = ValidatePatternPresentation(Ring, Context);
+		ValidationResult = CombineDataValidationResults(ValidationResult, PresentationResult);
+		if (PresentationResult == EDataValidationResult::Invalid)
+		{
+			break;
 		}
 	}
 

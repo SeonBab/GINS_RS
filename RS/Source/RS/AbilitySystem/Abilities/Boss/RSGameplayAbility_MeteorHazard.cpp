@@ -3,6 +3,7 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Actors/RSBossMeteorHazard.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBossController.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -147,7 +148,15 @@ void URSGameplayAbility_MeteorHazard::HandleStartDelayFinished()
 		return;
 	}
 
-	const FTransform SpawnTransform(TargetActor->GetActorLocation());
+	FVector SpawnLocation = FVector::ZeroVector;
+	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(TargetActor, SpawnLocation))
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	const FTransform SpawnTransform(SpawnLocation);
 	ARSBossMeteorHazard* MeteorHazard = World->SpawnActorDeferred<ARSBossMeteorHazard>(MeteorHazardClass, SpawnTransform, AvatarActor, Cast<APawn>(AvatarActor), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (!MeteorHazard)
 	{

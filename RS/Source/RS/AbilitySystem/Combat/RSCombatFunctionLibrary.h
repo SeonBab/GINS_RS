@@ -5,11 +5,14 @@
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "RSNiagaraSpawnDefinition.h"
 #include "ScalableFloat.h"
 #include "RSCombatFunctionLibrary.generated.h"
 
 class UCameraShakeBase;
+class UNiagaraComponent;
 class UNiagaraSystem;
+class USkeletalMeshComponent;
 class USoundBase;
 
 #if WITH_EDITOR
@@ -301,13 +304,20 @@ public:
 	static bool IsLocationInsideCone(const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FVector& TargetLocation);
 
 	/**
-	 * Cone 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다
-	 * 셀 중심이 Cone 안에 있는 칸만 남기므로 결과는 IsLocationInsideCone과 같은 범위를 벗어나지 않습니다
-	 * 각 Transform은 ShapeTransform의 회전과 높이를 그대로 상속하고 Scale은 사용하지 않습니다
-	 * Spacing이 Range보다 넓어 격자가 한 칸으로 무너지면 Cone 중심선의 가운데에 하나만 채우므로 성공한 호출의 결과는 비지 않습니다
-	 * Spacing이 지나치게 좁아 순회할 칸이 상한을 넘으면 아무것도 채우지 않고 실패합니다
+	 * 패턴 공간의 기준이 될 액터의 캡슐 바닥 위치를 얻습니다
+	 * Telegraph와 연출이 캡슐 중심 높이에 뜨지 않도록 모든 호출처가 같은 정의를 한 곳에서 읽습니다
+	 * 캡슐이 없는 액터는 Simple Collision의 반높이로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
 	 */
-	static bool BuildConeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms);
+	static bool TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation);
+
+	/**
+	 * 판정 형상 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다
+	 * 연출이 판정 범위를 벗어나지 않도록 셀 중심이 형상 안에 있는 칸만 남깁니다
+	 * 각 Transform은 ShapeTransform의 회전과 높이를 그대로 상속하고 Scale은 사용하지 않습니다
+	 * Spacing이 형상보다 넓어 격자가 한 칸으로 무너지면 형상을 대표하는 지점 하나를 채우므로 성공한 호출의 결과는 비지 않습니다
+	 * 채우는 보스 패턴이 없는 Box와, 순회할 칸이 상한을 넘는 Spacing에서는 아무것도 채우지 않고 실패합니다
+	 */
+	static bool BuildShapeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms);
 
 	/**
 	 * 대상 하나에게 이번 타격이 요청하는 피격 반응을 전달합니다
@@ -336,6 +346,13 @@ public:
 
 	/** 지정한 월드 방향을 사용하는 넉백 반응을 대상에게 요청합니다 */
 	static void SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection);
+
+	/**
+	 * Niagara 정의가 요청한 기준으로 System을 생성합니다
+	 * 소켓 기준 생성은 호출자가 소유한 Mesh를 사용하므로 어빌리티와 액터 어느 쪽이 부르든 같은 규칙을 따릅니다
+	 * 정의가 비었거나 요청한 소켓이 없으면 아무것도 만들지 않고 nullptr을 반환합니다
+	 */
+	static UNiagaraComponent* SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy);
 
 	/** 판정 형상 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
 	static bool IsHitCheckDebugEnabled();

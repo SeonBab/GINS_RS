@@ -9,8 +9,8 @@
 #include "RSPlayerCharacter.generated.h"
 
 class UInputMappingContext;
-class UAnimMontage;
 class UAbilitySystemComponent;
+class UNiagaraComponent;
 class UNiagaraSystem;
 class URSInputConfig;
 class UCameraComponent;
@@ -174,11 +174,6 @@ private:
 	UFUNCTION()
 	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
 
-protected:
-	/** 사망 상태가 시작될 때 재생할 Animation Montage입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Death")
-	TObjectPtr<UAnimMontage> DeathMontage;
-
 #pragma endregion
 
 private:
@@ -189,6 +184,10 @@ private:
 	/** 캐릭터 Mesh에 부착되어 장착 무기를 표시하는 Static Mesh입니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> WeaponMeshComp;
+
+	/** 무기 Mesh에 부착되어 오라 같은 지속 연출을 재생하는 Niagara입니다. 재생할 System은 Blueprint의 이 Component에서 지정합니다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Presentation", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UNiagaraComponent> WeaponAuraNiagaraComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> CameraComp;

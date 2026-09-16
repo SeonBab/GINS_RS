@@ -8,9 +8,12 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
@@ -30,7 +33,7 @@ namespace
 
 	// 간격이 좁을수록 순회할 칸이 제곱으로 늘어나므로 채우기 전에 막을 상한입니다
 	// 기획이 쓰는 밀도로는 닿지 않는 값이며, 설정 실수로 프레임이 멈추는 것만 방지합니다
-	constexpr int64 RSConeFillMaxCandidateCells = 4096;
+	constexpr int64 RSShapeFillMaxCandidateCells = 4096;
 
 	bool TryGetConeParameters(const FRSCombatShape& Shape, const FTransform& ShapeTransform, FVector& OutHorizontalForward, float& OutRangeSquared, float& OutMinimumDot)
 	{
@@ -73,6 +76,113 @@ namespace
 		const float ForwardDot = FVector::DotProduct(HorizontalForward, DirectionToTarget);
 
 		return ForwardDot >= MinimumDot || FMath::IsNearlyEqual(ForwardDot, MinimumDot);
+	}
+
+	bool BuildConeFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
+	{
+		FVector HorizontalForward = FVector::ZeroVector;
+		float RangeSquared = 0.0f;
+		float MinimumDot = 0.0f;
+		if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
+		{
+			return false;
+		}
+
+		// 격자는 꼭짓점을 원점으로 Forward와 Right 방향의 정수 배 위치만 사용하므로 중심선이 항상 채워집니다
+		const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
+		const float HalfWidth = Shape.Range * FMath::Sin(FMath::DegreesToRadians(Shape.Angle * 0.5f));
+
+		const int32 ForwardStepCount = FMath::FloorToInt(Shape.Range / Spacing);
+		const int32 LateralStepCount = FMath::FloorToInt(HalfWidth / Spacing);
+
+		// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
+		const int64 CandidateCellCount = static_cast<int64>(ForwardStepCount + 1) * (static_cast<int64>(LateralStepCount) * 2 + 1);
+		if (CandidateCellCount > RSShapeFillMaxCandidateCells)
+		{
+			return false;
+		}
+
+		const FVector ConeApex = ShapeTransform.GetLocation();
+		const FQuat FillRotation = ShapeTransform.GetRotation();
+
+		OutTransforms.Reset();
+		for (int32 ForwardStep = 0; ForwardStep <= ForwardStepCount; ++ForwardStep)
+		{
+			for (int32 LateralStep = -LateralStepCount; LateralStep <= LateralStepCount; ++LateralStep)
+			{
+				const FVector CellLocation = ConeApex + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
+				if (!IsLocationInsidePreparedCone(ConeApex, HorizontalForward, RangeSquared, MinimumDot, CellLocation))
+				{
+					continue;
+				}
+
+				OutTransforms.Emplace(FillRotation, CellLocation);
+			}
+		}
+
+		// 간격이 범위보다 넓으면 격자가 꼭짓점 한 칸으로 무너지는데, 꼭짓점은 보스 발밑이라 공격 범위를 나타내지 못합니다
+		// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 중심선의 가운데에 한 개만 둡니다
+		if (OutTransforms.Num() <= 1)
+		{
+			OutTransforms.Reset();
+			OutTransforms.Emplace(FillRotation, ConeApex + HorizontalForward * (Shape.Range * 0.5f));
+		}
+
+		return true;
+	}
+
+	bool BuildSphereFill(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
+	{
+		// 격자 축을 형상 회전에 맞춰야 같은 링이라도 배치가 회전을 따라가며 Cone 채우기와 규칙이 같아집니다
+		FVector HorizontalForward = ShapeTransform.GetUnitAxis(EAxis::X);
+		HorizontalForward.Z = 0.0f;
+		if (!HorizontalForward.Normalize())
+		{
+			return false;
+		}
+
+		const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
+		const int32 StepCount = FMath::FloorToInt(Shape.Radius / Spacing);
+
+		// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
+		const int64 AxisCellCount = static_cast<int64>(StepCount) * 2 + 1;
+		if (AxisCellCount * AxisCellCount > RSShapeFillMaxCandidateCells)
+		{
+			return false;
+		}
+
+		const FVector SphereCenter = ShapeTransform.GetLocation();
+		const FQuat FillRotation = ShapeTransform.GetRotation();
+		const float OuterRadiusSquared = FMath::Square(Shape.Radius);
+		const float InnerRadiusSquared = FMath::Square(Shape.InnerRadius);
+
+		OutTransforms.Reset();
+		for (int32 ForwardStep = -StepCount; ForwardStep <= StepCount; ++ForwardStep)
+		{
+			for (int32 LateralStep = -StepCount; LateralStep <= StepCount; ++LateralStep)
+			{
+				const FVector CellLocation = SphereCenter + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
+
+				// 도넛의 빈 가운데에 연출이 생기면 안전지대가 위험해 보이므로 안쪽 반지름 안쪽은 버립니다
+				const float DistanceSquared = FVector::DistSquared2D(CellLocation, SphereCenter);
+				if (DistanceSquared > OuterRadiusSquared || DistanceSquared < InnerRadiusSquared)
+				{
+					continue;
+				}
+
+				OutTransforms.Emplace(FillRotation, CellLocation);
+			}
+		}
+
+		// 간격이 범위보다 넓으면 격자가 중심 한 칸으로 무너지는데, 도넛에서는 그 칸이 비어 있어야 할 안전지대입니다
+		// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 두 반지름의 가운데에 한 개만 둡니다
+		if (OutTransforms.Num() <= 1)
+		{
+			OutTransforms.Reset();
+			OutTransforms.Emplace(FillRotation, SphereCenter + HorizontalForward * ((Shape.InnerRadius + Shape.Radius) * 0.5f));
+		}
+
+		return true;
 	}
 }
 
@@ -302,62 +412,52 @@ bool URSCombatFunctionLibrary::IsLocationInsideCone(const FRSCombatShape& Shape,
 	return IsLocationInsidePreparedCone(ShapeTransform.GetLocation(), HorizontalForward, RangeSquared, MinimumDot, TargetLocation);
 }
 
-bool URSCombatFunctionLibrary::BuildConeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
+bool URSCombatFunctionLibrary::TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation)
 {
-	FVector HorizontalForward = FVector::ZeroVector;
-	float RangeSquared = 0.0f;
-	float MinimumDot = 0.0f;
-	if (!TryGetConeParameters(Shape, ShapeTransform, HorizontalForward, RangeSquared, MinimumDot))
+	if (!Actor)
 	{
 		return false;
 	}
 
-	if (Spacing <= 0.0f)
+	const ACharacter* Character = Cast<const ACharacter>(Actor);
+	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
+
+	// 캡슐을 가진 액터는 자기 Up을 따라 내려야 눕거나 기울어진 순간에도 바닥이 캡슐과 함께 움직입니다
+	// 캡슐이 없는 연출 액터까지 같은 계약으로 받아야 호출처가 액터 타입을 나누지 않습니다
+	const FVector GroundLocation = CapsuleComp
+		? CapsuleComp->GetComponentLocation() - CapsuleComp->GetUpVector() * CapsuleComp->GetScaledCapsuleHalfHeight()
+		: Actor->GetActorLocation() - FVector::UpVector * Actor->GetSimpleCollisionHalfHeight();
+
+	// 잘못된 위치에 연출을 만드는 대신 호출자가 그 실행을 포기할 수 있도록 실패를 알립니다
+	if (GroundLocation.ContainsNaN())
 	{
 		return false;
 	}
 
-	// 격자는 꼭짓점을 원점으로 Forward와 Right 방향의 정수 배 위치만 사용하므로 중심선이 항상 채워집니다
-	const FVector HorizontalRight = FVector::CrossProduct(FVector::UpVector, HorizontalForward);
-	const float HalfWidth = Shape.Range * FMath::Sin(FMath::DegreesToRadians(Shape.Angle * 0.5f));
-
-	const int32 ForwardStepCount = FMath::FloorToInt(Shape.Range / Spacing);
-	const int32 LateralStepCount = FMath::FloorToInt(HalfWidth / Spacing);
-
-	// 포함 검사보다 먼저 막아야 간격이 좁을 때 순회 자체가 폭주하지 않습니다
-	const int64 CandidateCellCount = static_cast<int64>(ForwardStepCount + 1) * (static_cast<int64>(LateralStepCount) * 2 + 1);
-	if (CandidateCellCount > RSConeFillMaxCandidateCells)
-	{
-		return false;
-	}
-
-	const FVector ConeApex = ShapeTransform.GetLocation();
-	const FQuat FillRotation = ShapeTransform.GetRotation();
-
-	OutTransforms.Reset();
-	for (int32 ForwardStep = 0; ForwardStep <= ForwardStepCount; ++ForwardStep)
-	{
-		for (int32 LateralStep = -LateralStepCount; LateralStep <= LateralStepCount; ++LateralStep)
-		{
-			const FVector CellLocation = ConeApex + HorizontalForward * (ForwardStep * Spacing) + HorizontalRight * (LateralStep * Spacing);
-			if (!IsLocationInsidePreparedCone(ConeApex, HorizontalForward, RangeSquared, MinimumDot, CellLocation))
-			{
-				continue;
-			}
-
-			OutTransforms.Emplace(FillRotation, CellLocation);
-		}
-	}
-
-	// 간격이 범위보다 넓으면 격자가 꼭짓점 한 칸으로 무너지는데, 꼭짓점은 보스 발밑이라 공격 범위를 나타내지 못합니다
-	// 연출은 어떤 간격에서도 하나는 나와야 하므로 이때는 중심선의 가운데에 한 개만 둡니다
-	if (OutTransforms.Num() <= 1)
-	{
-		OutTransforms.Reset();
-		OutTransforms.Emplace(FillRotation, ConeApex + HorizontalForward * (Shape.Range * 0.5f));
-	}
+	OutGroundLocation = GroundLocation;
 
 	return true;
+}
+
+bool URSCombatFunctionLibrary::BuildShapeFillTransforms(const FRSCombatShape& Shape, const FTransform& ShapeTransform, float Spacing, TArray<FTransform>& OutTransforms)
+{
+	if (!FMath::IsFinite(Spacing) || Spacing <= 0.0f || !Shape.IsDataValid())
+	{
+		return false;
+	}
+
+	switch (Shape.Type)
+	{
+	case ERSCombatShapeType::Cone:
+		return BuildConeFill(Shape, ShapeTransform, Spacing, OutTransforms);
+
+	case ERSCombatShapeType::Sphere:
+		return BuildSphereFill(Shape, ShapeTransform, Spacing, OutTransforms);
+
+	default:
+		// Box를 채우는 보스 패턴이 없어 지원하지 않으며, 조용히 비는 대신 호출자가 알 수 있게 실패합니다
+		return false;
+	}
 }
 
 void URSCombatFunctionLibrary::DrawDebugCombatShape(const UWorld* World, const FRSCombatShape& Shape, const FTransform& ShapeTransform, const FColor& Color, float LifeTime)
@@ -526,6 +626,35 @@ void URSCombatFunctionLibrary::PlayCameraShake(const UObject* WorldContextObject
 	{
 		ViewerController->ClientStartCameraShake(ShakeDefinition.ShakeClass, ShakeDefinition.Scale);
 	}
+}
+
+UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy)
+{
+	if (!Definition.NiagaraSystem)
+	{
+		return nullptr;
+	}
+
+	if (Definition.SpawnMode == ERSNiagaraSpawnMode::WorldTransform)
+	{
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, true);
+	}
+
+	if (!MeshComponent || !MeshComponent->DoesSocketExist(Definition.SocketName))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s skipped Niagara %s because socket %s is unavailable"), *GetNameSafe(WorldContextObject), *GetNameSafe(Definition.NiagaraSystem), *Definition.SocketName.ToString());
+
+		return nullptr;
+	}
+
+	if (Definition.SpawnMode == ERSNiagaraSpawnMode::SocketSnapshot)
+	{
+		const FTransform SocketTransform = MeshComponent->GetSocketTransform(Definition.SocketName);
+
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, SocketTransform.GetLocation(), SocketTransform.Rotator(), SocketTransform.GetScale3D(), bAutoDestroy, true);
+	}
+
+	return UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
 }
 
 bool URSCombatFunctionLibrary::ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets)

@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "RSBossPhaseComponent.h"
 #include "RSBossPhaseData.h"
+#include "RSGameplayAbility_ArmSwing.h"
 #include "RSGameplayAbility_ConcentricRings.h"
 #include "RSGameplayAbility_TargetedSlam.h"
 
@@ -272,5 +273,145 @@ bool FRSBossPhaseCycleTest::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossPatternExclusionTest, "RS.Boss.PatternExclusion", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSBossPatternExclusionTest::RunTest(const FString& Parameters)
+{
+	const TSubclassOf<URSBaseGameplayAbility> SlamPattern = URSGameplayAbility_TargetedSlam::StaticClass();
+	const TSubclassOf<URSBaseGameplayAbility> RingPattern = URSGameplayAbility_ConcentricRings::StaticClass();
+	const TSubclassOf<URSBaseGameplayAbility> ArmSwingPattern = URSGameplayAbility_ArmSwing::StaticClass();
+
+	TSubclassOf<URSBaseGameplayAbility> SelectedAbilityClass;
+
+	// 후보가 셋이면 같은 종류의 연속 선택이 직전 후보를 반복하지 않습니다
+	{
+		FRSBossPhaseDefinition Phase;
+		Phase.BasicPatterns = { SlamPattern, RingPattern, ArmSwingPattern };
+		Phase.SpecialPatterns = { RingPattern };
+		Phase.CycleSequence = { ERSBossPatternType::Basic, ERSBossPatternType::Basic, ERSBossPatternType::Special };
+
+		URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>();
+		PhaseComponent->SetPhasesForTest({ Phase });
+
+		// 무작위 선택이므로 한 번의 일치로는 계약을 확인할 수 없어 반복해서 확인합니다
+		TSubclassOf<URSBaseGameplayAbility> PreviousAbilityClass;
+		TestTrue(TEXT("First basic selection succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, PreviousAbilityClass));
+
+		bool bRepeatedInSameType = false;
+		for (int32 Attempt = 0; Attempt < 64; ++Attempt)
+		{
+			TestTrue(TEXT("Repeated basic selection succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+
+			bRepeatedInSameType |= SelectedAbilityClass.Get() == PreviousAbilityClass.Get();
+			PreviousAbilityClass = SelectedAbilityClass;
+		}
+
+		TestFalse(TEXT("Consecutive basic turns never repeat the previous candidate"), bRepeatedInSameType);
+	}
+
+	// 종류가 바뀌면 연속이 아니므로 상시 후보가 다시 선택될 수 있습니다
+	{
+		FRSBossPhaseDefinition Phase;
+		Phase.BasicPatterns = { SlamPattern, RingPattern };
+		Phase.SpecialPatterns = { ArmSwingPattern };
+		Phase.CycleSequence = { ERSBossPatternType::Basic, ERSBossPatternType::Special, ERSBossPatternType::Basic };
+
+		URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>();
+		PhaseComponent->SetPhasesForTest({ Phase });
+
+		bool bRepeatedAcrossTypes = false;
+		for (int32 Attempt = 0; Attempt < 64 && !bRepeatedAcrossTypes; ++Attempt)
+		{
+			TSubclassOf<URSBaseGameplayAbility> FirstBasicClass;
+			TestTrue(TEXT("Basic before special succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, FirstBasicClass));
+			TestTrue(TEXT("Special between basics succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Special, SelectedAbilityClass));
+			TestTrue(TEXT("Basic after special succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+
+			bRepeatedAcrossTypes = SelectedAbilityClass.Get() == FirstBasicClass.Get();
+		}
+
+		TestTrue(TEXT("A different type between two basic turns clears the exclusion"), bRepeatedAcrossTypes);
+	}
+
+	// 후보가 하나뿐이면 제외할 여지가 없으므로 계속 그 후보가 선택되고 경고도 남지 않습니다
+	{
+		FRSBossPhaseDefinition Phase;
+		Phase.BasicPatterns = { SlamPattern };
+		Phase.SpecialPatterns = { RingPattern };
+		Phase.CycleSequence = { ERSBossPatternType::Basic, ERSBossPatternType::Basic, ERSBossPatternType::Special };
+
+		URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>();
+		PhaseComponent->SetPhasesForTest({ Phase });
+
+		TestTrue(TEXT("Single candidate selection succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+		TestEqual(TEXT("Single candidate is selected"), SelectedAbilityClass.Get(), SlamPattern.Get());
+
+		TestTrue(TEXT("Single candidate selection repeats"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+		TestEqual(TEXT("Single candidate repeats without failing"), SelectedAbilityClass.Get(), SlamPattern.Get());
+	}
+
+	// 같은 클래스를 여러 칸에 넣은 구성은 확률 조절 수단이므로 연속 등장을 막지 않습니다
+	{
+		FRSBossPhaseDefinition Phase;
+		Phase.BasicPatterns = { SlamPattern, RingPattern, SlamPattern };
+		Phase.SpecialPatterns = { ArmSwingPattern };
+		Phase.CycleSequence = { ERSBossPatternType::Basic, ERSBossPatternType::Basic, ERSBossPatternType::Special };
+
+		URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>();
+		PhaseComponent->SetPhasesForTest({ Phase });
+
+		bool bDuplicatedClassRepeated = false;
+		TSubclassOf<URSBaseGameplayAbility> PreviousAbilityClass;
+		TestTrue(TEXT("Duplicated list selection succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, PreviousAbilityClass));
+
+		for (int32 Attempt = 0; Attempt < 256 && !bDuplicatedClassRepeated; ++Attempt)
+		{
+			TestTrue(TEXT("Duplicated list selection repeats"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+
+			bDuplicatedClassRepeated = SelectedAbilityClass.Get() == PreviousAbilityClass.Get();
+			PreviousAbilityClass = SelectedAbilityClass;
+		}
+
+		TestTrue(TEXT("A class listed twice may appear on consecutive turns"), bDuplicatedClassRepeated);
+	}
+
+	// 페이즈가 바뀌면 후보 리스트가 달라지므로 이전 페이즈의 선택 이력을 쓰지 않습니다
+	{
+		FRSBossPhaseDefinition FirstPhase;
+		FirstPhase.BasicPatterns = { SlamPattern, RingPattern };
+		FirstPhase.SpecialPatterns = { ArmSwingPattern };
+		FirstPhase.CycleSequence = { ERSBossPatternType::Basic, ERSBossPatternType::Basic, ERSBossPatternType::Special };
+		FirstPhase.HealthTriggerRatio = 0.5f;
+
+		FRSBossPhaseDefinition SecondPhase = FirstPhase;
+		SecondPhase.HealthTriggerRatio = 0.0f;
+
+		URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>();
+		PhaseComponent->SetPhasesForTest({ FirstPhase, SecondPhase });
+
+		bool bRepeatedAcrossPhases = false;
+		for (int32 Attempt = 0; Attempt < 64 && !bRepeatedAcrossPhases; ++Attempt)
+		{
+			PhaseComponent->SetPhasesForTest({ FirstPhase, SecondPhase });
+
+			TSubclassOf<URSBaseGameplayAbility> LastClassOfFirstPhase;
+			TestTrue(TEXT("Basic selection in the first phase succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, LastClassOfFirstPhase));
+
+			PhaseComponent->AdvanceToNextPhase();
+
+			TestEqual(TEXT("Phase advanced"), PhaseComponent->GetCurrentPhaseIndex(), 1);
+			TestTrue(TEXT("Basic selection in the second phase succeeds"), PhaseComponent->TrySelectPattern(ERSBossPatternType::Basic, SelectedAbilityClass));
+
+			bRepeatedAcrossPhases = SelectedAbilityClass.Get() == LastClassOfFirstPhase.Get();
+		}
+
+		TestTrue(TEXT("Phase transition clears the previous selection"), bRepeatedAcrossPhases);
+	}
+
+	return true;
+}
+
 
 #endif

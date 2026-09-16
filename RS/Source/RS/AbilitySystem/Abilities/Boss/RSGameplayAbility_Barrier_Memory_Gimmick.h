@@ -66,6 +66,9 @@ public:
 	/** 방어막 중심이 안전 영역에 포함되는지 수평 거리로 검사합니다 */
 	static bool IsLocationInsideSafeZone(const FVector& Location, const FVector& ZoneCenter, float SafeRadius);
 
+	/** 패턴 기준 Transform의 지역 오프셋 위치에 같은 방향으로 놓이는 Beam Transform을 반환합니다 */
+	static FTransform CalculateBeamTransform(const FTransform& PatternTransform, const FVector& LocalOffset);
+
 protected:
 	/** 시작 위치와 첫 색을 확정하고 방어막과 안광 예고를 시작합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
@@ -98,6 +101,12 @@ private:
 	/** 남아 있는 방어막 표현을 모두 제거합니다 */
 	void DestroyBarrierZones();
 
+	/**
+	 * 판정 디버그가 켜져 있을 때만 네 방어막의 안전 반지름을 바닥 원으로 그립니다
+	 * 강조를 요청하면 현재 공격 색의 영역만 자기 색으로 남기고 나머지는 회색으로 그립니다
+	 */
+	void DrawDebugBarrierZones(float LifeTime, bool bHighlightCurrentColor) const;
+
 	/** 현재 색과 일치하는 방어막 안에 플레이어가 있는지 검사합니다 */
 	bool IsPlayerInsideCurrentSafeZone(const AActor& PlayerActor) const;
 
@@ -121,6 +130,9 @@ private:
 	/** 현재 공격의 판정 이벤트를 처리합니다 */
 	UFUNCTION()
 	void HandleHitCheckEvent(FGameplayEventData Payload);
+
+	/** 현재 공격 색의 Beam을 보스 전방의 설정 위치에 재생합니다 */
+	void PlayBeamPresentation();
 
 	/** 안광 예고가 정상 완료되면 이벤트 개수를 확인하고 첫 공격을 시작합니다 */
 	UFUNCTION()
@@ -164,6 +176,16 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Presentation", meta = (AllowPrivateAccess = "true"))
 	FRSNiagaraSpawnDefinition YellowSwordNiagara;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Presentation", meta = (AllowPrivateAccess = "true"))
+	FRSNiagaraSpawnDefinition RedBeamNiagara;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Presentation", meta = (AllowPrivateAccess = "true"))
+	FRSNiagaraSpawnDefinition YellowBeamNiagara;
+
+	/** 패턴 시작 시 고정한 보스 발밑 기준의 Beam 생성 위치이며 X가 보스 전방, Z가 바닥에서의 높이입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Presentation", meta = (AllowPrivateAccess = "true", ForceUnits = "cm"))
+	FVector BeamOffset = FVector::ZeroVector;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Barrier", meta = (AllowPrivateAccess = "true"))
 	FRSBarrierFieldDefinition BarrierField;

@@ -52,6 +52,18 @@ struct FRSPizzaPatternDefinition
 
 	/** 런타임 계산에 사용할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
+
+	/** A와 B가 나누어 사용할 전체 가상 조각 수를 반환합니다 */
+	int32 CalculateVirtualSliceCount() const;
+
+	/** 가상 조각 하나의 각도를 반환하며 설정이 잘못되면 0입니다 */
+	float CalculateSliceAngleDegrees() const;
+
+	/** 폭발 번호가 사용할 A 또는 B 조각의 월드 Transform을 계산합니다 */
+	bool TryBuildExplosionSliceTransforms(const FTransform& LockedTransform, int32 ExplosionIndex, TArray<FTransform>& OutSliceTransforms) const;
+
+	/** 대상 위치가 지정한 폭발의 A 또는 B 그룹에 속하는지 반환합니다 */
+	bool IsLocationInExplosionGroup(const FTransform& LockedTransform, int32 ExplosionIndex, const FVector& TargetLocation) const;
 };
 
 /** 보스를 중심으로 고정한 A/B 피자 조각을 설정 횟수만큼 교대로 폭발시키는 Ability입니다 */
