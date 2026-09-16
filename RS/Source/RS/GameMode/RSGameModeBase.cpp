@@ -6,6 +6,7 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "RSBossEncounter.h"
+#include "RSInGameMenuAction.h"
 #include "RSPlayerController.h"
 #include "RSPlayerHeadUpDisplay.h"
 #include "RSPlayerState.h"
@@ -155,26 +156,61 @@ bool ARSGameModeBase::TryCommitBossResultAction(ERSBossResultAction Action)
 
 void ARSGameModeBase::ExecuteBossResultAction(ERSBossResultAction Action)
 {
-	FName TargetLevelName;
-	switch (Action)
-	{
-	case ERSBossResultAction::RestartLevel:
-		TargetLevelName = FName(*UGameplayStatics::GetCurrentLevelName(this, true));
-		break;
-
-	case ERSBossResultAction::ReturnToMainMenu:
-		TargetLevelName = TEXT("/Game/Maps/MainMenuMap");
-		break;
-
-	default:
-		return;
-	}
-
-	if (TargetLevelName.IsNone())
+	const bool bIsValidAction = Action == ERSBossResultAction::RestartLevel || Action == ERSBossResultAction::ReturnToMainMenu;
+	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSBossResultAction::RestartLevel))
 	{
 		BossResultAction.Reset();
-		return;
+	}
+}
+
+bool ARSGameModeBase::RequestInGameMenuAction(ARSPlayerController* RequestingPlayerController, ERSInGameMenuAction Action)
+{
+	if (!IsValid(RequestingPlayerController) || RequestingPlayerController->GetWorld() != GetWorld() || !RequestingPlayerController->IsLocalController())
+	{
+		return false;
+	}
+
+	if (!RequestingPlayerController->IsInGameMenuOpen() || BossResult.IsSet() || !TryCommitInGameMenuAction(Action))
+	{
+		return false;
+	}
+
+	RequestingPlayerController->HandleInGameMenuActionAccepted();
+	ExecuteInGameMenuAction(Action);
+	return true;
+}
+
+bool ARSGameModeBase::TryCommitInGameMenuAction(ERSInGameMenuAction Action)
+{
+	const bool bIsValidAction = Action == ERSInGameMenuAction::RestartLevel || Action == ERSInGameMenuAction::ReturnToMainMenu;
+	if (!bIsValidAction || InGameMenuAction.IsSet() || BossResultAction.IsSet())
+	{
+		return false;
+	}
+
+	InGameMenuAction.Emplace(Action);
+	return true;
+}
+
+void ARSGameModeBase::ExecuteInGameMenuAction(ERSInGameMenuAction Action)
+{
+	const bool bIsValidAction = Action == ERSInGameMenuAction::RestartLevel || Action == ERSInGameMenuAction::ReturnToMainMenu;
+	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSInGameMenuAction::RestartLevel))
+	{
+		InGameMenuAction.Reset();
+	}
+}
+
+bool ARSGameModeBase::ExecuteLevelTransition(bool bRestartCurrentLevel)
+{
+	const FName TargetLevelName = bRestartCurrentLevel
+		? FName(*UGameplayStatics::GetCurrentLevelName(this, true))
+		: FName(TEXT("/Game/Maps/MainMenuMap"));
+	if (TargetLevelName.IsNone())
+	{
+		return false;
 	}
 
 	UGameplayStatics::OpenLevel(this, TargetLevelName, true);
+	return true;
 }
