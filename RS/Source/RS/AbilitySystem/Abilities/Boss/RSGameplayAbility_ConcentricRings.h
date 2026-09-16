@@ -11,21 +11,22 @@
 class UAnimMontage;
 
 /**
- * 한 번의 패턴에서 링이 공격될 순서이며 각 항목은 Rings 배열의 인덱스입니다
+ * 한 번의 패턴에서 안전한 링이 바뀔 순서이며 각 항목은 Rings 배열의 인덱스입니다
  * TArray를 직접 중첩할 수 없어 후보 목록을 만들기 위한 래퍼입니다
  */
 USTRUCT(BlueprintType)
-struct FRSRingAttackSequence
+struct FRSRingSafeSequence
 {
 	GENERATED_BODY()
 
-	/** 공격될 링 인덱스를 순서대로 나열하며 같은 링이 여러 번 등장할 수 있습니다 */
+	/** 스텝마다 안전할 링 인덱스를 순서대로 나열하며 같은 링이 여러 번 등장할 수 있습니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings")
-	TArray<int32> RingIndices;
+	TArray<int32> SafeRingIndices;
 };
 
 /**
- * 보스를 중심으로 하는 동심원 링을 순서대로 예고한 뒤 같은 순서로 판정하는 패턴입니다
+ * 보스를 중심으로 하는 동심원 링 중 스텝마다 안전할 링 하나를 순서대로 예고한 뒤 같은 순서로 판정하는 패턴입니다
+ * 예고와 판정이 모두 안전한 링을 뺀 나머지 링 전부를 덮으므로 플레이어는 매 스텝 정해진 한 링으로 들어가야 합니다
  * 플레이어는 반응이 아니라 예고에서 본 순서를 기억해 회피하므로 실행 단계에는 표시를 하지 않습니다
  *
  * 예고 시간이 애니메이션과 독립한 게임플레이 값이어야 하므로 판정 시점을 Montage Notify가 정하는
@@ -69,23 +70,29 @@ private:
 	UFUNCTION()
 	void HandleStepDelayFinished();
 
-	/** 시퀀스의 한 항목이 가리키는 링 형상을 반환하며 인덱스가 잘못되면 nullptr입니다 */
-	const FRSCombatShape* GetRingShape(int32 SequenceIndex) const;
+	/**
+	 * 이 스텝에서 안전한 링을 뺀 나머지 링 형상을 모읍니다
+	 * 시퀀스 항목이 없는 링을 가리키면 어느 링이 안전한지 알 수 없으므로 채우지 않고 실패를 알립니다
+	 */
+	bool TryGetDangerRingShapes(int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const;
 
-	/** 예고 스텝입니다. 데미지 없이 링을 표시만 합니다 */
-	void PreviewRing(const AActor& AvatarActor, int32 SequenceIndex);
+	/** 예고 스텝입니다. 데미지 없이 공격받을 링들을 표시만 하며 비어 있는 링이 안전한 곳입니다 */
+	void PreviewDangerRings(const AActor& AvatarActor, int32 SequenceIndex);
 
-	/** 실행 스텝입니다. 판정하고 피해와 반응을 적용합니다 */
-	void StrikeRing(const AActor& AvatarActor, int32 SequenceIndex);
+	/** 실행 스텝입니다. 공격받을 링들을 판정하고 피해와 반응을 적용합니다 */
+	void StrikeDangerRings(const AActor& AvatarActor, int32 SequenceIndex);
 
 private:
-	/** 보스를 중심으로 하는 링 목록이며 안쪽부터 반경 오름차순으로 나열합니다 */
+	/**
+	 * 보스를 중심으로 하는 링 목록이며 안쪽부터 반경 오름차순으로 나열합니다
+	 * 가장 안쪽은 도넛이 아니라 꽉 찬 원이어야 합니다. 중심에 구멍이 있으면 어느 링이 안전하든 거기 서서 패턴 전체를 무시할 수 있습니다
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings", meta = (AllowPrivateAccess = "true"))
 	TArray<FRSCombatShape> Rings;
 
-	/** 활성화마다 하나를 고를 공격 순서 후보입니다. 후보가 하나면 고정 순서가 됩니다 */
+	/** 활성화마다 하나를 고를 안전 링 순서 후보입니다. 후보가 하나면 고정 순서가 됩니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings", meta = (AllowPrivateAccess = "true"))
-	TArray<FRSRingAttackSequence> SequencePool;
+	TArray<FRSRingSafeSequence> SequencePool;
 
 	/** 예고 한 스텝에서 링을 보여줄 시간입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Timing", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
@@ -130,7 +137,7 @@ private:
 	TObjectPtr<UAnimMontage> AttackMontage;
 
 private:
-	/** 이번 활성화에서 확정한 공격 순서이며 예고와 실행이 같은 배열을 읽습니다 */
+	/** 이번 활성화에서 확정한 안전 링 순서이며 예고와 실행이 같은 배열을 읽습니다 */
 	UPROPERTY(Transient)
 	TArray<int32> ActiveSequence;
 

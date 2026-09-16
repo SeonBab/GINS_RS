@@ -1,6 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/RSCombatFunctionLibrary.h"
+#include "RSPizzaCueTimeline.h"
 #include "RSPizzaMemoryPatternDefinition.generated.h"
 
 /** 8개 조각에서 서로 반대편인 두 조각으로 구성한 안전지대 쌍입니다 */
@@ -66,12 +68,35 @@ struct FRSPizzaMemoryPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ExplosionInterval = 1.0f;
 
-	/** 후보 목록, 공간과 시간 설정이 런타임에서 사용할 수 있는지 검사합니다 */
+	/** 모든 폭발이 대상에게 공통으로 가할 피해량입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")
+	FScalableFloat Damage = 10.0f;
+
+	/** 모든 폭발이 대상에게 공통으로 요청할 피격 반응입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Reaction")
+	FRSHitReactionDefinition Reaction;
+
+	/** 후보 목록, 공간, 시간과 피해 설정이 런타임에서 사용할 수 있는지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 
 	/** 유효한 후보 목록의 공통 길이를 반환하며 후보가 없으면 0입니다 */
 	int32 GetSequenceLength() const;
 
+	/** 공용 타임라인이 단계별 대기에 사용할 시간값을 만듭니다 */
+	FRSPizzaCueTimings MakeCueTimings() const;
+
+	/** 지정한 후보의 안전지대 배열을 런타임 상태로 복사하며 잘못된 인덱스나 빈 후보는 거부합니다 */
+	bool TryCopySafeZoneSequenceCandidate(int32 CandidateIndex, TArray<ERSPizzaMemorySafePair>& OutSafePairs) const;
+
+	/** 고정된 8개 조각 중 하나가 차지하는 각도를 반환합니다 */
+	float CalculateSliceAngleDegrees() const;
+
 	/** 안전지대 쌍에 대응하는 두 조각 인덱스를 반환합니다 */
 	static bool TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex);
+
+	/** 안전지대 두 조각을 제외한 위험 조각 6개의 월드 Transform을 인덱스 오름차순으로 계산합니다 */
+	bool TryBuildDangerousSliceTransforms(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, TArray<FTransform>& OutDangerousSliceTransforms) const;
+
+	/** 대상 위치가 지정한 안전지대 쌍에 속하는지 계산합니다 */
+	bool TryIsLocationInSafePair(const FTransform& LockedTransform, ERSPizzaMemorySafePair SafePair, const FVector& TargetLocation, bool& OutIsSafe) const;
 };

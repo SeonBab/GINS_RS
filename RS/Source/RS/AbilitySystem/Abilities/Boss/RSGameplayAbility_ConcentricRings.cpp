@@ -26,28 +26,33 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	// 에셋 없이도 PIE에서 패턴을 바로 확인할 수 있는 개발용 출발점이며 기획이 정할 값입니다
-	constexpr int32 DefaultRingCount = 3;
-	constexpr float DefaultInnermostRadius = 400.0f;
+	constexpr float DefaultInnermostRadius = 600.0f;
 	constexpr float DefaultRingThickness = 200.0f;
+	constexpr int32 DefaultOuterRingCount = 2;
 
-	for (int32 RingIndex = 0; RingIndex < DefaultRingCount; ++RingIndex)
+	// 가장 안쪽은 InnerRadius를 두지 않아 꽉 찬 원이 됩니다. 중심에 구멍이 남으면 거기 서서 패턴 전체를 무시할 수 있습니다
+	FRSCombatShape& InnermostRing = Rings.AddDefaulted_GetRef();
+	InnermostRing.Type = ERSCombatShapeType::Sphere;
+	InnermostRing.Radius = DefaultInnermostRadius;
+
+	for (int32 OuterRingIndex = 0; OuterRingIndex < DefaultOuterRingCount; ++OuterRingIndex)
 	{
 		FRSCombatShape& Ring = Rings.AddDefaulted_GetRef();
 		Ring.Type = ERSCombatShapeType::Sphere;
-		Ring.InnerRadius = DefaultInnermostRadius + RingIndex * DefaultRingThickness;
+		Ring.InnerRadius = DefaultInnermostRadius + OuterRingIndex * DefaultRingThickness;
 		Ring.Radius = Ring.InnerRadius + DefaultRingThickness;
 	}
 
 	// 구조체 기본값은 반응 없음이라 이 패턴이 원하는 넉다운을 지정합니다
 	Reaction.Type = ERSHitReactionType::Knockdown;
 
-	// 링 하나를 중심에서만 보여 주면 안전한 안쪽과 위험한 링을 구분할 수 없으므로 링 띠를 채웁니다
+	// 공격 범위를 중심에서만 보여 주면 비어 있는 안전한 링을 구분할 수 없으므로 링 띠를 채웁니다
 	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 
-	// 후보가 하나면 고정 순서가 됩니다
-	FRSRingAttackSequence& DefaultSequence = SequencePool.AddDefaulted_GetRef();
-	DefaultSequence.RingIndices = { 2, 0, 1 };
+	// 스텝마다 안전할 링이며 후보가 하나면 고정 순서가 됩니다
+	FRSRingSafeSequence& DefaultSequence = SequencePool.AddDefaulted_GetRef();
+	DefaultSequence.SafeRingIndices = { 2, 0, 1 };
 }
 
 void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -73,9 +78,9 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	}
 
 	// 시퀀스는 여기서 한 번만 확정하고 예고와 실행이 같은 배열을 읽습니다
-	// 두 번 뽑으면 예고한 순서와 때리는 순서가 갈라집니다
+	// 두 번 뽑으면 예고한 안전 위치와 실제 안전 위치가 갈라집니다
 	const int32 PoolIndex = FMath::RandHelper(SequencePool.Num());
-	ActiveSequence = SequencePool[PoolIndex].RingIndices;
+	ActiveSequence = SequencePool[PoolIndex].SafeRingIndices;
 
 	if (ActiveSequence.IsEmpty())
 	{
@@ -155,7 +160,7 @@ void URSGameplayAbility_ConcentricRings::RunCurrentStep()
 
 	if (bIsPreviewStep)
 	{
-		PreviewRing(*AvatarActor, SequenceIndex);
+		PreviewDangerRings(*AvatarActor, SequenceIndex);
 
 		// 마지막 예고가 끝난 뒤에는 플레이어가 자리를 잡을 시간을 줍니다
 		ScheduleNextStep(PreviewShowDuration + (bIsLastStepOfPhase ? InterludeDuration : PreviewInterval));
@@ -163,7 +168,7 @@ void URSGameplayAbility_ConcentricRings::RunCurrentStep()
 		return;
 	}
 
-	StrikeRing(*AvatarActor, SequenceIndex);
+	StrikeDangerRings(*AvatarActor, SequenceIndex);
 
 	// 마지막 타격 뒤에 대기를 예약하지 않도록 한다
 	// 판정은 끝났지만 Montage가 남아 있으면 잘리지 않도록 종료를 미룬다
@@ -192,24 +197,42 @@ void URSGameplayAbility_ConcentricRings::HandleStepDelayFinished()
 	RunCurrentStep();
 }
 
-const FRSCombatShape* URSGameplayAbility_ConcentricRings::GetRingShape(int32 SequenceIndex) const
+bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const
 {
+	OutDangerRings.Reset();
+
 	if (!ActiveSequence.IsValidIndex(SequenceIndex))
 	{
-		return nullptr;
+		return false;
 	}
 
-	const int32 RingIndex = ActiveSequence[SequenceIndex];
+	const int32 SafeRingIndex = ActiveSequence[SequenceIndex];
+	if (!Rings.IsValidIndex(SafeRingIndex))
+	{
+		return false;
+	}
 
-	return Rings.IsValidIndex(RingIndex) ? &Rings[RingIndex] : nullptr;
+	// 안전한 링 하나만 빼고 전부 위험합니다. 링은 겹치지 않으므로 이 목록이 판정 영역을 빠짐없이 한 번씩 덮습니다
+	OutDangerRings.Reserve(Rings.Num() - 1);
+	for (int32 RingIndex = 0; RingIndex < Rings.Num(); ++RingIndex)
+	{
+		if (RingIndex == SafeRingIndex)
+		{
+			continue;
+		}
+
+		OutDangerRings.Add(Rings[RingIndex]);
+	}
+
+	return true;
 }
 
-void URSGameplayAbility_ConcentricRings::PreviewRing(const AActor& AvatarActor, int32 SequenceIndex)
+void URSGameplayAbility_ConcentricRings::PreviewDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
-	const FRSCombatShape* RingShape = GetRingShape(SequenceIndex);
-	if (!RingShape)
+	TArray<FRSCombatShape> DangerRings;
+	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s previewed step %d but its ring index is out of range"), *GetName(), SequenceIndex);
+		UE_LOG(LogTemp, Warning, TEXT("%s previewed step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
 		return;
 	}
@@ -221,7 +244,11 @@ void URSGameplayAbility_ConcentricRings::PreviewRing(const AActor& AvatarActor, 
 		FRSTelegraphPresentation Presentation;
 		Presentation.HoldDuration = PreviewShowDuration;
 
-		TelegraphComp->ShowShape(*RingShape, RingCenterTransform, Presentation);
+		// 안전한 링은 그리지 않습니다. 표시가 공격 범위를 뜻하므로 비어 있는 링이 곧 서야 할 자리입니다
+		for (const FRSCombatShape& DangerRing : DangerRings)
+		{
+			TelegraphComp->ShowShape(DangerRing, RingCenterTransform, Presentation);
+		}
 	}
 	else
 	{
@@ -230,29 +257,37 @@ void URSGameplayAbility_ConcentricRings::PreviewRing(const AActor& AvatarActor, 
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
-		UE_LOG(LogTemp, Log, TEXT("%s preview %d/%d ring %d"), *GetName(), SequenceIndex + 1, ActiveSequence.Num(), ActiveSequence[SequenceIndex]);
+		UE_LOG(LogTemp, Log, TEXT("%s preview %d/%d safe ring %d"), *GetName(), SequenceIndex + 1, ActiveSequence.Num(), ActiveSequence[SequenceIndex]);
 	}
 }
 
-void URSGameplayAbility_ConcentricRings::StrikeRing(const AActor& AvatarActor, int32 SequenceIndex)
+void URSGameplayAbility_ConcentricRings::StrikeDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
-	const FRSCombatShape* RingShape = GetRingShape(SequenceIndex);
-	if (!RingShape)
+	TArray<FRSCombatShape> DangerRings;
+	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s struck step %d but its ring index is out of range"), *GetName(), SequenceIndex);
+		UE_LOG(LogTemp, Warning, TEXT("%s struck step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
 		return;
 	}
 
+	// 링이 빈틈과 겹침 없이 이어지고 판정이 반개구간이라 한 대상이 두 링에 동시에 걸리지 않으므로 중복 없이 이어 붙입니다
 	TArray<AActor*> HitTargets;
-	URSCombatFunctionLibrary::FindTargetsInShape(&AvatarActor, TargetChannel, *RingShape, RingCenterTransform, HitTargets);
+	for (const FRSCombatShape& DangerRing : DangerRings)
+	{
+		TArray<AActor*> RingTargets;
+		URSCombatFunctionLibrary::FindTargetsInShape(&AvatarActor, TargetChannel, DangerRing, RingCenterTransform, RingTargets);
 
-	// 링은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 링 하나가 판정하는 순간에 재생합니다
-	PlayPatternPresentation(*RingShape, RingCenterTransform);
+		HitTargets.Append(RingTargets);
+	}
+
+	// 링은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 한 스텝의 링들이 판정하는 순간에 재생합니다
+	// 영역을 한 번에 넘겨야 Niagara만 링마다 나고 Sound와 카메라 셰이크는 한 번만 울립니다
+	PlayPatternPresentation(DangerRings, RingCenterTransform);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
-		UE_LOG(LogTemp, Log, TEXT("%s strike %d/%d ring %d found %d target(s)"), *GetName(), SequenceIndex + 1, ActiveSequence.Num(), ActiveSequence[SequenceIndex], HitTargets.Num());
+		UE_LOG(LogTemp, Log, TEXT("%s strike %d/%d safe ring %d struck %d ring(s) and found %d target(s)"), *GetName(), SequenceIndex + 1, ActiveSequence.Num(), ActiveSequence[SequenceIndex], DangerRings.Num(), HitTargets.Num());
 	}
 
 	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
@@ -268,9 +303,18 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
-	if (Rings.IsEmpty())
+	// 시퀀스가 가리킨 링 하나가 안전 지대이므로 링이 하나뿐이면 그 하나가 늘 안전해 아무것도 때리지 않습니다
+	if (Rings.Num() < 2)
 	{
-		Context.AddError(FText::FromString(TEXT("Rings is empty, so the pattern has no area to attack.")));
+		Context.AddError(FText::FromString(FString::Printf(TEXT("Rings needs at least 2 entries but has %d. Each step spares one ring, so a single ring would never be attacked."), Rings.Num())));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	// 중심에 구멍이 남으면 어느 링이 안전하든 거기 서서 시퀀스 전체를 무시할 수 있습니다
+	// 링 바깥의 여유는 아레나 크기를 알아야 판단할 수 있어 여기서 검사하지 않습니다
+	if (!Rings.IsEmpty() && !FMath::IsNearlyZero(Rings[0].InnerRadius))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[0].InnerRadius must be 0 but is %.0f. A hole at the center would be permanently safe and would make the whole sequence avoidable by standing still."), Rings[0].InnerRadius)));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -290,14 +334,6 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 		if (!Ring.IsDataValid(&ShapeValidationError))
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] is invalid: %s"), RingIndex, *ShapeValidationError)));
-			ValidationResult = EDataValidationResult::Invalid;
-
-			continue;
-		}
-
-		if (Ring.InnerRadius <= 0.0f || Ring.InnerRadius >= Ring.Radius)
-		{
-			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] needs 0 < InnerRadius (%.0f) < Radius (%.0f). Every ring is a donut; the center hole is outside this pattern."), RingIndex, Ring.InnerRadius, Ring.Radius)));
 			ValidationResult = EDataValidationResult::Invalid;
 
 			continue;
@@ -329,15 +365,15 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 
 	if (SequencePool.IsEmpty())
 	{
-		Context.AddError(FText::FromString(TEXT("SequencePool is empty, so the pattern has no attack order to run.")));
+		Context.AddError(FText::FromString(TEXT("SequencePool is empty, so the pattern has no safe ring order to run.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	for (int32 PoolIndex = 0; PoolIndex < SequencePool.Num(); ++PoolIndex)
 	{
-		const TArray<int32>& RingIndices = SequencePool[PoolIndex].RingIndices;
+		const TArray<int32>& SafeRingIndices = SequencePool[PoolIndex].SafeRingIndices;
 
-		if (RingIndices.IsEmpty())
+		if (SafeRingIndices.IsEmpty())
 		{
 			Context.AddError(FText::FromString(FString::Printf(TEXT("SequencePool[%d] is empty."), PoolIndex)));
 			ValidationResult = EDataValidationResult::Invalid;
@@ -345,11 +381,11 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 			continue;
 		}
 
-		for (int32 StepPosition = 0; StepPosition < RingIndices.Num(); ++StepPosition)
+		for (int32 StepPosition = 0; StepPosition < SafeRingIndices.Num(); ++StepPosition)
 		{
-			if (!Rings.IsValidIndex(RingIndices[StepPosition]))
+			if (!Rings.IsValidIndex(SafeRingIndices[StepPosition]))
 			{
-				Context.AddError(FText::FromString(FString::Printf(TEXT("SequencePool[%d].RingIndices[%d] is %d but Rings has %d entries."), PoolIndex, StepPosition, RingIndices[StepPosition], Rings.Num())));
+				Context.AddError(FText::FromString(FString::Printf(TEXT("SequencePool[%d].SafeRingIndices[%d] is %d but Rings has %d entries."), PoolIndex, StepPosition, SafeRingIndices[StepPosition], Rings.Num())));
 				ValidationResult = EDataValidationResult::Invalid;
 			}
 		}

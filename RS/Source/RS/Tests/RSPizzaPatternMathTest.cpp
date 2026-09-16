@@ -14,9 +14,18 @@ bool FRSPizzaPatternDefinitionTest::RunTest(const FString& Parameters)
 	Definition.ExplosionCount = 2;
 	Definition.OuterRadius = 1000.0f;
 	Definition.AttackStartDelay = 0.0f;
-	Definition.TelegraphDuration = 1.0f;
+	Definition.TelegraphCueDuration = 0.6f;
+	Definition.TelegraphCueGap = 0.2f;
+	Definition.RecallDelay = 1.0f;
+	Definition.ExplosionInterval = 0.8f;
 	Definition.Damage = 10.0f;
 	TestTrue(TEXT("Valid pizza pattern definition"), Definition.IsDataValid());
+
+	const FRSPizzaCueTimings CueTimings = Definition.MakeCueTimings();
+	TestEqual(TEXT("Cue timings use the telegraph cue duration"), CueTimings.CueDuration, Definition.TelegraphCueDuration);
+	TestEqual(TEXT("Cue timings use the telegraph cue gap"), CueTimings.CueGap, Definition.TelegraphCueGap);
+	TestEqual(TEXT("Cue timings use the recall delay"), CueTimings.RecallDelay, Definition.RecallDelay);
+	TestEqual(TEXT("Cue timings use the explosion interval"), CueTimings.ExplosionInterval, Definition.ExplosionInterval);
 
 	FRSPizzaPatternDefinition InvalidDefinition = Definition;
 	InvalidDefinition.SliceCount = 1;
@@ -35,8 +44,27 @@ bool FRSPizzaPatternDefinitionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Negative attack start delay is invalid"), InvalidDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
-	InvalidDefinition.TelegraphDuration = 0.0f;
-	TestFalse(TEXT("Zero telegraph duration is invalid"), InvalidDefinition.IsDataValid());
+	InvalidDefinition.TelegraphCueDuration = 0.0f;
+	TestFalse(TEXT("Zero telegraph cue duration is invalid"), InvalidDefinition.IsDataValid());
+
+	InvalidDefinition = Definition;
+	InvalidDefinition.RecallDelay = -0.1f;
+	TestFalse(TEXT("Negative recall delay is invalid"), InvalidDefinition.IsDataValid());
+
+	InvalidDefinition = Definition;
+	InvalidDefinition.TelegraphCueGap = 0.0f;
+	TestFalse(TEXT("Zero telegraph cue gap is invalid for two explosions"), InvalidDefinition.IsDataValid());
+
+	InvalidDefinition = Definition;
+	InvalidDefinition.ExplosionInterval = 0.0f;
+	TestFalse(TEXT("Zero explosion interval is invalid for two explosions"), InvalidDefinition.IsDataValid());
+
+	// 1회형은 예고 사이와 폭발 사이가 없으므로 두 간격을 설정하지 않아도 유효합니다
+	FRSPizzaPatternDefinition SingleExplosionDefinition = Definition;
+	SingleExplosionDefinition.ExplosionCount = 1;
+	SingleExplosionDefinition.TelegraphCueGap = 0.0f;
+	SingleExplosionDefinition.ExplosionInterval = 0.0f;
+	TestTrue(TEXT("Single explosion definition does not require gap or interval"), SingleExplosionDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
 	InvalidDefinition.Damage = 10.5f;

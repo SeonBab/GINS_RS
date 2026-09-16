@@ -7,7 +7,6 @@
 #include "Combat/RSCircularSliceMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
-#include "Tasks/RSAbilityTask_WaitTelegraphFill.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -61,19 +60,36 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
-	if (!FMath::IsFinite(TelegraphDuration) || TelegraphDuration <= 0.0f)
+	if (!FMath::IsFinite(TelegraphCueDuration) || TelegraphCueDuration <= 0.0f)
 	{
-		SetValidationError(TEXT("TelegraphDuration must be finite and greater than zero."));
+		SetValidationError(TEXT("TelegraphCueDuration must be finite and greater than zero."));
 
 		return false;
 	}
 
-	FString TelegraphLeadValidationError;
-	if (!TelegraphLeadTime.IsDataValid(TelegraphDuration, &TelegraphLeadValidationError))
+	if (!FMath::IsFinite(RecallDelay) || RecallDelay < 0.0f)
 	{
-		SetValidationError(*TelegraphLeadValidationError);
+		SetValidationError(TEXT("RecallDelay must be finite and non-negative."));
 
 		return false;
+	}
+
+	// 폭발이 하나뿐이면 예고 사이와 폭발 사이가 존재하지 않으므로 값을 요구하지 않습니다
+	if (ExplosionCount >= PizzaPatternGroupCount)
+	{
+		if (!FMath::IsFinite(TelegraphCueGap) || TelegraphCueGap <= 0.0f)
+		{
+			SetValidationError(TEXT("TelegraphCueGap must be finite and greater than zero so consecutive cues remain distinguishable."));
+
+			return false;
+		}
+
+		if (!FMath::IsFinite(ExplosionInterval) || ExplosionInterval <= 0.0f)
+		{
+			SetValidationError(TEXT("ExplosionInterval must be finite and greater than zero."));
+
+			return false;
+		}
 	}
 
 	const float DamageValue = Damage.GetValueAtLevel(1.0f);
@@ -96,6 +112,27 @@ int32 FRSPizzaPatternDefinition::CalculateVirtualSliceCount() const
 float FRSPizzaPatternDefinition::CalculateSliceAngleDegrees() const
 {
 	return RSCircularSliceMath::CalculateSliceAngleDegrees(CalculateVirtualSliceCount());
+}
+
+FRSCombatShape FRSPizzaPatternDefinition::MakeSliceShape() const
+{
+	FRSCombatShape SliceShape;
+	SliceShape.Type = ERSCombatShapeType::Cone;
+	SliceShape.Range = OuterRadius;
+	SliceShape.Angle = CalculateSliceAngleDegrees();
+
+	return SliceShape;
+}
+
+FRSPizzaCueTimings FRSPizzaPatternDefinition::MakeCueTimings() const
+{
+	FRSPizzaCueTimings CueTimings;
+	CueTimings.CueDuration = TelegraphCueDuration;
+	CueTimings.CueGap = TelegraphCueGap;
+	CueTimings.RecallDelay = RecallDelay;
+	CueTimings.ExplosionInterval = ExplosionInterval;
+
+	return CueTimings;
 }
 
 bool FRSPizzaPatternDefinition::TryBuildExplosionSliceTransforms(const FTransform& LockedTransform, int32 ExplosionIndex, TArray<FTransform>& OutSliceTransforms) const
@@ -156,10 +193,13 @@ void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpec
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceTransforms.Reset();
 	ActiveTelegraphHandles.Reset();
+	Timeline.Reset();
 	HitActors.Reset();
-	CurrentExplosionIndex = 0;
 	AttackStartDelayTask = nullptr;
-	TelegraphFillTask = nullptr;
+	TelegraphCueDurationTask = nullptr;
+	TelegraphCueGapTask = nullptr;
+	RecallDelayTask = nullptr;
+	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
 
 	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
@@ -203,19 +243,33 @@ void URSGameplayAbility_PizzaPattern::EndAbility(const FGameplayAbilitySpecHandl
 		AttackStartDelayTask->EndTask();
 		AttackStartDelayTask = nullptr;
 	}
-
-	if (TelegraphFillTask)
+	if (TelegraphCueDurationTask)
 	{
-		TelegraphFillTask->EndTask();
-		TelegraphFillTask = nullptr;
+		TelegraphCueDurationTask->EndTask();
+		TelegraphCueDurationTask = nullptr;
+	}
+	if (TelegraphCueGapTask)
+	{
+		TelegraphCueGapTask->EndTask();
+		TelegraphCueGapTask = nullptr;
+	}
+	if (RecallDelayTask)
+	{
+		RecallDelayTask->EndTask();
+		RecallDelayTask = nullptr;
+	}
+	if (ExplosionIntervalTask)
+	{
+		ExplosionIntervalTask->EndTask();
+		ExplosionIntervalTask = nullptr;
 	}
 
 	HideActiveTelegraphs();
 
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceTransforms.Reset();
+	Timeline.Reset();
 	HitActors.Reset();
-	CurrentExplosionIndex = 0;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	bIsCleaningUp = false;
@@ -236,14 +290,10 @@ void URSGameplayAbility_PizzaPattern::HandleAttackStartDelayFinished()
 		return;
 	}
 
-	if (!TryCaptureLockedPatternTransform())
+	if (!TryCaptureLockedPatternTransform() || !Timeline.Initialize(PizzaPatternDefinition.ExplosionCount) || !BeginCurrentTelegraphCue())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-		return;
 	}
-
-	BeginExplosionTelegraph();
 }
 
 bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
@@ -258,104 +308,149 @@ bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternTransform()
 	return RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
 }
 
-void URSGameplayAbility_PizzaPattern::BeginExplosionTelegraph()
+bool URSGameplayAbility_PizzaPattern::BeginCurrentTelegraphCue()
 {
-	if (bIsCleaningUp || !IsActive() || CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
-	{
-		return;
-	}
-
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	URSAttackTelegraphComponent* TelegraphComp = AvatarActor ? AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (!AvatarActor || !TelegraphComp || !PizzaPatternDefinition.TryBuildExplosionSliceTransforms(LockedPatternTransform, CurrentExplosionIndex, ActiveSliceTransforms))
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::Cue || !TelegraphComp
+		|| !PizzaPatternDefinition.TryBuildExplosionSliceTransforms(LockedPatternTransform, Timeline.GetSequenceIndex(), ActiveSliceTransforms))
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-
-		return;
+		return false;
 	}
 
-	FRSCombatShape SliceShape;
-	SliceShape.Type = ERSCombatShapeType::Cone;
-	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
-
+	// 폭발 순서는 예고 순서로만 읽히므로 각 그룹은 채우는 과정 없이 완성된 상태로 한 번에 보여 줍니다
+	const FRSCombatShape SliceShape = PizzaPatternDefinition.MakeSliceShape();
 	ActiveTelegraphHandles.Reset();
 	ActiveTelegraphHandles.Reserve(ActiveSliceTransforms.Num());
 	for (const FTransform& SliceTransform : ActiveSliceTransforms)
 	{
 		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(SliceShape, SliceTransform);
-		if (TelegraphHandle == INDEX_NONE)
+		if (TelegraphHandle == INDEX_NONE || !TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f))
 		{
-			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+			if (TelegraphHandle != INDEX_NONE)
+			{
+				TelegraphComp->HideShape(TelegraphHandle);
+			}
+			HideActiveTelegraphs();
 
-			return;
+			return false;
 		}
 
 		ActiveTelegraphHandles.Add(TelegraphHandle);
 	}
 
-	TelegraphFillTask = URSAbilityTask_WaitTelegraphFill::WaitTelegraphFill(this, PizzaPatternDefinition.TelegraphDuration);
-	TelegraphFillTask->OnProgress.AddDynamic(this, &ThisClass::HandleTelegraphFillUpdated);
-	TelegraphFillTask->OnFinished.AddDynamic(this, &ThisClass::HandleTelegraphFillFinished);
-	TelegraphFillTask->ReadyForActivation();
+	TelegraphCueDurationTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaPatternDefinition.MakeCueTimings()));
+	TelegraphCueDurationTask->OnFinish.AddDynamic(this, &ThisClass::HandleTelegraphCueDurationFinished);
+	TelegraphCueDurationTask->ReadyForActivation();
+
+	return true;
 }
 
-void URSGameplayAbility_PizzaPattern::HandleTelegraphFillUpdated(float Progress)
+void URSGameplayAbility_PizzaPattern::HandleTelegraphCueDurationFinished()
 {
+	TelegraphCueDurationTask = nullptr;
 	if (bIsCleaningUp || !IsActive())
 	{
 		return;
 	}
 
-	// Task는 폭발까지의 진행률을 전달하므로 표시의 두 시점은 선행 시간을 반영해 다시 계산합니다
-	const float TelegraphDuration = PizzaPatternDefinition.TelegraphDuration;
-	const FRSTelegraphLeadTime& TelegraphLeadTime = PizzaPatternDefinition.TelegraphLeadTime;
-	const float ElapsedTime = Progress * TelegraphDuration;
-	if (ElapsedTime >= TelegraphLeadTime.GetHideTime(TelegraphDuration))
+	HideActiveTelegraphs();
+	ActiveSliceTransforms.Reset();
+
+	if (!Timeline.Advance())
 	{
-		if (!ActiveTelegraphHandles.IsEmpty())
-		{
-			HideActiveTelegraphs();
-		}
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	const float FillDuration = TelegraphLeadTime.GetFillDuration(TelegraphDuration);
-	const float Fill = FillDuration > 0.0f ? FMath::Min(ElapsedTime / FillDuration, 1.0f) : 1.0f;
-	if (!SetActiveTelegraphFill(Fill))
+	if (Timeline.GetPhase() == ERSPizzaCueTimelinePhase::RecallDelay)
+	{
+		BeginRecallDelay();
+
+		return;
+	}
+
+	TelegraphCueGapTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaPatternDefinition.MakeCueTimings()));
+	TelegraphCueGapTask->OnFinish.AddDynamic(this, &ThisClass::HandleTelegraphCueGapFinished);
+	TelegraphCueGapTask->ReadyForActivation();
+}
+
+void URSGameplayAbility_PizzaPattern::HandleTelegraphCueGapFinished()
+{
+	TelegraphCueGapTask = nullptr;
+	if (bIsCleaningUp || !IsActive())
+	{
+		return;
+	}
+
+	if (!Timeline.Advance() || !BeginCurrentTelegraphCue())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 	}
 }
 
-void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
+void URSGameplayAbility_PizzaPattern::BeginRecallDelay()
 {
-	TelegraphFillTask = nullptr;
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::RecallDelay)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	const float RecallDelay = Timeline.GetCurrentDelaySeconds(PizzaPatternDefinition.MakeCueTimings());
+	if (RecallDelay <= 0.0f)
+	{
+		HandleRecallDelayFinished();
+
+		return;
+	}
+
+	RecallDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, RecallDelay);
+	RecallDelayTask->OnFinish.AddDynamic(this, &ThisClass::HandleRecallDelayFinished);
+	RecallDelayTask->ReadyForActivation();
+}
+
+void URSGameplayAbility_PizzaPattern::HandleRecallDelayFinished()
+{
+	RecallDelayTask = nullptr;
 	if (bIsCleaningUp || !IsActive())
 	{
 		return;
 	}
 
-	// 표시는 진행률 갱신 경로에서 폭발보다 먼저 사라지므로 여기서는 남은 것만 회수합니다
-	HideActiveTelegraphs();
+	if (!Timeline.Advance())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	RunCurrentExplosion();
+}
+
+void URSGameplayAbility_PizzaPattern::RunCurrentExplosion()
+{
 	if (!ExecuteCurrentExplosion())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
+
 	// 폭발은 빗나가도 보여야 하므로 적중 여부와 무관하게 재생합니다
-	// Telegraph와 같은 조각 형상을 넘기며, Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
-	FRSCombatShape SliceShape;
-	SliceShape.Type = ERSCombatShapeType::Cone;
-	SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-	SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
+	PlayCurrentExplosionPresentation();
+	ActiveSliceTransforms.Reset();
 
-	PlayPatternPresentation(SliceShape, ActiveSliceTransforms, LockedPatternTransform.GetLocation());
+	if (!Timeline.Advance())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
-	++CurrentExplosionIndex;
-	if (CurrentExplosionIndex >= PizzaPatternDefinition.ExplosionCount)
+		return;
+	}
+
+	if (Timeline.GetPhase() == ERSPizzaCueTimelinePhase::Complete)
 	{
 		// 마지막 판정은 끝났지만 Montage가 남아 있으면 잘리지 않도록 종료를 미룹니다
 		FinishPatternWhenMontageEnds();
@@ -363,13 +458,35 @@ void URSGameplayAbility_PizzaPattern::HandleTelegraphFillFinished()
 		return;
 	}
 
-	BeginExplosionTelegraph();
+	ExplosionIntervalTask = UAbilityTask_WaitDelay::WaitDelay(this, Timeline.GetCurrentDelaySeconds(PizzaPatternDefinition.MakeCueTimings()));
+	ExplosionIntervalTask->OnFinish.AddDynamic(this, &ThisClass::HandleExplosionIntervalFinished);
+	ExplosionIntervalTask->ReadyForActivation();
+}
+
+void URSGameplayAbility_PizzaPattern::HandleExplosionIntervalFinished()
+{
+	ExplosionIntervalTask = nullptr;
+	if (bIsCleaningUp || !IsActive())
+	{
+		return;
+	}
+
+	if (!Timeline.Advance())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	RunCurrentExplosion();
 }
 
 bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 {
+	const int32 ExplosionIndex = Timeline.GetSequenceIndex();
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-	if (!AvatarActor)
+	if (Timeline.GetPhase() != ERSPizzaCueTimelinePhase::Explosion || !AvatarActor
+		|| !PizzaPatternDefinition.TryBuildExplosionSliceTransforms(LockedPatternTransform, ExplosionIndex, ActiveSliceTransforms))
 	{
 		return false;
 	}
@@ -393,7 +510,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	{
 		const TWeakObjectPtr<AActor> TargetPointer(CandidateTarget);
 		if (!CandidateTarget || HitActors.Contains(TargetPointer)
-			|| !PizzaPatternDefinition.IsLocationInExplosionGroup(LockedPatternTransform, CurrentExplosionIndex, CandidateTarget->GetActorLocation()))
+			|| !PizzaPatternDefinition.IsLocationInExplosionGroup(LockedPatternTransform, ExplosionIndex, CandidateTarget->GetActorLocation()))
 		{
 			continue;
 		}
@@ -404,6 +521,12 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 	}
 
 	return true;
+}
+
+void URSGameplayAbility_PizzaPattern::PlayCurrentExplosionPresentation()
+{
+	// 예고와 같은 조각 형상을 넘기며, Niagara는 조각마다 나지만 소리와 셰이크는 한 번의 폭발에 하나여야 합니다
+	PlayPatternPresentation(PizzaPatternDefinition.MakeSliceShape(), ActiveSliceTransforms, LockedPatternTransform.GetLocation());
 }
 
 void URSGameplayAbility_PizzaPattern::HideActiveTelegraphs()
@@ -421,26 +544,6 @@ void URSGameplayAbility_PizzaPattern::HideActiveTelegraphs()
 	ActiveTelegraphHandles.Reset();
 }
 
-bool URSGameplayAbility_PizzaPattern::SetActiveTelegraphFill(float Fill) const
-{
-	const AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-	URSAttackTelegraphComponent* TelegraphComp = AvatarActor ? AvatarActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (!TelegraphComp || ActiveTelegraphHandles.IsEmpty())
-	{
-		return false;
-	}
-
-	for (int32 TelegraphHandle : ActiveTelegraphHandles)
-	{
-		if (!TelegraphComp->SetExternalFill(TelegraphHandle, Fill))
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
 #if WITH_EDITOR
 EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidationContext& Context) const
 {
@@ -455,12 +558,7 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	else
 	{
 		// 조각은 전부 같은 반지름과 각도를 쓰므로 조각 하나로 연출 채우기 설정을 대표해 검사합니다
-		FRSCombatShape SliceShape;
-		SliceShape.Type = ERSCombatShapeType::Cone;
-		SliceShape.Range = PizzaPatternDefinition.OuterRadius;
-		SliceShape.Angle = PizzaPatternDefinition.CalculateSliceAngleDegrees();
-
-		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
+		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(PizzaPatternDefinition.MakeSliceShape(), Context));
 	}
 
 	if (!DamageEffectClass)

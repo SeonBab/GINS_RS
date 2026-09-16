@@ -17,6 +17,31 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Default definition is valid"), Definition.IsDataValid());
 	TestEqual(TEXT("Default sequence length is four"), Definition.GetSequenceLength(), 4);
 
+	const FRSPizzaCueTimings CueTimings = Definition.MakeCueTimings();
+	TestEqual(TEXT("Cue timings use the memory cue duration"), CueTimings.CueDuration, Definition.MemoryCueDuration);
+	TestEqual(TEXT("Cue timings use the memory cue gap"), CueTimings.CueGap, Definition.MemoryCueGap);
+	TestEqual(TEXT("Cue timings use the recall delay"), CueTimings.RecallDelay, Definition.RecallDelay);
+	TestEqual(TEXT("Cue timings use the explosion interval"), CueTimings.ExplosionInterval, Definition.ExplosionInterval);
+
+	TArray<ERSPizzaMemorySafePair> CopiedSafePairs;
+	TestTrue(TEXT("Default candidate can be copied"), Definition.TryCopySafeZoneSequenceCandidate(0, CopiedSafePairs));
+	TestEqual(TEXT("Copied candidate keeps the sequence length"), CopiedSafePairs.Num(), Definition.GetSequenceLength());
+	if (CopiedSafePairs.IsValidIndex(0) && Definition.SafeZoneSequenceCandidates[0].SafePairs.IsValidIndex(0))
+	{
+		const ERSPizzaMemorySafePair CopiedFirstSafePair = CopiedSafePairs[0];
+		Definition.SafeZoneSequenceCandidates[0].SafePairs[0] = ERSPizzaMemorySafePair::Slice3And7;
+		TestEqual(TEXT("Copied candidate is frozen independently from its source"), CopiedSafePairs[0], CopiedFirstSafePair);
+	}
+	else
+	{
+		AddError(TEXT("Default candidate does not contain a first safe pair"));
+	}
+	Definition = FRSPizzaMemoryPatternDefinition();
+
+	CopiedSafePairs = { ERSPizzaMemorySafePair::Slice0And4 };
+	TestFalse(TEXT("Unknown candidate cannot be copied"), Definition.TryCopySafeZoneSequenceCandidate(INDEX_NONE, CopiedSafePairs));
+	TestTrue(TEXT("Failed candidate copy clears output"), CopiedSafePairs.IsEmpty());
+
 	const TArray<TPair<int32, int32>> ExpectedSafeSlices = {
 		{ 0, 4 },
 		{ 1, 5 },
@@ -32,7 +57,56 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Safe pair %d first slice"), SafePairIndex), FirstSliceIndex, ExpectedSafeSlices[SafePairIndex].Key);
 		TestEqual(FString::Printf(TEXT("Safe pair %d second slice"), SafePairIndex), SecondSliceIndex, ExpectedSafeSlices[SafePairIndex].Value);
 		TestTrue(FString::Printf(TEXT("Safe pair %d slices are opposite"), SafePairIndex), RSCircularSliceMath::AreSlicesOpposite(FRSPizzaMemoryPatternDefinition::SliceCount, FirstSliceIndex, SecondSliceIndex));
+
+		const ERSPizzaMemorySafePair SafePair = static_cast<ERSPizzaMemorySafePair>(SafePairIndex);
+		const FTransform LockedTransform(FRotator::ZeroRotator, FVector::ZeroVector);
+		TArray<FTransform> DangerousSliceTransforms;
+		TestTrue(FString::Printf(TEXT("Safe pair %d builds dangerous transforms"), SafePairIndex), Definition.TryBuildDangerousSliceTransforms(LockedTransform, SafePair, DangerousSliceTransforms));
+		TestEqual(FString::Printf(TEXT("Safe pair %d has six dangerous transforms"), SafePairIndex), DangerousSliceTransforms.Num(), 6);
+
+		int32 DangerousTransformIndex = 0;
+		int32 SafeLocationCount = 0;
+		int32 DangerousLocationCount = 0;
+		for (int32 SliceIndex = 0; SliceIndex < FRSPizzaMemoryPatternDefinition::SliceCount; ++SliceIndex)
+		{
+			const bool bExpectedSafe = SliceIndex == FirstSliceIndex || SliceIndex == SecondSliceIndex;
+			const FVector SliceCenterLocation = FRotator(0.0f, SliceIndex * Definition.CalculateSliceAngleDegrees(), 0.0f).Vector() * 100.0f;
+			bool bIsSafe = false;
+			TestTrue(FString::Printf(TEXT("Safe pair %d classifies slice %d"), SafePairIndex, SliceIndex), Definition.TryIsLocationInSafePair(LockedTransform, SafePair, SliceCenterLocation, bIsSafe));
+			TestEqual(FString::Printf(TEXT("Safe pair %d slice %d classification"), SafePairIndex, SliceIndex), bIsSafe, bExpectedSafe);
+
+			if (bIsSafe)
+			{
+				++SafeLocationCount;
+
+				continue;
+			}
+
+			++DangerousLocationCount;
+			if (DangerousSliceTransforms.IsValidIndex(DangerousTransformIndex))
+			{
+				TestTrue(FString::Printf(TEXT("Safe pair %d dangerous transform %d yaw"), SafePairIndex, DangerousTransformIndex), FMath::IsNearlyZero(FMath::FindDeltaAngleDegrees(DangerousSliceTransforms[DangerousTransformIndex].Rotator().Yaw, SliceIndex * Definition.CalculateSliceAngleDegrees())));
+			}
+			else
+			{
+				AddError(FString::Printf(TEXT("Safe pair %d is missing dangerous transform %d"), SafePairIndex, DangerousTransformIndex));
+			}
+			++DangerousTransformIndex;
+		}
+
+		TestEqual(FString::Printf(TEXT("Safe pair %d has two safe locations"), SafePairIndex), SafeLocationCount, 2);
+		TestEqual(FString::Printf(TEXT("Safe pair %d has six dangerous locations"), SafePairIndex), DangerousLocationCount, 6);
 	}
+
+	TestEqual(TEXT("Eight slices use forty-five degree angles"), Definition.CalculateSliceAngleDegrees(), 45.0f);
+
+	TArray<FTransform> InvalidDangerousSliceTransforms = { FTransform::Identity };
+	TestFalse(TEXT("Unknown safe pair cannot build dangerous transforms"), Definition.TryBuildDangerousSliceTransforms(FTransform::Identity, static_cast<ERSPizzaMemorySafePair>(FRSPizzaMemoryPatternDefinition::SafePairCount), InvalidDangerousSliceTransforms));
+	TestTrue(TEXT("Failed dangerous transform build clears output"), InvalidDangerousSliceTransforms.IsEmpty());
+
+	bool bIsSafe = true;
+	TestFalse(TEXT("Invalid locked transform cannot classify a location"), Definition.TryIsLocationInSafePair(FTransform(FVector(std::numeric_limits<float>::quiet_NaN())), ERSPizzaMemorySafePair::Slice0And4, FVector::XAxisVector, bIsSafe));
+	TestFalse(TEXT("Failed safe classification resets output"), bIsSafe);
 
 	FRSPizzaMemorySafeZoneSequence RepeatedSequence;
 	RepeatedSequence.SafePairs = {
@@ -95,6 +169,18 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 	ZeroDelayDefinition.RecallDelay = 0.0f;
 	TestTrue(TEXT("Zero attack start and recall delays are valid"), ZeroDelayDefinition.IsDataValid());
 
+	FRSPizzaMemoryPatternDefinition NegativeDamageDefinition;
+	NegativeDamageDefinition.Damage = -1.0f;
+	TestFalse(TEXT("Negative damage is invalid"), NegativeDamageDefinition.IsDataValid());
+
+	FRSPizzaMemoryPatternDefinition FractionalDamageDefinition;
+	FractionalDamageDefinition.Damage = 10.5f;
+	TestFalse(TEXT("Fractional damage is invalid"), FractionalDamageDefinition.IsDataValid());
+
+	FRSPizzaMemoryPatternDefinition NonFiniteDamageDefinition;
+	NonFiniteDamageDefinition.Damage = std::numeric_limits<float>::quiet_NaN();
+	TestFalse(TEXT("Non-finite damage is invalid"), NonFiniteDamageDefinition.IsDataValid());
+
 	int32 FirstSliceIndex = 0;
 	int32 SecondSliceIndex = 0;
 	TestFalse(TEXT("Unknown safe pair cannot produce slice indices"), FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(static_cast<ERSPizzaMemorySafePair>(FRSPizzaMemoryPatternDefinition::SafePairCount), FirstSliceIndex, SecondSliceIndex));
@@ -103,8 +189,8 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 
 	const UObject* AbilityDefaultObject = GetDefault<URSGameplayAbility_PizzaMemoryPattern>();
 	FDataValidationContext ValidationContext;
-	TestEqual(TEXT("Default Ability data validation succeeds"), AbilityDefaultObject->IsDataValid(ValidationContext), EDataValidationResult::Valid);
-	TestEqual(TEXT("Default Ability data validation has no errors"), ValidationContext.GetNumErrors(), uint32{ 0 });
+	TestEqual(TEXT("Unconfigured Ability data validation fails"), AbilityDefaultObject->IsDataValid(ValidationContext), EDataValidationResult::Invalid);
+	TestTrue(TEXT("Unconfigured Ability reports the missing DamageEffectClass"), ValidationContext.GetNumErrors() > 0);
 
 	return true;
 }

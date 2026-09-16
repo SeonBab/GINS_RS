@@ -9,7 +9,6 @@
 
 class UCurveFloat;
 class UNiagaraComponent;
-class UNiagaraSystem;
 class URSAbilitySystemComponent;
 class URSBossPersistentObjectLifetimeComponent;
 class URSFireballChargeWidget;
@@ -59,7 +58,7 @@ struct FRSBossFireballDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Charging", meta = (ClampMin = "1", UIMin = "1"))
 	int32 RequiredHitCount = 3;
 
-	/** 활성 장판의 표시와 수평 HitCheck가 공유하는 반경입니다 */
+	/** 활성 장판의 수평 HitCheck 반경입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float FireFieldRadius = 250.0f;
 
@@ -172,20 +171,17 @@ private:
 #pragma region Presentation And Collision
 
 private:
-	/** 장판 판정 반경을 기준으로 Niagara Component의 수평 Scale을 갱신합니다 */
-	void UpdateFireFieldNiagaraScale();
-
-private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBoxComponent> BoxComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USceneComponent> VisualRoot;
 
-	/** 화염구 본체를 표현하는 Niagara이며 Mesh 없이 이 Component만 화염구를 보여 줍니다 */
+	/** 화염구 본체를 표현하는 Niagara이며 Mesh 없이 이 Component만 화염구를 보여 줍니다. 재생할 System은 Blueprint에서 이 Component의 Asset에 지정합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> FireballNiagaraComp;
 
+	/** 장판을 표현하는 Niagara이며 재생할 System과 보이는 크기를 Blueprint에서 이 Component의 Asset과 User Parameter로 지정합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> FireFieldNiagaraComp;
 
@@ -196,19 +192,8 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball|Lifetime", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSBossPersistentObjectLifetimeComponent> PersistentObjectLifetimeComp;
 
-	/** 화염구 본체로 재생할 Niagara이며 낙하부터 충전까지 이어서 보여 줍니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Presentation", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UNiagaraSystem> FireballNiagaraSystem;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Presentation", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UNiagaraSystem> FireFieldNiagaraSystem;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Presentation", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<URSFireballChargeWidget> ChargeWidgetClass;
-
-	/** Niagara System을 XY Scale 1로 재생했을 때 표현하는 기준 반경입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Presentation", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
-	float FireFieldNiagaraBaseRadius = 100.0f;
 
 	/** 장판이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Hit", meta = (AllowPrivateAccess = "true"))

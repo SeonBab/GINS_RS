@@ -14,6 +14,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayTags.h"
@@ -650,11 +651,32 @@ UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UO
 	if (Definition.SpawnMode == ERSNiagaraSpawnMode::SocketSnapshot)
 	{
 		const FTransform SocketTransform = MeshComponent->GetSocketTransform(Definition.SocketName);
+		const FRotator SpawnRotation = Definition.bUseSocketRotation ? SocketTransform.Rotator() : FRotator::ZeroRotator;
+		const FVector SpawnScale = Definition.bUseSocketScale ? SocketTransform.GetScale3D() : FVector::OneVector;
 
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, SocketTransform.GetLocation(), SocketTransform.Rotator(), SocketTransform.GetScale3D(), bAutoDestroy, true);
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, SocketTransform.GetLocation(), SpawnRotation, SpawnScale, bAutoDestroy, true);
 	}
 
-	return UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
+	UNiagaraComponent* AttachedComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
+	if (!AttachedComponent)
+	{
+		return nullptr;
+	}
+
+	// 절대 모드에서는 상대 값이 월드 값으로 해석되므로 소켓 위치만 따라가고 회전과 스케일은 월드 기준으로 고정됩니다
+	if (!Definition.bUseSocketRotation)
+	{
+		AttachedComponent->SetUsingAbsoluteRotation(true);
+		AttachedComponent->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+
+	if (!Definition.bUseSocketScale)
+	{
+		AttachedComponent->SetUsingAbsoluteScale(true);
+		AttachedComponent->SetRelativeScale3D(FVector::OneVector);
+	}
+
+	return AttachedComponent;
 }
 
 bool URSCombatFunctionLibrary::ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets)

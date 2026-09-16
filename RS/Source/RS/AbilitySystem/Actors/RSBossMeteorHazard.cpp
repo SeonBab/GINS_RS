@@ -7,7 +7,6 @@
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/World.h"
 #include "NiagaraComponent.h"
-#include "NiagaraSystem.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerCharacter.h"
@@ -159,16 +158,6 @@ void ARSBossMeteorHazard::BeginPlay()
 		PersistentObjectLifetimeComp->StartObserving(GetOwner(), MeteorHazardDefinition.SpecialPatternCleanupOffset);
 	}
 
-	if (FallingNiagaraComp)
-	{
-		FallingNiagaraComp->SetAsset(FallingNiagaraSystem);
-	}
-
-	if (HazardNiagaraComp)
-	{
-		HazardNiagaraComp->SetAsset(HazardNiagaraSystem);
-	}
-
 	AActor* OwnerActor = GetOwner();
 	TelegraphComp = OwnerActor ? OwnerActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
 	if (!MeteorHazardDefinition.IsDataValid() || !TelegraphComp.IsValid() || !UpdateTargetLocation())
@@ -234,21 +223,15 @@ EDataValidationResult ARSBossMeteorHazard::IsDataValid(FDataValidationContext& C
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!FMath::IsFinite(HazardNiagaraBaseRadius) || HazardNiagaraBaseRadius <= 0.0f)
+	if (!FallingNiagaraComp || !FallingNiagaraComp->GetAsset())
 	{
-		Context.AddError(FText::FromString(TEXT("HazardNiagaraBaseRadius must be a finite value greater than zero.")));
+		Context.AddError(FText::FromString(TEXT("FallingNiagaraComponent has no Niagara System asset.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!FallingNiagaraSystem)
+	if (!HazardNiagaraComp || !HazardNiagaraComp->GetAsset())
 	{
-		Context.AddError(FText::FromString(TEXT("FallingNiagaraSystem is not configured.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!HazardNiagaraSystem)
-	{
-		Context.AddError(FText::FromString(TEXT("HazardNiagaraSystem is not configured.")));
+		Context.AddError(FText::FromString(TEXT("HazardNiagaraComponent has no Niagara System asset.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -336,7 +319,7 @@ void ARSBossMeteorHazard::StartFallingEffect()
 	const FVector TargetLocation = MeteorHazardState == ERSBossMeteorHazardState::Tracking ? CurrentTargetLocation : LockedImpactLocation;
 	UpdateFallingEffectLocation(TargetLocation);
 
-	if (FallingNiagaraSystem && FallingNiagaraComp)
+	if (FallingNiagaraComp)
 	{
 		FallingNiagaraComp->Activate(true);
 	}
@@ -386,12 +369,7 @@ void ARSBossMeteorHazard::BeginHazard()
 	if (HazardNiagaraComp)
 	{
 		HazardNiagaraComp->SetWorldLocation(LockedImpactLocation);
-		const float HorizontalScale = MeteorHazardDefinition.HazardRadius / HazardNiagaraBaseRadius;
-		HazardNiagaraComp->SetRelativeScale3D(FVector(HorizontalScale, HorizontalScale, 1.0f));
-		if (HazardNiagaraSystem)
-		{
-			HazardNiagaraComp->Activate(true);
-		}
+		HazardNiagaraComp->Activate(true);
 	}
 
 	if (UWorld* World = GetWorld())
