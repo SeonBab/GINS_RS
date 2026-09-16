@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
+#include "Containers/ArrayView.h"
 #include "RSBaseGameplayAbility.h"
 #include "RSNiagaraSpawnDefinition.h"
 #include "RSBaseGameplayAbility_BossPattern.generated.h"
@@ -150,6 +151,12 @@ protected:
 	/** 판정 영역이 하나인 패턴이 사용하는 간편 형태이며 Sound도 그 영역의 기준 위치에서 재생합니다 */
 	void PlayPatternPresentation(const FRSCombatShape& HitShape, const FTransform& ShapeTransform) const;
 
+	/**
+	 * 한 번의 판정이 같은 자리에 겹치는 서로 다른 형상 여러 개를 덮을 때 사용하는 형태입니다
+	 * 형상마다 배치 방식을 따로 적용하지만 Sound와 카메라 셰이크는 한 번만 재생하므로 한 번의 공격이 여러 번으로 들리지 않습니다
+	 */
+	void PlayPatternPresentation(TArrayView<const FRSCombatShape> HitShapes, const FTransform& ShapeTransform) const;
+
 #if WITH_EDITOR
 	/**
 	 * 이 패턴의 연출 설정이 넘길 판정 형상을 실제로 채울 수 있는지 검사합니다
@@ -175,9 +182,10 @@ protected:
 private:
 	/**
 	 * 연출 항목을 모두 재생하며 형상이 없으면 채우기 항목도 넘겨받은 지점에서 재생합니다
+	 * 형상과 위치를 교차 순회하므로 형상 하나를 여러 지점에 두는 패턴과 한 지점에 형상 여러 개를 겹치는 패턴이 같은 경로를 씁니다
 	 * 모든 공개 형태가 이 지점을 지나므로 Sound와 카메라 셰이크의 1회 재생을 여기서만 보장합니다
 	 */
-	void PlayPatternPresentationInternal(const FRSCombatShape* HitShape, const TArray<FTransform>& PresentationTransforms, const FVector& SoundLocation) const;
+	void PlayPatternPresentationInternal(TArrayView<const FRSCombatShape> HitShapes, TArrayView<const FTransform> PresentationTransforms, const FVector& SoundLocation) const;
 
 	/** 재생이 끝난 Montage 하나를 게이트에서 내리고 마지막 하나였으면 보류한 정상 종료를 진행합니다 */
 	UFUNCTION()

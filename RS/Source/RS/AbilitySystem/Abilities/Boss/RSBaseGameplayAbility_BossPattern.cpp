@@ -123,7 +123,7 @@ void URSBaseGameplayAbility_BossPattern::FinishPatternWhenMontageEnds()
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const
 {
-	PlayPatternPresentationInternal(nullptr, NiagaraTransforms, SoundLocation);
+	PlayPatternPresentationInternal(TArrayView<const FRSCombatShape>(), NiagaraTransforms, SoundLocation);
 }
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FTransform& PresentationTransform) const
@@ -133,7 +133,7 @@ void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FTransfor
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FRSCombatShape& HitShape, const TArray<FTransform>& ShapeTransforms, const FVector& SoundLocation) const
 {
-	PlayPatternPresentationInternal(&HitShape, ShapeTransforms, SoundLocation);
+	PlayPatternPresentationInternal(TArrayView<const FRSCombatShape>(&HitShape, 1), ShapeTransforms, SoundLocation);
 }
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FRSCombatShape& HitShape, const FTransform& ShapeTransform) const
@@ -141,7 +141,12 @@ void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const FRSCombat
 	PlayPatternPresentation(HitShape, TArray<FTransform>({ ShapeTransform }), ShapeTransform.GetLocation());
 }
 
-void URSBaseGameplayAbility_BossPattern::PlayPatternPresentationInternal(const FRSCombatShape* HitShape, const TArray<FTransform>& PresentationTransforms, const FVector& SoundLocation) const
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(TArrayView<const FRSCombatShape> HitShapes, const FTransform& ShapeTransform) const
+{
+	PlayPatternPresentationInternal(HitShapes, TArrayView<const FTransform>(&ShapeTransform, 1), ShapeTransform.GetLocation());
+}
+
+void URSBaseGameplayAbility_BossPattern::PlayPatternPresentationInternal(TArrayView<const FRSCombatShape> HitShapes, TArrayView<const FTransform> PresentationTransforms, const FVector& SoundLocation) const
 {
 	for (const FRSBossPatternNiagaraEntry& NiagaraEntry : PatternPresentation.Niagaras)
 	{
@@ -151,7 +156,7 @@ void URSBaseGameplayAbility_BossPattern::PlayPatternPresentationInternal(const F
 		}
 
 		// 형상을 넘기지 않는 패턴에서는 채울 범위가 없으므로 넘겨받은 지점에서 그대로 재생합니다
-		if (NiagaraEntry.Placement != ERSBossPatternNiagaraPlacement::FillHitShape || !HitShape)
+		if (NiagaraEntry.Placement != ERSBossPatternNiagaraPlacement::FillHitShape || HitShapes.IsEmpty())
 		{
 			for (const FTransform& PresentationTransform : PresentationTransforms)
 			{
@@ -161,20 +166,24 @@ void URSBaseGameplayAbility_BossPattern::PlayPatternPresentationInternal(const F
 			continue;
 		}
 
-		for (const FTransform& PresentationTransform : PresentationTransforms)
+		// 형상과 지점을 교차해 채우므로 형상 하나를 여러 지점에 두는 패턴과 한 지점에 형상 여러 개를 겹치는 패턴이 같은 경로를 씁니다
+		for (const FRSCombatShape& HitShape : HitShapes)
 		{
-			TArray<FTransform> FillTransforms;
-			if (!URSCombatFunctionLibrary::BuildShapeFillTransforms(*HitShape, PresentationTransform, NiagaraEntry.FillSpacing, FillTransforms))
+			for (const FTransform& PresentationTransform : PresentationTransforms)
 			{
-				// Data Validation이 막지 못한 조합이라도 그 영역의 연출까지 사라지면 안 되므로 기준 지점 하나로 되돌립니다
-				SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, PresentationTransform, true);
+				TArray<FTransform> FillTransforms;
+				if (!URSCombatFunctionLibrary::BuildShapeFillTransforms(HitShape, PresentationTransform, NiagaraEntry.FillSpacing, FillTransforms))
+				{
+					// Data Validation이 막지 못한 조합이라도 그 영역의 연출까지 사라지면 안 되므로 기준 지점 하나로 되돌립니다
+					SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, PresentationTransform, true);
 
-				continue;
-			}
+					continue;
+				}
 
-			for (const FTransform& FillTransform : FillTransforms)
-			{
-				SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, FillTransform, true);
+				for (const FTransform& FillTransform : FillTransforms)
+				{
+					SpawnNiagaraFromDefinition(NiagaraEntry.Niagara, FillTransform, true);
+				}
 			}
 		}
 	}
