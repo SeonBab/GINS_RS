@@ -1,4 +1,4 @@
-#include "RSGameplayAbility_PizzaMemoryPattern.h"
+﻿#include "RSGameplayAbility_PizzaMemoryPattern.h"
 
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
@@ -27,6 +27,7 @@ URSGameplayAbility_PizzaMemoryPattern::URSGameplayAbility_PizzaMemoryPattern()
 void URSGameplayAbility_PizzaMemoryPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	LockedPatternTransform = FTransform::Identity;
+	ActiveSliceShape = FRSCombatShape();
 	ActiveSafePairs.Reset();
 	ActiveDangerousSliceTransforms.Reset();
 	ActiveMemoryCueHandles.Reset();
@@ -104,6 +105,7 @@ void URSGameplayAbility_PizzaMemoryPattern::EndAbility(const FGameplayAbilitySpe
 
 	HideActiveMemoryCue();
 	LockedPatternTransform = FTransform::Identity;
+	ActiveSliceShape = FRSCombatShape();
 	ActiveSafePairs.Reset();
 	ActiveDangerousSliceTransforms.Reset();
 	Timeline.Reset();
@@ -126,7 +128,7 @@ void URSGameplayAbility_PizzaMemoryPattern::HandleAttackStartDelayFinished()
 		return;
 	}
 
-	if (!TryCaptureLockedPatternTransform() || !TrySelectSafeZoneSequence() || !Timeline.Initialize(ActiveSafePairs.Num()))
+	if (!TryCaptureLockedPatternState() || !TrySelectSafeZoneSequence() || !Timeline.Initialize(ActiveSafePairs.Num()))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -139,7 +141,7 @@ void URSGameplayAbility_PizzaMemoryPattern::HandleAttackStartDelayFinished()
 	}
 }
 
-bool URSGameplayAbility_PizzaMemoryPattern::TryCaptureLockedPatternTransform()
+bool URSGameplayAbility_PizzaMemoryPattern::TryCaptureLockedPatternState()
 {
 	const ACharacter* Character = CurrentActorInfo ? Cast<ACharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
 	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
@@ -148,7 +150,23 @@ bool URSGameplayAbility_PizzaMemoryPattern::TryCaptureLockedPatternTransform()
 		return false;
 	}
 
-	return RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform);
+	if (!RSCircularSliceMath::TryCalculateLockedTransformFromCapsule(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), Character->GetActorForwardVector(), LockedPatternTransform))
+	{
+		return false;
+	}
+
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
+	float MinimumInnerRadius = 0.0f;
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(Character, MinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its slices start at the pattern origin"), *GetName());
+
+		MinimumInnerRadius = 0.0f;
+	}
+
+	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	return PizzaMemoryPatternDefinition.TryMakeSliceShape(MinimumInnerRadius, ActiveSliceShape);
 }
 
 bool URSGameplayAbility_PizzaMemoryPattern::TrySelectSafeZoneSequence()
@@ -177,16 +195,11 @@ bool URSGameplayAbility_PizzaMemoryPattern::BeginCurrentMemoryCue()
 		return false;
 	}
 
-	FRSCombatShape SliceShape;
-	SliceShape.Type = ERSCombatShapeType::Cone;
-	SliceShape.Range = PizzaMemoryPatternDefinition.OuterRadius;
-	SliceShape.Angle = PizzaMemoryPatternDefinition.CalculateSliceAngleDegrees();
-
 	ActiveMemoryCueHandles.Reset();
 	ActiveMemoryCueHandles.Reserve(ActiveDangerousSliceTransforms.Num());
 	for (const FTransform& SliceTransform : ActiveDangerousSliceTransforms)
 	{
-		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(SliceShape, SliceTransform);
+		const int32 TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(ActiveSliceShape, SliceTransform);
 		if (TelegraphHandle == INDEX_NONE || !TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f))
 		{
 			if (TelegraphHandle != INDEX_NONE)
@@ -358,9 +371,10 @@ bool URSGameplayAbility_PizzaMemoryPattern::ExecuteCurrentExplosion()
 	}
 
 	FRSCombatShape CandidateShape;
-	CandidateShape.Type = ERSCombatShapeType::Sphere;
-	CandidateShape.Radius = PizzaMemoryPatternDefinition.OuterRadius;
-	CandidateShape.InnerRadius = 0.0f;
+	CandidateShape.Type = ERSCombatShapeType::AnnularSector;
+	CandidateShape.OuterRadius = PizzaMemoryPatternDefinition.OuterRadius;
+	// 후보를 모으는 원반도 조각과 같은 안쪽 경계를 써야 보스 발밑이 판정에서 함께 빠집니다
+	CandidateShape.InnerRadius = ActiveSliceShape.InnerRadius;
 
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(AvatarActor, TargetChannel, CandidateShape, LockedPatternTransform, CandidateTargets);
@@ -387,12 +401,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::ExecuteCurrentExplosion()
 
 void URSGameplayAbility_PizzaMemoryPattern::PlayCurrentExplosionPresentation()
 {
-	FRSCombatShape SliceShape;
-	SliceShape.Type = ERSCombatShapeType::Cone;
-	SliceShape.Range = PizzaMemoryPatternDefinition.OuterRadius;
-	SliceShape.Angle = PizzaMemoryPatternDefinition.CalculateSliceAngleDegrees();
-
-	PlayPatternPresentation(SliceShape, ActiveDangerousSliceTransforms, LockedPatternTransform.GetLocation());
+	PlayPatternPresentation(ActiveSliceShape, ActiveDangerousSliceTransforms, LockedPatternTransform.GetLocation());
 }
 
 void URSGameplayAbility_PizzaMemoryPattern::HideActiveMemoryCue()
@@ -424,12 +433,12 @@ EDataValidationResult URSGameplayAbility_PizzaMemoryPattern::IsDataValid(FDataVa
 	else
 	{
 		// 여섯 조각은 같은 반지름과 각도를 쓰므로 조각 하나로 격자 배치 설정을 대표해 검사합니다
+		// 에디터에는 보스가 없으므로 하한을 걸지 않고 기획이 적은 값 자체가 성립하는지만 봅니다
 		FRSCombatShape SliceShape;
-		SliceShape.Type = ERSCombatShapeType::Cone;
-		SliceShape.Range = PizzaMemoryPatternDefinition.OuterRadius;
-		SliceShape.Angle = PizzaMemoryPatternDefinition.CalculateSliceAngleDegrees();
-
-		ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
+		if (PizzaMemoryPatternDefinition.TryMakeSliceShape(0.0f, SliceShape))
+		{
+			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
+		}
 	}
 
 	for (int32 EntryIndex = 0; EntryIndex < PatternPresentation.Niagaras.Num(); ++EntryIndex)

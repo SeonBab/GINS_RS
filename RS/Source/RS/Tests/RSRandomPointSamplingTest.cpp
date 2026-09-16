@@ -10,8 +10,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSFallingRocksDefinitionTest, "RS.Combat.Falli
 bool FRSFallingRocksDefinitionTest::RunTest(const FString& Parameters)
 {
 	FRSRandomFallingRocksDefinition Definition;
-	Definition.AttackShape.Type = ERSCombatShapeType::Sphere;
-	Definition.AttackShape.Radius = 100.0f;
+	Definition.AttackShape.Type = ERSCombatShapeType::AnnularSector;
+	Definition.AttackShape.OuterRadius = 100.0f;
 	Definition.AttackShape.InnerRadius = 0.0f;
 	TestTrue(TEXT("Valid falling rock definition"), Definition.IsDataValid());
 
@@ -28,12 +28,17 @@ bool FRSFallingRocksDefinitionTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Fall effect lead cannot exceed impact delay"), InvalidDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
-	InvalidDefinition.AttackShape.Type = ERSCombatShapeType::Cone;
-	TestFalse(TEXT("Non-sphere attack shape is invalid"), InvalidDefinition.IsDataValid());
+	InvalidDefinition.AttackShape.Type = ERSCombatShapeType::Box;
+	TestFalse(TEXT("A box attack shape is invalid"), InvalidDefinition.IsDataValid());
+
+	// 낙석은 떨어진 지점을 중심으로 모든 방향을 같게 덮어야 하므로 부채꼴을 허용하지 않습니다
+	InvalidDefinition = Definition;
+	InvalidDefinition.AttackShape.SweepAngleDegrees = 90.0f;
+	TestFalse(TEXT("A partial sector attack shape is invalid"), InvalidDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
 	InvalidDefinition.AttackShape.InnerRadius = 1.0f;
-	TestFalse(TEXT("Attack sphere cannot have an inner radius"), InvalidDefinition.IsDataValid());
+	TestFalse(TEXT("A donut attack shape is invalid"), InvalidDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
 	InvalidDefinition.Damage = 10.5f;

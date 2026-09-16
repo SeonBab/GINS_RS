@@ -11,10 +11,11 @@
 #include "RSBossHealthBarWidgetUtilities.h"
 #include "View/MVVMView.h"
 
-namespace RSBossHealthBarShake
+namespace RSBossHealthBar
 {
 	const FName BossStatusViewModelName = TEXT("BossStatusViewModel");
 	const FName MainHealthProgressBarName = TEXT("ProgressBar");
+	const FName DelayedHealthProgressBarName = TEXT("ProgressBar_Delayed");
 
 	FVector2D CalculateTranslation(float Strength, float NormalizedTime, float MaxShakeX, float MaxShakeY)
 	{
@@ -33,6 +34,44 @@ namespace RSBossHealthBarShake
 		FProgressBarStyle LayerStyle = ProgressBar.GetWidgetStyle();
 		LayerStyle.BackgroundImage.TintColor = FSlateColor(BackgroundColor);
 		ProgressBar.SetWidgetStyle(LayerStyle);
+	}
+
+	float AdvanceLayerScaled(float Current, float Target, float DeltaTime, float InterpSpeed, float SnapThreshold)
+	{
+		// 회복이나 원본 교체로 목표가 올라갈 때에는 잔상을 남기지 않습니다
+		if (Target >= Current)
+		{
+			return Target;
+		}
+
+		// 지수 보간은 목표에 정확히 닿지 않으므로 남은 간격이 눈에 띄지 않는 구간에서 끊어냅니다
+		if (Current - Target <= SnapThreshold)
+		{
+			return Target;
+		}
+
+		return FMath::Max(FMath::FInterpTo(Current, Target, DeltaTime, InterpSpeed), Target);
+	}
+
+	FRSBossHealthLayerDisplay CalculateLayerDisplay(float LayerScaled, int32 LayerCount)
+	{
+		FRSBossHealthLayerDisplay LayerDisplay;
+		if (LayerScaled <= 0.0f)
+		{
+			return LayerDisplay;
+		}
+
+		const int32 SafeLayerCount = FMath::Max(LayerCount, 1);
+		LayerDisplay.RemainingLayerCount = FMath::Clamp(FMath::CeilToInt(LayerScaled), 1, SafeLayerCount);
+		LayerDisplay.LayerPercent = FMath::Clamp(LayerScaled - (LayerDisplay.RemainingLayerCount - 1), 0.0f, 1.0f);
+		return LayerDisplay;
+	}
+
+	float CalculateDelayedLayerPercent(float DelayedLayerScaled, int32 RemainingLayerCount)
+	{
+		// 체력이 0이면 남은 레이어가 0이므로 마지막 레이어를 기준으로 남은 잔상을 마저 비웁니다
+		const int32 ActiveLayerIndex = FMath::Max(RemainingLayerCount, 1) - 1;
+		return FMath::Clamp(DelayedLayerScaled - ActiveLayerIndex, 0.0f, 1.0f);
 	}
 }
 
@@ -84,7 +123,7 @@ void URSBossHealthBarWidget::BindToBossStatusViewModel()
 		return;
 	}
 
-	const TScriptInterface<INotifyFieldValueChanged> ViewModelInterface = View->GetViewModel(RSBossHealthBarShake::BossStatusViewModelName);
+	const TScriptInterface<INotifyFieldValueChanged> ViewModelInterface = View->GetViewModel(RSBossHealthBar::BossStatusViewModelName);
 	URSBossStatusViewModel* BossStatusViewModel = Cast<URSBossStatusViewModel>(ViewModelInterface.GetObject());
 	if (!BossStatusViewModel)
 	{
@@ -94,13 +133,16 @@ void URSBossHealthBarWidget::BindToBossStatusViewModel()
 	BoundBossStatusViewModel = BossStatusViewModel;
 	BossStatusViewModel->OnHealthBarShakeRequested.AddUniqueDynamic(this, &ThisClass::RequestHealthBarShake);
 	BossStatusViewModel->OnHealthBarShakeResetRequested.AddUniqueDynamic(this, &ThisClass::ResetHealthBarShake);
-	LayerColorChangedHandle = BossStatusViewModel->AddFieldValueChangedDelegate(
-		URSBossStatusViewModel::FFieldNotificationClassDescriptor::CurrentLayerColorIndex,
-		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(this, &ThisClass::HandleLayerVisualChanged));
-	RemainingLayerCountChangedHandle = BossStatusViewModel->AddFieldValueChangedDelegate(
-		URSBossStatusViewModel::FFieldNotificationClassDescriptor::RemainingLayerCount,
-		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(this, &ThisClass::HandleLayerVisualChanged));
-	ApplyLayerColors();
+	HealthNormalizedChangedHandle = BossStatusViewModel->AddFieldValueChangedDelegate(
+		URSBossStatusViewModel::FFieldNotificationClassDescriptor::HealthNormalized,
+		INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateUObject(this, &ThisClass::HandleHealthLayerScaledChanged));
+
+	// 처음 표시할 때 바가 흘러내리지 않도록 두 값 모두 현재 체력에서 시작합니다
+	DisplayLayerScaled = BossStatusViewModel->GetHealthLayerScaled();
+	DelayedLayerScaled = DisplayLayerScaled;
+	DrainHoldRemaining = 0.0f;
+	AppliedRemainingLayerCount = INDEX_NONE;
+	ApplyLayerColors(RSBossHealthBar::CalculateLayerDisplay(DisplayLayerScaled, BossStatusViewModel->GetHealthLayerCount()).RemainingLayerCount);
 }
 
 void URSBossHealthBarWidget::UnbindFromBossStatusViewModel()
@@ -109,38 +151,98 @@ void URSBossHealthBarWidget::UnbindFromBossStatusViewModel()
 	{
 		BossStatusViewModel->OnHealthBarShakeRequested.RemoveDynamic(this, &ThisClass::RequestHealthBarShake);
 		BossStatusViewModel->OnHealthBarShakeResetRequested.RemoveDynamic(this, &ThisClass::ResetHealthBarShake);
-		if (LayerColorChangedHandle.IsValid())
+		if (HealthNormalizedChangedHandle.IsValid())
 		{
-			BossStatusViewModel->RemoveFieldValueChangedDelegate(URSBossStatusViewModel::FFieldNotificationClassDescriptor::CurrentLayerColorIndex, LayerColorChangedHandle);
-		}
-		if (RemainingLayerCountChangedHandle.IsValid())
-		{
-			BossStatusViewModel->RemoveFieldValueChangedDelegate(URSBossStatusViewModel::FFieldNotificationClassDescriptor::RemainingLayerCount, RemainingLayerCountChangedHandle);
+			BossStatusViewModel->RemoveFieldValueChangedDelegate(URSBossStatusViewModel::FFieldNotificationClassDescriptor::HealthNormalized, HealthNormalizedChangedHandle);
 		}
 	}
 
-	LayerColorChangedHandle.Reset();
-	RemainingLayerCountChangedHandle.Reset();
+	HealthNormalizedChangedHandle.Reset();
 	BoundBossStatusViewModel.Reset();
 }
 
-void URSBossHealthBarWidget::HandleLayerVisualChanged(UObject*, UE::FieldNotification::FFieldId)
-{
-	ApplyLayerColors();
-}
-
-void URSBossHealthBarWidget::ApplyLayerColors()
+void URSBossHealthBarWidget::ApplyLayerColors(int32 DisplayRemainingLayerCount)
 {
 	const URSBossStatusViewModel* BossStatusViewModel = BoundBossStatusViewModel.Get();
-	UProgressBar* MainHealthProgressBar = WidgetTree ? Cast<UProgressBar>(WidgetTree->FindWidget(RSBossHealthBarShake::MainHealthProgressBarName)) : nullptr;
+	UProgressBar* MainHealthProgressBar = FindMainHealthProgressBar();
+	if (!BossStatusViewModel || !MainHealthProgressBar || AppliedRemainingLayerCount == DisplayRemainingLayerCount)
+	{
+		return;
+	}
+
+	AppliedRemainingLayerCount = DisplayRemainingLayerCount;
+
+	// 색 순번은 ViewModel의 실제 체력이 아니라 애니메이션이 도달한 레이어를 따라야 옛 레이어가 비는 동안 색이 유지됩니다
+	const int32 CurrentColorIndex = DisplayRemainingLayerCount > 0 ? (BossStatusViewModel->GetHealthLayerCount() - DisplayRemainingLayerCount) % 4 : 0;
+	const FLinearColor BackgroundColor = DisplayRemainingLayerCount >= 2 ? GetLayerColor(CurrentColorIndex + 1) : EmptyLayerColor;
+	UProgressBar* DelayedHealthProgressBar = FindDelayedHealthProgressBar();
+	if (!DelayedHealthProgressBar)
+	{
+		RSBossHealthBar::ApplyProgressBarLayerColors(*MainHealthProgressBar, GetLayerColor(CurrentColorIndex), BackgroundColor);
+		return;
+	}
+
+	// 뒤에 있는 잔상이 비쳐 보이도록 남은 영역의 색은 잔상 바가 맡고 앞의 실제 바는 배경을 비웁니다
+	RSBossHealthBar::ApplyProgressBarLayerColors(*DelayedHealthProgressBar, ChipColor, BackgroundColor);
+	RSBossHealthBar::ApplyProgressBarLayerColors(*MainHealthProgressBar, GetLayerColor(CurrentColorIndex), FLinearColor::Transparent);
+}
+
+UProgressBar* URSBossHealthBarWidget::FindMainHealthProgressBar() const
+{
+	return WidgetTree ? Cast<UProgressBar>(WidgetTree->FindWidget(RSBossHealthBar::MainHealthProgressBarName)) : nullptr;
+}
+
+UProgressBar* URSBossHealthBarWidget::FindDelayedHealthProgressBar() const
+{
+	return WidgetTree ? Cast<UProgressBar>(WidgetTree->FindWidget(RSBossHealthBar::DelayedHealthProgressBarName)) : nullptr;
+}
+
+void URSBossHealthBarWidget::HandleHealthLayerScaledChanged(UObject*, UE::FieldNotification::FFieldId)
+{
+	const URSBossStatusViewModel* BossStatusViewModel = BoundBossStatusViewModel.Get();
+	if (!BossStatusViewModel)
+	{
+		return;
+	}
+
+	if (BossStatusViewModel->GetHealthLayerScaled() < DelayedLayerScaled)
+	{
+		DrainHoldRemaining = DrainHoldDuration;
+	}
+}
+
+void URSBossHealthBarWidget::UpdateHealthBarAnimation(float InDeltaTime)
+{
+	const URSBossStatusViewModel* BossStatusViewModel = BoundBossStatusViewModel.Get();
+	UProgressBar* MainHealthProgressBar = FindMainHealthProgressBar();
 	if (!BossStatusViewModel || !MainHealthProgressBar)
 	{
 		return;
 	}
 
-	const int32 CurrentColorIndex = BossStatusViewModel->GetCurrentLayerColorIndex();
-	const FLinearColor BackgroundColor = BossStatusViewModel->GetRemainingLayerCount() >= 2 ? GetLayerColor(CurrentColorIndex + 1) : EmptyLayerColor;
-	RSBossHealthBarShake::ApplyProgressBarLayerColors(*MainHealthProgressBar, GetLayerColor(CurrentColorIndex), BackgroundColor);
+	const float TargetLayerScaled = BossStatusViewModel->GetHealthLayerScaled();
+	DisplayLayerScaled = RSBossHealthBar::AdvanceLayerScaled(DisplayLayerScaled, TargetLayerScaled, InDeltaTime, DisplayInterpSpeed, DrainSnapThreshold);
+
+	if (DrainHoldRemaining > 0.0f && DelayedLayerScaled > TargetLayerScaled)
+	{
+		DrainHoldRemaining -= InDeltaTime;
+	}
+	else
+	{
+		DrainHoldRemaining = 0.0f;
+		DelayedLayerScaled = RSBossHealthBar::AdvanceLayerScaled(DelayedLayerScaled, TargetLayerScaled, InDeltaTime, DrainInterpSpeed, DrainSnapThreshold);
+	}
+
+	// 잔상이 실제 체력 바를 앞지르면 깎인 구간이 사라지므로 항상 뒤에 머물게 합니다
+	DelayedLayerScaled = FMath::Max(DelayedLayerScaled, DisplayLayerScaled);
+
+	const FRSBossHealthLayerDisplay LayerDisplay = RSBossHealthBar::CalculateLayerDisplay(DisplayLayerScaled, BossStatusViewModel->GetHealthLayerCount());
+	ApplyLayerColors(LayerDisplay.RemainingLayerCount);
+	MainHealthProgressBar->SetPercent(LayerDisplay.LayerPercent);
+	if (UProgressBar* DelayedHealthProgressBar = FindDelayedHealthProgressBar())
+	{
+		DelayedHealthProgressBar->SetPercent(RSBossHealthBar::CalculateDelayedLayerPercent(DelayedLayerScaled, LayerDisplay.RemainingLayerCount));
+	}
 }
 
 FLinearColor URSBossHealthBarWidget::GetLayerColor(int32 ColorIndex) const
@@ -162,6 +264,8 @@ void URSBossHealthBarWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
+	UpdateHealthBarAnimation(InDeltaTime);
+
 	if (!bIsShakeActive)
 	{
 		return;
@@ -176,7 +280,7 @@ void URSBossHealthBarWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 	}
 
 	// 초반 타격감을 살리고 끝에서 부드럽게 0으로 수렴하도록 제곱 감쇠를 사용합니다
-	ApplyShakeTranslation(RSBossHealthBarShake::CalculateTranslation(CurrentShakeStrength, NormalizedTime, MaxShakeX, MaxShakeY));
+	ApplyShakeTranslation(RSBossHealthBar::CalculateTranslation(CurrentShakeStrength, NormalizedTime, MaxShakeX, MaxShakeY));
 }
 
 void URSBossHealthBarWidget::ApplyShakeTranslation(const FVector2D& Translation)

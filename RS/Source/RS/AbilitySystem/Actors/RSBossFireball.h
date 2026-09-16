@@ -113,6 +113,10 @@ private:
 	UFUNCTION()
 	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
 
+	/** 피격으로 남은 타격 수가 줄면 충전 위젯의 체력 칸을 갱신합니다 */
+	UFUNCTION()
+	void HandleHealthChanged(URSHealthComponent* InHealthComponent, float OldValue, float NewValue);
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Abilities", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSAbilitySystemComponent> AbilitySystemComp;
@@ -151,6 +155,7 @@ private:
 	void BeginFireField();
 	void ApplyFireFieldDamage();
 	void UpdateChargeWidget(float Progress);
+	void UpdateHitPointWidget();
 	void ClearTimers();
 
 private:

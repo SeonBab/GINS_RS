@@ -22,9 +22,10 @@ URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
-	AttackShape.Type = ERSCombatShapeType::Cone;
-	AttackShape.Range = 600.0f;
-	AttackShape.Angle = 60.0f;
+	AttackShape.Type = ERSCombatShapeType::AnnularSector;
+	AttackShape.OuterRadius = 600.0f;
+	AttackShape.StartYawOffset = -30.0f;
+	AttackShape.SweepAngleDegrees = 60.0f;
 	Reaction.Type = ERSHitReactionType::None;
 
 	// 이 패턴은 배치 방식이 생기기 전부터 범위를 채우고 있었으므로 기본값으로 그 연출을 유지합니다
@@ -37,6 +38,7 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
+	ActiveAttackShape = AttackShape;
 	PreAimStartTime = 0.0f;
 	CurrentStrikeIndex = 0;
 	bHasExecutedImpact = false;
@@ -61,7 +63,7 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 		|| !DamageEffectClass
 		|| StrikeCount < 1
 		|| StrikeCount > 2
-		|| AttackShape.Type != ERSCombatShapeType::Cone
+		|| AttackShape.Type != ERSCombatShapeType::AnnularSector
 		|| !AttackShape.IsDataValid()
 		|| AimRotationSpeed <= 0.0f
 		|| AimYawTolerance < 0.0f
@@ -286,6 +288,27 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 	}
 
 	LockedAttackTransform = FTransform(HorizontalForward.Rotation(), AttackOrigin);
+
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
+	float MinimumInnerRadius = 0.0f;
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, MinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its attack shape starts at the pattern origin"), *GetName());
+
+		MinimumInnerRadius = 0.0f;
+	}
+
+	// 예고, 판정과 연출이 이 한 번의 사본을 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	ActiveAttackShape = AttackShape;
+	if (!URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(ActiveAttackShape, MinimumInnerRadius))
+	{
+		// 형상 전체가 보스 안에 들어가는 구성이라 하한을 걸면 판정이 사라지므로, 기획이 적은 값을 그대로 쓰고 사실만 알립니다
+		UE_LOG(LogTemp, Warning, TEXT("%s has an attack shape smaller than the boss capsule, so the start radius floor is skipped"), *GetName());
+
+		ActiveAttackShape = AttackShape;
+	}
+
 	State = ERSTargetedSlamState::Attacking;
 
 	if (ObserveFacingTask)
@@ -316,7 +339,7 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 	}
 
 	const FRSTelegraphPresentation Presentation = TelegraphLeadTime.MakePresentation(ImpactDelay);
-	BossCharacter->GetAttackTelegraphComponent()->ShowShape(AttackShape, LockedAttackTransform, Presentation);
+	BossCharacter->GetAttackTelegraphComponent()->ShowShape(ActiveAttackShape, LockedAttackTransform, Presentation);
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
 	{
@@ -373,10 +396,10 @@ void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 	}
 
 	TArray<AActor*> HitTargets;
-	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, AttackShape, LockedAttackTransform, HitTargets);
+	URSCombatFunctionLibrary::FindTargetsInShape(BossCharacter, TargetChannel, ActiveAttackShape, LockedAttackTransform, HitTargets);
 
 	// 내려찍기는 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 재생합니다
-	PlayPatternPresentation(AttackShape, LockedAttackTransform);
+	PlayPatternPresentation(ActiveAttackShape, LockedAttackTransform);
 
 	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
@@ -446,6 +469,7 @@ void URSGameplayAbility_TargetedSlam::ResetStrikeTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
+	ActiveAttackShape = AttackShape;
 	PreAimStartTime = 0.0f;
 	bHasExecutedImpact = false;
 	bHasCompletedMontage = false;
@@ -473,7 +497,7 @@ EDataValidationResult URSGameplayAbility_TargetedSlam::IsDataValid(FDataValidati
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (AttackShape.Type != ERSCombatShapeType::Cone)
+	if (AttackShape.Type != ERSCombatShapeType::AnnularSector)
 	{
 		Context.AddError(FText::FromString(TEXT("AttackShape must use the Cone shape.")));
 		ValidationResult = EDataValidationResult::Invalid;

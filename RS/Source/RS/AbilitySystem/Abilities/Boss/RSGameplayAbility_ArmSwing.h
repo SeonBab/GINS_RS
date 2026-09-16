@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -189,6 +189,9 @@ private:
 
 	/** 공격 확정 순간 Capsule 발밑과 Facing Yaw로 고정한 공격 Transform입니다 */
 	FTransform LockedAttackTransform = FTransform::Identity;
+
+	/** 공격 확정 순간 읽은 보스 캡슐 반지름이며 예고와 판정이 이 값을 안쪽 경계 하한으로 씁니다 */
+	float CapturedMinimumInnerRadius = 0.0f;
 
 	/** 현재 Pre-Aim이 시작된 World gameplay time입니다 */
 	float PreAimStartTime = 0.0f;

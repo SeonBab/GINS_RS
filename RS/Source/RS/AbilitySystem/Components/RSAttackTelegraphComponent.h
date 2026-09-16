@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -230,10 +230,6 @@ private:
 	/** 반경 방향과 각도 방향 중 어느 채움 경로를 사용할지 전달할 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
 	FName FillModeParameterName = TEXT("FillMode");
-
-	/** Cone 전체 각도의 절반에 대한 Cos 값을 전달할 스칼라 파라미터 이름입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))
-	FName ConeHalfAngleCosParameterName = TEXT("ConeHalfAngleCos");
 
 	/** 환형 부채꼴의 부호 있는 전체 각도를 전달할 머티리얼 스칼라 파라미터 이름입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Telegraph|Material", meta = (AllowPrivateAccess = "true"))

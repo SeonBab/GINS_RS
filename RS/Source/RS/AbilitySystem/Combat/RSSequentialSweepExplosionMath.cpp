@@ -1,17 +1,4 @@
-#include "RSSequentialSweepExplosionMath.h"
-
-namespace
-{
-	constexpr float AngleBoundaryToleranceDegrees = 0.01f;
-
-	bool TryGetHorizontalSweepForward(const FTransform& Transform, FVector& OutForward)
-	{
-		OutForward = Transform.GetUnitAxis(EAxis::X);
-		OutForward.Z = 0.0f;
-
-		return !OutForward.ContainsNaN() && OutForward.Normalize();
-	}
-}
+﻿#include "RSSequentialSweepExplosionMath.h"
 
 bool RSSequentialSweepExplosionMath::TryCalculateLockedAttackTransform(const FTransform& CapsuleTransform, float CapsuleHalfHeight, const FVector& ActorForward, FTransform& OutLockedTransform)
 {
@@ -108,45 +95,20 @@ bool RSSequentialSweepExplosionMath::TryCalculateSectorAngles(float TotalSweepAn
 	return FMath::IsFinite(OutStartAngleOffsetDegrees);
 }
 
-bool RSSequentialSweepExplosionMath::IsLocationInSector(const FTransform& LockedTransform, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, const FVector& TargetLocation)
+bool RSSequentialSweepExplosionMath::IsLocationInSector(const FTransform& LockedTransform, float InnerRadius, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, const FVector& TargetLocation)
 {
-	float SectorStartAngleDegrees = 0.0f;
-	float SectorAngleDegrees = 0.0f;
-	if (LockedTransform.ContainsNaN() || TargetLocation.ContainsNaN() || !FMath::IsFinite(OuterRadius) || OuterRadius <= 0.0f
-		|| !TryCalculateSectorAngles(TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, SectorStartAngleDegrees, SectorAngleDegrees))
+	// 예고, 연출과 같은 형상을 만들어 공용 커널에 넘기므로 조각의 경계 규약이 다른 형상과 갈라질 수 없습니다
+	FRSCombatShape SectorShape;
+	FTransform SectorTransform;
+	if (!TryBuildSectorFillShape(LockedTransform, OuterRadius, TotalSweepAngleDegrees, SectorCount, StartAngleOffsetDegrees, SectorIndex, SectorShape, SectorTransform))
 	{
 		return false;
 	}
 
-	FVector DirectionToTarget = TargetLocation - LockedTransform.GetLocation();
-	DirectionToTarget.Z = 0.0f;
-	const float DistanceSquared = DirectionToTarget.SizeSquared();
-	if (DistanceSquared > FMath::Square(OuterRadius) + UE_KINDA_SMALL_NUMBER)
-	{
-		return false;
-	}
+	// 하한은 호출자가 이번 활성화에 확정한 값이므로 여기서 다시 올리지 않고 그대로 담습니다
+	SectorShape.InnerRadius = InnerRadius;
 
-	// 모든 조각이 같은 원점을 공유하므로 중심은 각 부채꼴 판정에 포함합니다
-	if (!DirectionToTarget.Normalize())
-	{
-		return true;
-	}
-
-	FVector LockedForward;
-	if (!TryGetHorizontalSweepForward(LockedTransform, LockedForward))
-	{
-		return false;
-	}
-
-	const FVector SectorStartDirection = LockedForward.RotateAngleAxis(SectorStartAngleDegrees, FVector::UpVector);
-	const float CrossZ = FVector::CrossProduct(SectorStartDirection, DirectionToTarget).Z;
-	const float Dot = FVector::DotProduct(SectorStartDirection, DirectionToTarget);
-	const float SignedAngleDegrees = FMath::RadiansToDegrees(FMath::Atan2(CrossZ, Dot));
-	const float ClockwiseAngleDegrees = FMath::Fmod(SignedAngleDegrees + 360.0f, 360.0f);
-
-	// 시작과 끝 경계를 모두 포함해 인접한 두 조각이 같은 경계 대상을 각각 처리할 수 있게 합니다
-	return ClockwiseAngleDegrees <= SectorAngleDegrees + AngleBoundaryToleranceDegrees
-		|| FMath::IsNearlyEqual(ClockwiseAngleDegrees, 360.0f, AngleBoundaryToleranceDegrees);
+	return URSCombatFunctionLibrary::IsLocationInsideAnnularSector(SectorTransform, SectorShape.GetAnnularSectorBounds(), TargetLocation);
 }
 
 bool RSSequentialSweepExplosionMath::TryBuildSectorFillShape(const FTransform& LockedTransform, float OuterRadius, float TotalSweepAngleDegrees, int32 SectorCount, float StartAngleOffsetDegrees, int32 SectorIndex, FRSCombatShape& OutShape, FTransform& OutShapeTransform)
@@ -161,19 +123,18 @@ bool RSSequentialSweepExplosionMath::TryBuildSectorFillShape(const FTransform& L
 		return false;
 	}
 
-	// 부채꼴은 보스 중심에서 시작하므로 InnerRadius 없이 일반 Cone으로 표현합니다
-	OutShape.Type = ERSCombatShapeType::Cone;
-	OutShape.Range = OuterRadius;
-	OutShape.Angle = SectorSweepAngleDegrees;
+	// 계산한 시작 각도와 Sweep을 그대로 담으므로 중심축 기준으로 되돌리는 변환이 필요하지 않습니다
+	OutShape.Type = ERSCombatShapeType::AnnularSector;
+	OutShape.OuterRadius = OuterRadius;
+	OutShape.StartYawOffset = SectorStartAngleDegrees;
+	OutShape.SweepAngleDegrees = SectorSweepAngleDegrees;
 	if (!OutShape.IsDataValid())
 	{
 		return false;
 	}
 
-	// 일반 Cone은 중심축 기준 형상이므로 첫 경계에서 조각 각도의 절반만큼 회전시킵니다
-	const float SectorCenterYaw = LockedTransform.GetRotation().Rotator().Yaw + SectorStartAngleDegrees + SectorSweepAngleDegrees * 0.5f;
+	// 시작 각도를 형상이 들고 있으므로 Transform은 고정된 공격 기준을 그대로 씁니다
 	OutShapeTransform = LockedTransform;
-	OutShapeTransform.SetRotation(FRotator(0.0f, SectorCenterYaw, 0.0f).Quaternion());
 
 	return true;
 }

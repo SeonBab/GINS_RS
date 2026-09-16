@@ -4,11 +4,14 @@
 #include "RSPlayerController.h"
 
 #include "Engine/LocalPlayer.h"
+#include "EnhancedInputComponent.h"
+#include "InputAction.h"
 #include "Kismet/GameplayStatics.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSBossEncounter.h"
 #include "RSCheatManager.h"
 #include "RSGameModeBase.h"
+#include "RSInGameMenuAction.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
 #include "RSPlayerHeadUpDisplay.h"
@@ -40,6 +43,17 @@ void ARSPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	UnregisterViewModelSource(GetPawn());
 
 	Super::EndPlay(EndPlayReason);
+}
+
+void ARSPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+
+	UEnhancedInputComponent* EnhancedInputComp = Cast<UEnhancedInputComponent>(InputComponent);
+	if (EnhancedInputComp && InGameMenuInputAction)
+	{
+		EnhancedInputComp->BindAction(InGameMenuInputAction, ETriggerEvent::Started, this, &ThisClass::Input_ToggleInGameMenu);
+	}
 }
 
 void ARSPlayerController::SetPawn(APawn* InPawn)
@@ -222,6 +236,31 @@ bool ARSPlayerController::CloseInGameMenu()
 	return true;
 }
 
+bool ARSPlayerController::RequestInGameMenuAction(ERSInGameMenuAction Action)
+{
+	if (!IsLocalController() || !bIsInGameMenuOpen)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	ARSGameModeBase* GameMode = World ? World->GetAuthGameMode<ARSGameModeBase>() : nullptr;
+	return GameMode && GameMode->RequestInGameMenuAction(this, Action);
+}
+
+void ARSPlayerController::HandleInGameMenuActionAccepted()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
+	{
+		PlayerHeadUpDisplay->SetInGameMenuActionsEnabled(false);
+	}
+}
+
 void ARSPlayerController::ConfigureMouseInput()
 {
 	if (!IsLocalController())
@@ -248,10 +287,22 @@ void ARSPlayerController::ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMe
 
 	bShowMouseCursor = true;
 
-	FInputModeUIOnly InputMode;
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	InputMode.SetWidgetToFocus(InGameMenuWidget->TakeWidget());
 	SetInputMode(InputMode);
+}
+
+void ARSPlayerController::Input_ToggleInGameMenu()
+{
+	if (bIsInGameMenuOpen)
+	{
+		CloseInGameMenu();
+		return;
+	}
+
+	OpenInGameMenu();
 }
 
 URSLocalPlayerViewModelSubsystem* ARSPlayerController::GetViewModelSubsystem() const

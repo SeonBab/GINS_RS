@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RSGameplayAbility_ArmSwing.h"
 
@@ -253,6 +253,15 @@ void URSGameplayAbility_ArmSwing::ConfirmAttack()
 		return;
 	}
 
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 Pivot부터 덮을 뿐 판정이 빠지지는 않습니다
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, CapturedMinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its sector starts at the attack pivot"), *GetName());
+
+		CapturedMinimumInnerRadius = 0.0f;
+	}
+
 	State = ERSArmSwingState::Attacking;
 	if (ObserveFacingTask)
 	{
@@ -298,12 +307,12 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	UAnimInstance* AnimInstance = CurrentActorInfo ? CurrentActorInfo->GetAnimInstance() : nullptr;
-	FRSArmSwingSectorBounds TelegraphBounds;
+	FRSAnnularSectorBounds TelegraphBounds;
 	if (!GetBossContext(BossCharacter, BossController)
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
 		|| !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(SelectedVariant->AttackMontage, AttackWindowStartPosition, AttackWindowEndPosition)
-		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), TelegraphBounds))
+		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), CapturedMinimumInnerRadius, TelegraphBounds))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -487,17 +496,18 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 	}
 
 	const FRSArmSwingPathDefinition PathDefinition = SelectedVariant->GetPathDefinition();
-	FRSArmSwingSectorBounds SectorBounds;
-	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
+	FRSAnnularSectorBounds SectorBounds;
+	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, CapturedMinimumInnerRadius, SectorBounds))
 	{
 		return false;
 	}
 
 	// 넓은 원으로 PlayerHurtBox 후보만 모은 뒤 Actor 중심점으로 실제 환형 부채꼴을 판정합니다
 	FRSCombatShape CandidateShape;
-	CandidateShape.Type = ERSCombatShapeType::Sphere;
-	CandidateShape.Radius = SectorBounds.OuterRadius + FRSArmSwingMath::CandidateQueryRadiusMargin;
-	CandidateShape.InnerRadius = 0.0f;
+	CandidateShape.Type = ERSCombatShapeType::AnnularSector;
+	CandidateShape.OuterRadius = SectorBounds.OuterRadius + FRSArmSwingMath::CandidateQueryRadiusMargin;
+	// 후보를 모으는 원반도 부채꼴과 같은 안쪽 경계를 써야 보스 발밑이 판정에서 함께 빠집니다
+	CandidateShape.InnerRadius = SectorBounds.InnerRadius;
 
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
@@ -512,7 +522,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 	for (AActor* HitTarget : CandidateTargets)
 	{
 		const TWeakObjectPtr<AActor> HitTargetPointer(HitTarget);
-		if (!HitTarget || !FRSArmSwingMath::IsLocationInsideSector(LockedAttackTransform, SectorBounds, HitTarget->GetActorLocation()))
+		if (!HitTarget || !URSCombatFunctionLibrary::IsLocationInsideAnnularSector(LockedAttackTransform, SectorBounds, HitTarget->GetActorLocation()))
 		{
 			continue;
 		}
@@ -645,6 +655,7 @@ void URSGameplayAbility_ArmSwing::ResetTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
+	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;

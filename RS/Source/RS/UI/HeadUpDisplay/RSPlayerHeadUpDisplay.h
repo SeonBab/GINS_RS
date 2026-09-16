@@ -11,6 +11,7 @@ class URSBossResultWidget;
 class URSInGameMenuWidget;
 class URSPrimaryLayout;
 enum class ERSBossEncounterResult : uint8;
+enum class ERSInGameMenuAction : uint8;
 
 /** 인게임 플레이어 화면의 루트 위젯과 공유 ViewModel 연결을 관리합니다 */
 UCLASS()
@@ -42,6 +43,9 @@ public:
 	/** 표시 중인 인게임 메뉴를 숨깁니다 */
 	void HideInGameMenu();
 
+	/** 인게임 메뉴의 세 Action Button 상태를 함께 변경합니다 */
+	void SetInGameMenuActionsEnabled(bool bEnabled);
+
 private:
 	/** 설정된 클래스에서 루트 레이아웃을 생성하고 공유 ViewModel을 연결합니다 */
 	void CreatePrimaryLayout();
@@ -63,6 +67,9 @@ private:
 
 	/** 인게임 메뉴의 게임 계속 의도를 Local PlayerController에 전달합니다 */
 	void HandleInGameMenuContinueRequested();
+
+	/** 인게임 메뉴의 Level 전환 의도를 Local PlayerController에 전달합니다 */
+	void HandleInGameMenuActionRequested(ERSInGameMenuAction Action);
 
 private:
 	/** 인게임 플레이어 화면에 사용할 루트 레이아웃 클래스입니다 */

@@ -10,7 +10,9 @@
 class URSLocalPlayerViewModelSubsystem;
 class URSInGameMenuWidget;
 class URSPlayerCameraComponent;
+class UInputAction;
 enum class ERSBossEncounterResult : uint8;
+enum class ERSInGameMenuAction : uint8;
 
 /** 마우스 위치, 로컬 카메라 컴포넌트와 ViewModel 데이터 원본 연결을 관리합니다 */
 UCLASS()
@@ -28,6 +30,9 @@ protected:
 
 	/** 현재 Pawn의 ViewModel 데이터 원본 등록을 해제합니다 */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** PlayerController가 소유하는 사용자 인터페이스 입력을 연결합니다 */
+	virtual void SetupInputComponent() override;
 
 public:
 	/** Pawn이 변경되면 이전 데이터 원본을 새 Pawn으로 교체합니다 */
@@ -75,12 +80,21 @@ public:
 	/** 인게임 메뉴가 현재 열려 있는지 반환합니다 */
 	bool IsInGameMenuOpen() const { return bIsInGameMenuOpen; }
 
+	/** 인게임 메뉴의 Level 전환 의도를 현재 World의 GameMode에 전달합니다 */
+	bool RequestInGameMenuAction(ERSInGameMenuAction Action);
+
+	/** GameMode가 Level 전환을 승인하면 인게임 메뉴의 추가 입력을 비활성화합니다 */
+	void HandleInGameMenuActionAccepted();
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();
 
 	/** Pause 상태에서 인게임 메뉴만 입력과 Focus를 받도록 설정합니다 */
 	void ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMenuWidget);
+
+	/** 인게임 메뉴가 열려 있으면 닫고 닫혀 있으면 엽니다 */
+	void Input_ToggleInGameMenu();
 
 	/** 현재 로컬 플레이어의 ViewModel 저장소를 반환합니다 */
 	URSLocalPlayerViewModelSubsystem* GetViewModelSubsystem() const;
@@ -91,6 +105,10 @@ private:
 	/** 로컬 플레이어의 카메라 상태와 전투 CameraActor 수명을 관리합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSPlayerCameraComponent> PlayerCameraComp;
+
+	/** 일반 플레이와 Pause 상태에서 인게임 메뉴를 Toggle하는 Input Action입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> InGameMenuInputAction;
 
 	/** 후속 Presentation 정책과 분리해 보존하는 최초 Boss Encounter 결과입니다 */
 	TOptional<ERSBossEncounterResult> BossResultPresentation;

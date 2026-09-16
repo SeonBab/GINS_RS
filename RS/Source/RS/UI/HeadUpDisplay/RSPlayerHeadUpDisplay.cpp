@@ -8,6 +8,7 @@
 #include "Components/PanelWidget.h"
 #include "RSBossEncounter.h"
 #include "RSBossResultWidget.h"
+#include "RSInGameMenuAction.h"
 #include "RSInGameMenuWidget.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerController.h"
@@ -27,6 +28,8 @@ void ARSPlayerHeadUpDisplay::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
 	{
 		InGameMenuWidget->GetContinueRequested().RemoveAll(this);
+		InGameMenuWidget->GetRestartRequested().RemoveAll(this);
+		InGameMenuWidget->GetMainMenuRequested().RemoveAll(this);
 	}
 
 	if (URSBossResultWidget* BossResultWidget = FindBossResultWidget())
@@ -91,6 +94,14 @@ void ARSPlayerHeadUpDisplay::HideInGameMenu()
 	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
 	{
 		InGameMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void ARSPlayerHeadUpDisplay::SetInGameMenuActionsEnabled(bool bEnabled)
+{
+	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
+	{
+		InGameMenuWidget->SetActionsEnabled(bEnabled);
 	}
 }
 
@@ -206,6 +217,10 @@ void ARSPlayerHeadUpDisplay::InitializeInGameMenu()
 	{
 		InGameMenuWidget->GetContinueRequested().RemoveAll(this);
 		InGameMenuWidget->GetContinueRequested().AddUObject(this, &ThisClass::HandleInGameMenuContinueRequested);
+		InGameMenuWidget->GetRestartRequested().RemoveAll(this);
+		InGameMenuWidget->GetRestartRequested().AddUObject(this, &ThisClass::HandleInGameMenuActionRequested, ERSInGameMenuAction::RestartLevel);
+		InGameMenuWidget->GetMainMenuRequested().RemoveAll(this);
+		InGameMenuWidget->GetMainMenuRequested().AddUObject(this, &ThisClass::HandleInGameMenuActionRequested, ERSInGameMenuAction::ReturnToMainMenu);
 		InGameMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
@@ -223,5 +238,13 @@ void ARSPlayerHeadUpDisplay::HandleInGameMenuContinueRequested()
 	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
 	{
 		PlayerController->CloseInGameMenu();
+	}
+}
+
+void ARSPlayerHeadUpDisplay::HandleInGameMenuActionRequested(ERSInGameMenuAction Action)
+{
+	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
+	{
+		PlayerController->RequestInGameMenuAction(Action);
 	}
 }

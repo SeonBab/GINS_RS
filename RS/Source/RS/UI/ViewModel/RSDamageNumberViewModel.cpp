@@ -3,6 +3,7 @@
 
 #include "RSDamageNumberViewModel.h"
 
+#include "Components/CapsuleComponent.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSPlayerCharacter.h"
 
@@ -26,7 +27,14 @@ void URSDamageNumberViewModel::HandleSourceRegistered(UObject* Source)
 	// 이전 Pawn의 늦은 해제가 현재 구독을 끊지 않습니다
 	CurrentSource = Source;
 
-	InitializeViewModel(Cast<URSAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent()));
+	const UCapsuleComponent* CapsuleComp = PlayerCharacter->GetCapsuleComponent();
+	if (!CapsuleComp)
+	{
+		return;
+	}
+
+	const float PlayerCharacterHeight = CapsuleComp->GetScaledCapsuleHalfHeight() * 2.0f;
+	InitializeViewModel(Cast<URSAbilitySystemComponent>(PlayerCharacter->GetAbilitySystemComponent()), PlayerCharacterHeight);
 }
 
 void URSDamageNumberViewModel::HandleSourceUnregistered(UObject* Source)
@@ -41,17 +49,19 @@ void URSDamageNumberViewModel::HandleSourceUnregistered(UObject* Source)
 	UninitializeViewModel();
 }
 
-void URSDamageNumberViewModel::InitializeViewModel(URSAbilitySystemComponent* InAbilitySystemComponent)
+void URSDamageNumberViewModel::InitializeViewModel(URSAbilitySystemComponent* InAbilitySystemComponent, float InDamageNumberStartHeight)
 {
 	// Pawn 소유 시점에는 PlayerState와 ASC가 아직 없을 수 있습니다
 	// 이후 같은 Source가 다시 등록되어 해소되는 정상 경로이므로 경고를 남기지 않습니다
-	if (!IsValid(InAbilitySystemComponent))
+	if (!IsValid(InAbilitySystemComponent) || !FMath::IsFinite(InDamageNumberStartHeight) || InDamageNumberStartHeight <= 0.0f)
 	{
 		return;
 	}
 
 	if (ConnectedAbilitySystemComp.Get() == InAbilitySystemComponent)
 	{
+		DamageNumberStartHeight = InDamageNumberStartHeight;
+
 		return;
 	}
 
@@ -59,6 +69,7 @@ void URSDamageNumberViewModel::InitializeViewModel(URSAbilitySystemComponent* In
 	const bool bHadPreviousSource = !ConnectedAbilitySystemComp.IsExplicitlyNull();
 
 	ConnectDamageSource(InAbilitySystemComponent);
+	DamageNumberStartHeight = InDamageNumberStartHeight;
 
 	if (bHadPreviousSource)
 	{
@@ -75,6 +86,7 @@ void URSDamageNumberViewModel::UninitializeViewModel()
 	}
 
 	DisconnectDamageSource();
+	DamageNumberStartHeight = 0.0f;
 
 	OnDamageNumberResetRequested.Broadcast();
 }
@@ -98,7 +110,7 @@ void URSDamageNumberViewModel::DisconnectDamageSource()
 	ConnectedAbilitySystemComp.Reset();
 }
 
-void URSDamageNumberViewModel::HandleDamageDealt(float AppliedDamage, FVector TargetLocation)
+void URSDamageNumberViewModel::HandleDamageDealt(float AppliedDamage, FVector TargetGroundLocation)
 {
 	// 하한 1이 음수를 1로 만들지 않도록 변환보다 먼저 확인합니다
 	if (AppliedDamage <= 0.0f)
@@ -115,8 +127,8 @@ void URSDamageNumberViewModel::HandleDamageDealt(float AppliedDamage, FVector Ta
 
 	const FText DisplayDamageText = FText::AsNumber(DisplayDamage, &DamageNumberFormat);
 
-	// 표시 높이는 표현 결정이므로 게임플레이가 전달한 원좌표에 여기서만 더합니다
-	const FVector WorldAnchor = TargetLocation + FVector(0.0f, 0.0f, AnchorHeightOffset);
+	// 숫자는 대상의 바닥을 기준으로 플레이어 캐릭터 한 명 높이에서 시작합니다
+	const FVector WorldAnchor = TargetGroundLocation + FVector::UpVector * DamageNumberStartHeight;
 
 	OnDamageNumberRequested.Broadcast(DisplayDamageText, WorldAnchor);
 }

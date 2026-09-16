@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
@@ -369,8 +369,8 @@ bool FRSMeteorHazardDamageAndCleanupTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("First damage waits for exactly one configured interval"), FMath::IsNearlyEqual(FirstMeteorHazard->GetDamageTimerRemainingForTest(), Definition.DamageInterval));
 	TestEqual(TEXT("Hazard transition applies no immediate damage"), DamageEventCount, 0);
 	FRSCombatShape ProbeShape;
-	ProbeShape.Type = ERSCombatShapeType::Sphere;
-	ProbeShape.Radius = Definition.HazardRadius;
+	ProbeShape.Type = ERSCombatShapeType::AnnularSector;
+	ProbeShape.OuterRadius = Definition.HazardRadius;
 	ProbeShape.InnerRadius = 0.0f;
 	TArray<AActor*> ProbeTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(FirstMeteorHazard, ECC_GameTraceChannel1, ProbeShape, FTransform(FirstMeteorHazard->GetLockedImpactLocation()), ProbeTargets);

@@ -70,7 +70,7 @@ struct FRSAbilityDisplayResolveResult
 class URSAbilitySystemComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRSGrantedAbilitiesChangedSignature, URSAbilitySystemComponent*, AbilitySystemComponent);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRSDamageDealtSignature, float, AppliedDamage, FVector, TargetLocation);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRSDamageDealtSignature, float, AppliedDamage, FVector, TargetGroundLocation);
 
 /** RS의 어빌리티 부여와 활성화, 입력 처리를 담당하는 ASC입니다 */
 UCLASS()
@@ -147,7 +147,7 @@ public:
 	 * AttributeSet만 면역과 Clamp를 거친 최종 값을 알기 때문에 대상의 HealthSet이 이 함수를 호출합니다
 	 * 값을 보관하지 않으므로 ASC는 피해 이력을 소유하지 않습니다
 	 */
-	void NotifyDamageDealt(float AppliedDamage, const FVector& TargetLocation);
+	void NotifyDamageDealt(float AppliedDamage, const FVector& TargetGroundLocation);
 
 public:
 	/**
@@ -173,7 +173,7 @@ public:
 public:
 	/**
 	 * 이 ASC가 시작한 피해가 대상에게 적용될 때 발생합니다
-	 * TargetLocation은 표현 오프셋이 적용되지 않은 대상 AvatarActor의 원좌표이며, 표시 위치는 구독자가 결정합니다
+	 * TargetGroundLocation은 표현 오프셋이 적용되지 않은 대상 AvatarActor의 바닥 좌표이며, 표시 위치는 구독자가 결정합니다
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "RS|Damage")
 	FRSDamageDealtSignature OnDamageDealt;

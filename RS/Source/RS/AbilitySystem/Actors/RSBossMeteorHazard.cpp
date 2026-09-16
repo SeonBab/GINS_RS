@@ -1,4 +1,4 @@
-#include "RSBossMeteorHazard.h"
+﻿#include "RSBossMeteorHazard.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -168,8 +168,8 @@ void ARSBossMeteorHazard::BeginPlay()
 	}
 
 	FRSCombatShape TelegraphShape;
-	TelegraphShape.Type = ERSCombatShapeType::Sphere;
-	TelegraphShape.Radius = MeteorHazardDefinition.HazardRadius;
+	TelegraphShape.Type = ERSCombatShapeType::AnnularSector;
+	TelegraphShape.OuterRadius = MeteorHazardDefinition.HazardRadius;
 	TelegraphShape.InnerRadius = 0.0f;
 	TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(TelegraphShape, FTransform(CurrentTargetLocation));
 	if (TelegraphHandle == INDEX_NONE)
@@ -394,8 +394,8 @@ void ARSBossMeteorHazard::ApplyHazardDamage()
 	}
 
 	FRSCombatShape HazardShape;
-	HazardShape.Type = ERSCombatShapeType::Sphere;
-	HazardShape.Radius = MeteorHazardDefinition.HazardRadius;
+	HazardShape.Type = ERSCombatShapeType::AnnularSector;
+	HazardShape.OuterRadius = MeteorHazardDefinition.HazardRadius;
 	HazardShape.InnerRadius = 0.0f;
 
 	TArray<AActor*> HitTargets;

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RSGameplayAbility_ConcentricRings.h"
 
@@ -31,16 +31,17 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	constexpr int32 DefaultOuterRingCount = 2;
 
 	// 가장 안쪽은 InnerRadius를 두지 않아 꽉 찬 원이 됩니다. 중심에 구멍이 남으면 거기 서서 패턴 전체를 무시할 수 있습니다
+	// 실제 안쪽 경계는 런타임에 보스 캡슐 반지름까지 올라가며, 캡슐 안쪽은 대상 중심점이 들어올 수 없어 안전지대가 되지 않습니다
 	FRSCombatShape& InnermostRing = Rings.AddDefaulted_GetRef();
-	InnermostRing.Type = ERSCombatShapeType::Sphere;
-	InnermostRing.Radius = DefaultInnermostRadius;
+	InnermostRing.Type = ERSCombatShapeType::AnnularSector;
+	InnermostRing.OuterRadius = DefaultInnermostRadius;
 
 	for (int32 OuterRingIndex = 0; OuterRingIndex < DefaultOuterRingCount; ++OuterRingIndex)
 	{
 		FRSCombatShape& Ring = Rings.AddDefaulted_GetRef();
-		Ring.Type = ERSCombatShapeType::Sphere;
+		Ring.Type = ERSCombatShapeType::AnnularSector;
 		Ring.InnerRadius = DefaultInnermostRadius + OuterRingIndex * DefaultRingThickness;
-		Ring.Radius = Ring.InnerRadius + DefaultRingThickness;
+		Ring.OuterRadius = Ring.InnerRadius + DefaultRingThickness;
 	}
 
 	// 구조체 기본값은 반응 없음이라 이 패턴이 원하는 넉다운을 지정합니다
@@ -197,7 +198,7 @@ void URSGameplayAbility_ConcentricRings::HandleStepDelayFinished()
 	RunCurrentStep();
 }
 
-bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const
+bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(const AActor& AvatarActor, int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const
 {
 	OutDangerRings.Reset();
 
@@ -212,6 +213,16 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIn
 		return false;
 	}
 
+	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
+	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
+	float MinimumInnerRadius = 0.0f;
+	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(&AvatarActor, MinimumInnerRadius))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its rings start at the pattern origin"), *GetName());
+
+		MinimumInnerRadius = 0.0f;
+	}
+
 	// 안전한 링 하나만 빼고 전부 위험합니다. 링은 겹치지 않으므로 이 목록이 판정 영역을 빠짐없이 한 번씩 덮습니다
 	OutDangerRings.Reserve(Rings.Num() - 1);
 	for (int32 RingIndex = 0; RingIndex < Rings.Num(); ++RingIndex)
@@ -221,7 +232,14 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIn
 			continue;
 		}
 
-		OutDangerRings.Add(Rings[RingIndex]);
+		// 링 전체가 보스 캡슐 안에 들어가면 판정할 면적이 남지 않으므로 그 링은 이번 스텝에서 빠집니다
+		FRSCombatShape DangerRing = Rings[RingIndex];
+		if (!URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(DangerRing, MinimumInnerRadius))
+		{
+			continue;
+		}
+
+		OutDangerRings.Add(DangerRing);
 	}
 
 	return true;
@@ -230,7 +248,7 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIn
 void URSGameplayAbility_ConcentricRings::PreviewDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
 	TArray<FRSCombatShape> DangerRings;
-	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
+	if (!TryGetDangerRingShapes(AvatarActor, SequenceIndex, DangerRings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s previewed step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
@@ -264,7 +282,7 @@ void URSGameplayAbility_ConcentricRings::PreviewDangerRings(const AActor& Avatar
 void URSGameplayAbility_ConcentricRings::StrikeDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
 	TArray<FRSCombatShape> DangerRings;
-	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
+	if (!TryGetDangerRingShapes(AvatarActor, SequenceIndex, DangerRings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s struck step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
@@ -322,9 +340,10 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 	{
 		const FRSCombatShape& Ring = Rings[RingIndex];
 
-		if (Ring.Type != ERSCombatShapeType::Sphere)
+		// 링이 순서대로 평면을 빈틈 없이 덮어야 하므로 일부 각도만 위험한 조각은 허용하지 않습니다
+		if (Ring.Type != ERSCombatShapeType::AnnularSector || !Ring.GetAnnularSectorBounds().CoversEveryAngle())
 		{
-			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] must use the Sphere shape."), RingIndex)));
+			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d] must be a full circle Annular Sector."), RingIndex)));
 			ValidationResult = EDataValidationResult::Invalid;
 
 			continue;
@@ -340,9 +359,9 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 		}
 
 		// 링이 겹치거나 벌어지면 한 위치가 두 링에 속하거나 어느 링에도 속하지 않아 자기 위치를 판단할 수 없습니다
-		if (RingIndex > 0 && !FMath::IsNearlyEqual(Ring.InnerRadius, Rings[RingIndex - 1].Radius))
+		if (RingIndex > 0 && !FMath::IsNearlyEqual(Ring.InnerRadius, Rings[RingIndex - 1].OuterRadius))
 		{
-			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d].InnerRadius (%.0f) must match Rings[%d].Radius (%.0f) so the rings stay ordered without overlaps or gaps."), RingIndex, Ring.InnerRadius, RingIndex - 1, Rings[RingIndex - 1].Radius)));
+			Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[%d].InnerRadius (%.0f) must match Rings[%d].OuterRadius (%.0f) so the rings stay ordered without overlaps or gaps."), RingIndex, Ring.InnerRadius, RingIndex - 1, Rings[RingIndex - 1].OuterRadius)));
 			ValidationResult = EDataValidationResult::Invalid;
 		}
 	}

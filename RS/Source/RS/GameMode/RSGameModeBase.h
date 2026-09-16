@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "RSBossEncounter.h"
 #include "RSBossResultAction.h"
+#include "RSInGameMenuAction.h"
 #include "RSGameModeBase.generated.h"
 
 class ARSPlayerController;
@@ -44,6 +45,9 @@ public:
 	/** 승인되어 처리 중인 Boss Result Action을 반환합니다 */
 	TOptional<ERSBossResultAction> GetBossResultAction() const { return BossResultAction; }
 
+	/** 인게임 메뉴의 Level 전환 요청을 검증하고 한 번만 실행합니다 */
+	bool RequestInGameMenuAction(ARSPlayerController* RequestingPlayerController, ERSInGameMenuAction Action);
+
 private:
 	/** 현재 World의 초기 음악을 재생 관리자에 요청합니다 */
 	void PlayInitialMusic();
@@ -67,6 +71,15 @@ private:
 	/** 승인된 Action에 맞는 Level 전환을 실행합니다 */
 	void ExecuteBossResultAction(ERSBossResultAction Action);
 
+	/** 현재 In-game Menu 상태에 유효한 최초 Level 전환 Action을 커밋합니다 */
+	bool TryCommitInGameMenuAction(ERSInGameMenuAction Action);
+
+	/** 승인된 인게임 메뉴 Action에 맞는 Level 전환을 실행합니다 */
+	void ExecuteInGameMenuAction(ERSInGameMenuAction Action);
+
+	/** 현재 Level 재시작 또는 Main Menu 이동을 실행합니다 */
+	bool ExecuteLevelTransition(bool bRestartCurrentLevel);
+
 private:
 	friend class FRSBossEncounterStateTest;
 
@@ -86,4 +99,7 @@ private:
 
 	/** Level 전환 호출 전에 커밋하여 중복 Result Action을 차단합니다 */
 	TOptional<ERSBossResultAction> BossResultAction;
+
+	/** Level 전환 호출 전에 커밋하여 중복 인게임 메뉴 Action을 차단합니다 */
+	TOptional<ERSInGameMenuAction> InGameMenuAction;
 };

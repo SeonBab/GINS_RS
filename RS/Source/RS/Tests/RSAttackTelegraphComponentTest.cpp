@@ -1,4 +1,4 @@
-#if WITH_DEV_AUTOMATION_TESTS
+﻿#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
@@ -43,8 +43,8 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	Presentation.FillDuration = 2.0f;
 
 	FRSCombatShape Sphere;
-	Sphere.Type = ERSCombatShapeType::Sphere;
-	Sphere.Radius = 80.0f;
+	Sphere.Type = ERSCombatShapeType::AnnularSector;
+	Sphere.OuterRadius = 80.0f;
 	Sphere.InnerRadius = 40.0f;
 	TelegraphComp->ShowShape(Sphere, FTransform::Identity, Presentation);
 
@@ -55,8 +55,8 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	UDecalComponent* PooledDecal = Decals.IsEmpty() ? nullptr : Decals[0];
 	if (PooledDecal)
 	{
-		TestEqual(TEXT("Sphere uses Radius as decal half size Y"), PooledDecal->DecalSize.Y, static_cast<double>(Sphere.Radius));
-		TestEqual(TEXT("Sphere uses Radius as decal half size Z"), PooledDecal->DecalSize.Z, static_cast<double>(Sphere.Radius));
+		TestEqual(TEXT("A full circle uses its outer radius as decal half size Y"), PooledDecal->DecalSize.Y, static_cast<double>(Sphere.OuterRadius));
+		TestEqual(TEXT("A full circle uses its outer radius as decal half size Z"), PooledDecal->DecalSize.Z, static_cast<double>(Sphere.OuterRadius));
 
 		UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(PooledDecal->GetDecalMaterial());
 		TestNotNull(TEXT("Telegraph uses a dynamic material instance"), MaterialInstance);
@@ -66,7 +66,6 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Fill starts at the apex or center"), MaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
 			TestEqual(TEXT("Sphere selects the radial shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 0.0f);
 			TestEqual(TEXT("Sphere selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
-			TestEqual(TEXT("Sphere resets cone angle parameter"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ConeHalfAngleCos")), 1.0f);
 			TestEqual(TEXT("Sphere sets its inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.5f);
 		}
 	}
@@ -78,9 +77,9 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 
 	FRSCombatShape FirstHandledSphere = Sphere;
 	FirstHandledSphere.InnerRadius = 0.0f;
-	FirstHandledSphere.Radius = 60.0f;
+	FirstHandledSphere.OuterRadius = 60.0f;
 	FRSCombatShape SecondHandledSphere = FirstHandledSphere;
-	SecondHandledSphere.Radius = 100.0f;
+	SecondHandledSphere.OuterRadius = 100.0f;
 	const int32 FirstSphereHandle = TelegraphComp->ShowShapeWithHandle(FirstHandledSphere, FTransform(FVector(100.0f, 0.0f, 0.0f)), Presentation);
 	const int32 SecondSphereHandle = TelegraphComp->ShowShapeWithHandle(SecondHandledSphere, FTransform(FVector(-100.0f, 0.0f, 0.0f)), Presentation);
 	TestTrue(TEXT("General shapes return distinct valid handles"), FirstSphereHandle != INDEX_NONE && SecondSphereHandle != INDEX_NONE && FirstSphereHandle != SecondSphereHandle);
@@ -135,7 +134,7 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("Tracking shape uses a visible pooled decal"), TrackingDecal);
 	TestNotNull(TEXT("Moving one handle preserves the other shape"), StationaryDecal);
 	TestTrue(TEXT("Tracking shape moves without changing its radius"), TrackingDecal && TrackingDecal->GetComponentLocation().Equals(TrackingDestination));
-	TestEqual(TEXT("Tracking shape preserves its fixed radius"), TrackingDecal ? TrackingDecal->DecalSize.Y : 0.0, static_cast<double>(FirstHandledSphere.Radius));
+	TestEqual(TEXT("Tracking shape preserves its fixed radius"), TrackingDecal ? TrackingDecal->DecalSize.Y : 0.0, static_cast<double>(FirstHandledSphere.OuterRadius));
 	TestTrue(TEXT("Transform updates do not prevent external fill"), TelegraphComp->SetExternalFill(TrackingHandle, 0.75f));
 
 	TelegraphComp->HideShape(TrackingHandle);
@@ -143,9 +142,10 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	TelegraphComp->HideShape(StationaryHandle);
 
 	FRSCombatShape Cone;
-	Cone.Type = ERSCombatShapeType::Cone;
-	Cone.Range = 320.0f;
-	Cone.Angle = 90.0f;
+	Cone.Type = ERSCombatShapeType::AnnularSector;
+	Cone.OuterRadius = 320.0f;
+	Cone.StartYawOffset = -45.0f;
+	Cone.SweepAngleDegrees = 90.0f;
 	const FVector ConeApex(120.0f, -75.0f, 10.0f);
 	const FTransform ConeTransform(FRotator(0.0f, 90.0f, 0.0f), ConeApex);
 	TelegraphComp->ShowShape(Cone, ConeTransform, Presentation);
@@ -156,23 +156,27 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	if (!Decals.IsEmpty())
 	{
 		UDecalComponent* ConeDecal = Decals[0];
-		TestEqual(TEXT("Cone uses Range as decal half size Y"), ConeDecal->DecalSize.Y, static_cast<double>(Cone.Range));
-		TestEqual(TEXT("Cone uses Range as decal half size Z"), ConeDecal->DecalSize.Z, static_cast<double>(Cone.Range));
-		TestTrue(TEXT("Cone keeps its apex at the decal center"), ConeDecal->GetComponentLocation().Equals(ConeApex));
-		TestTrue(TEXT("Decal local Z used by material U aligns with shape forward"), ConeDecal->GetUpVector().Equals(ConeTransform.GetUnitAxis(EAxis::X)));
+		TestEqual(TEXT("A sector uses its outer radius as decal half size Y"), ConeDecal->DecalSize.Y, static_cast<double>(Cone.OuterRadius));
+		TestEqual(TEXT("A sector uses its outer radius as decal half size Z"), ConeDecal->DecalSize.Z, static_cast<double>(Cone.OuterRadius));
+		TestTrue(TEXT("A sector keeps its pivot at the decal center"), ConeDecal->GetComponentLocation().Equals(ConeApex));
+
+		// 부채꼴은 시작 경계를 기준으로 그리므로 데칼이 형상 Forward가 아니라 첫 경계 쪽을 봅니다
+		const FVector ExpectedSectorForward = ConeTransform.GetUnitAxis(EAxis::X).RotateAngleAxis(Cone.StartYawOffset, FVector::UpVector);
+		TestTrue(TEXT("Decal local Z used by material U aligns with the sector start boundary"), ConeDecal->GetUpVector().Equals(ExpectedSectorForward));
 
 		UMaterialInstanceDynamic* MaterialInstance = Cast<UMaterialInstanceDynamic>(ConeDecal->GetDecalMaterial());
 		if (MaterialInstance)
 		{
-			TestEqual(TEXT("Cone selects the cone shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 1.0f);
-			TestEqual(TEXT("Cone selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
-			TestTrue(TEXT("Cone receives the cosine of its half angle"), FMath::IsNearlyEqual(MaterialInstance->K2_GetScalarParameterValue(TEXT("ConeHalfAngleCos")), FMath::InvSqrt(2.0f)));
-			TestEqual(TEXT("Cone resets the radial inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.0f);
+			// 부채꼴은 각도 마스크가 필요하므로 Angular Sector 경로를 씁니다. Cone 전용 모드는 코드와 머티리얼 양쪽에서 사라졌습니다
+			TestEqual(TEXT("A partial sector selects the angular sector shape mode"), MaterialInstance->K2_GetScalarParameterValue(TEXT("ShapeMode")), 2.0f);
+			TestEqual(TEXT("A partial sector selects radial fill"), MaterialInstance->K2_GetScalarParameterValue(TEXT("FillMode")), 0.0f);
+			TestEqual(TEXT("A partial sector passes its own sweep angle"), MaterialInstance->K2_GetScalarParameterValue(TEXT("SweepAngleDegrees")), Cone.SweepAngleDegrees);
+			TestEqual(TEXT("A partial sector without a hole has no inner ratio"), MaterialInstance->K2_GetScalarParameterValue(TEXT("InnerRatio")), 0.0f);
 		}
 	}
 
 	TelegraphComp->HideAllShapes();
-	Cone.Range = 0.0f;
+	Cone.OuterRadius = 0.0f;
 	TelegraphComp->ShowShape(Cone, ConeTransform, Presentation);
 	TestFalse(TEXT("Invalid cone does not reactivate the pooled decal"), PooledDecal && PooledDecal->IsVisible());
 

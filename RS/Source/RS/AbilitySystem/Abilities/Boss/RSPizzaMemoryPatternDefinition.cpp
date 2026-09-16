@@ -1,6 +1,7 @@
-#include "RSPizzaMemoryPatternDefinition.h"
+﻿#include "RSPizzaMemoryPatternDefinition.h"
 
 #include "Combat/RSCircularSliceMath.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 
 FRSPizzaMemoryPatternDefinition::FRSPizzaMemoryPatternDefinition()
 {
@@ -138,6 +139,21 @@ bool FRSPizzaMemoryPatternDefinition::TryCopySafeZoneSequenceCandidate(int32 Can
 float FRSPizzaMemoryPatternDefinition::CalculateSliceAngleDegrees() const
 {
 	return RSCircularSliceMath::CalculateSliceAngleDegrees(SliceCount);
+}
+
+bool FRSPizzaMemoryPatternDefinition::TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const
+{
+	OutSliceShape = FRSCombatShape();
+
+	// 조각 Transform이 조각 중심을 향하므로 첫 경계를 조각 각도의 절반만큼 뒤로 물립니다
+	const float SliceAngleDegrees = CalculateSliceAngleDegrees();
+	OutSliceShape.Type = ERSCombatShapeType::AnnularSector;
+	OutSliceShape.OuterRadius = OuterRadius;
+	OutSliceShape.StartYawOffset = -SliceAngleDegrees * 0.5f;
+	OutSliceShape.SweepAngleDegrees = SliceAngleDegrees;
+
+	// 잘못된 설정과 보스가 삼킨 조각을 같은 실패로 돌려주므로 호출자가 두 경우를 나누지 않습니다
+	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSliceShape, MinimumInnerRadius);
 }
 
 bool FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex)

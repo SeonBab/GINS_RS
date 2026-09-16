@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
@@ -90,6 +90,12 @@ struct FRSPizzaMemoryPatternDefinition
 
 	/** 고정된 8개 조각 중 하나가 차지하는 각도를 반환합니다 */
 	float CalculateSliceAngleDegrees() const;
+
+	/**
+	 * 예고, 판정과 연출이 함께 사용할 조각 하나의 형상을 만들고 안쪽 경계를 하한까지 밀어 올립니다
+	 * 하한이 조각을 전부 삼켜 판정할 면적이 남지 않으면 실패를 알립니다
+	 */
+	bool TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const;
 
 	/** 안전지대 쌍에 대응하는 두 조각 인덱스를 반환합니다 */
 	static bool TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex);

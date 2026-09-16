@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
@@ -40,7 +40,7 @@ private:
 	void HandleAttackStartDelayFinished();
 
 	/** 보스의 현재 Capsule 바닥과 Forward를 월드 고정 Transform으로 캡처합니다 */
-	bool TryCaptureLockedPatternTransform();
+	bool TryCaptureLockedPatternState();
 
 	/** 후보 목록에서 같은 확률로 하나를 선택해 이번 실행의 단일 배열로 복사합니다 */
 	bool TrySelectSafeZoneSequence();
@@ -99,6 +99,9 @@ protected:
 private:
 	/** 공격 시작 지연 뒤 한 번 캡처해 이후 암기 표시와 폭발이 공유할 Transform입니다 */
 	FTransform LockedPatternTransform = FTransform::Identity;
+
+	/** 공격 시작 시점에 보스 캡슐 하한까지 밀어 올려 캡처한 조각 형상이며 예고, 판정과 연출이 함께 읽습니다 */
+	FRSCombatShape ActiveSliceShape;
 
 	/** 활성화마다 후보 하나를 복사해 이후 암기와 폭발이 함께 순회할 안전지대 배열입니다 */
 	TArray<ERSPizzaMemorySafePair> ActiveSafePairs;

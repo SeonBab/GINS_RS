@@ -11,6 +11,8 @@
 
 namespace RSDamageNumberTest
 {
+	constexpr float PlayerCharacterHeight = 180.0f;
+
 	// 테스트마다 새 객체를 사용해 이전 구독이 결과에 섞이지 않게 합니다
 	struct FFixture
 	{
@@ -42,7 +44,7 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 		for (int32 Index = 0; Index < UE_ARRAY_COUNT(AppliedDamages); ++Index)
 		{
 			RSDamageNumberTest::FFixture Fixture;
-			Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+			Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 			Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(AppliedDamages[Index], TargetLocation);
 
 			const FString Context = FString::Printf(TEXT("Display %.1f"), AppliedDamages[Index]);
@@ -56,7 +58,7 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 	// 자릿수가 늘어도 구분 기호를 넣지 않습니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(12345.0f, TargetLocation);
 
 		if (TestEqual(TEXT("No grouping"), Fixture.Listener->RequestedTexts.Num(), 1))
@@ -71,7 +73,7 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 		for (float NonPositiveDamage : NonPositiveDamages)
 		{
 			RSDamageNumberTest::FFixture Fixture;
-			Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+			Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 			Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(NonPositiveDamage, TargetLocation);
 
 			const FString Context = FString::Printf(TEXT("Non positive %.1f"), NonPositiveDamage);
@@ -79,10 +81,10 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	// 앵커는 전달된 원좌표를 수직으로만 옮기며, 옮기는 양은 위치와 무관합니다
+	// 앵커는 대상의 바닥에서 플레이어 캐릭터 높이만큼 수직으로 올립니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 
 		const FVector SecondLocation(-40.0f, 15.0f, 900.0f);
 		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(10.0f, TargetLocation);
@@ -95,17 +97,31 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 
 			TestEqual(TEXT("Anchor X"), FirstAnchor.X, TargetLocation.X);
 			TestEqual(TEXT("Anchor Y"), FirstAnchor.Y, TargetLocation.Y);
-			TestTrue(TEXT("Anchor is raised"), FirstAnchor.Z > TargetLocation.Z);
-
-			// 표시 높이는 조정용 값이므로 특정 수치를 고정하지 않고 좌표에 무관하다는 계약만 검사합니다
+			TestEqual(TEXT("Anchor Z"), FirstAnchor.Z, TargetLocation.Z + RSDamageNumberTest::PlayerCharacterHeight);
 			TestEqual(TEXT("Anchor offset is translation invariant"), SecondAnchor - SecondLocation, FirstAnchor - TargetLocation);
 		}
+	}
+
+	// 같은 ASC를 쓰는 새 Pawn이 등록되면 배선은 유지하고 표시 높이만 새 체형으로 갱신합니다
+	{
+		RSDamageNumberTest::FFixture Fixture;
+		constexpr float ReplacementPlayerCharacterHeight = 220.0f;
+
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, ReplacementPlayerCharacterHeight);
+		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(10.0f, TargetLocation);
+
+		if (TestEqual(TEXT("Updated height anchor count"), Fixture.Listener->RequestedAnchors.Num(), 1))
+		{
+			TestEqual(TEXT("Updated height anchor Z"), Fixture.Listener->RequestedAnchors[0].Z, TargetLocation.Z + ReplacementPlayerCharacterHeight);
+		}
+		TestEqual(TEXT("Updated height reset count"), Fixture.Listener->ResetCount, 0);
 	}
 
 	// 같은 값이 연속으로 들어와도 요청은 매번 발생해야 합니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 
 		for (int32 RepeatIndex = 0; RepeatIndex < 3; ++RepeatIndex)
 		{
@@ -118,8 +134,8 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 	// 같은 ASC 재초기화는 배선을 유지하며 표시 중인 숫자를 폐기하지 않습니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(10.0f, TargetLocation);
 
 		TestEqual(TEXT("Reinitialize request count"), Fixture.Listener->RequestedTexts.Num(), 1);
@@ -129,8 +145,8 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 	// nullptr은 해제가 아니라 아무 작업도 하지 않는다는 계약입니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
-		Fixture.ViewModel->InitializeViewModel(nullptr);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
+		Fixture.ViewModel->InitializeViewModel(nullptr, RSDamageNumberTest::PlayerCharacterHeight);
 		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(10.0f, TargetLocation);
 
 		TestEqual(TEXT("Null reinitialize request count"), Fixture.Listener->RequestedTexts.Num(), 1);
@@ -140,7 +156,7 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 	// 해제는 폐기를 한 번 요청하고 이후 이벤트를 받지 않습니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 		Fixture.ViewModel->UninitializeViewModel();
 		Fixture.AbilitySystemComp->OnDamageDealt.Broadcast(10.0f, TargetLocation);
 
@@ -151,7 +167,7 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 	// 해제는 멱등이므로 두 번 호출해도 폐기는 한 번입니다
 	{
 		RSDamageNumberTest::FFixture Fixture;
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 		Fixture.ViewModel->UninitializeViewModel();
 		Fixture.ViewModel->UninitializeViewModel();
 
@@ -171,8 +187,8 @@ bool FRSDamageNumberTest::RunTest(const FString& Parameters)
 		RSDamageNumberTest::FFixture Fixture;
 		URSAbilitySystemComponent* SecondAbilitySystemComp = NewObject<URSAbilitySystemComponent>();
 
-		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp);
-		Fixture.ViewModel->InitializeViewModel(SecondAbilitySystemComp);
+		Fixture.ViewModel->InitializeViewModel(Fixture.AbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
+		Fixture.ViewModel->InitializeViewModel(SecondAbilitySystemComp, RSDamageNumberTest::PlayerCharacterHeight);
 
 		TestEqual(TEXT("Swap reset count"), Fixture.Listener->ResetCount, 1);
 
