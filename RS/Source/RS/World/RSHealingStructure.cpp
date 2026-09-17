@@ -14,24 +14,20 @@ ARSHealingStructure::ARSHealingStructure()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// 레벨에서 옮기는 대상은 눈에 보이는 본체이므로 감지 영역의 크기를 바꿔도 배치 기준이 흔들리지 않게 본체를 Root로 둡니다
-	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
-	SetRootComponent(BodyMesh);
-
-	ChargedMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChargedMesh"));
-	ChargedMesh->SetupAttachment(BodyMesh);
-
-	// 충전 표시는 상태를 보여줄 뿐이므로 플레이어의 이동이나 판정을 막지 않습니다
-	ChargedMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
 	TriggerArea = CreateDefaultSubobject<USphereComponent>(TEXT("TriggerArea"));
-	TriggerArea->SetupAttachment(BodyMesh);
+	SetRootComponent(TriggerArea);
 
 	TriggerArea->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	TriggerArea->SetCollisionObjectType(ECC_WorldDynamic);
 	TriggerArea->SetCollisionResponseToAllChannels(ECR_Ignore);
 	TriggerArea->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	TriggerArea->SetGenerateOverlapEvents(true);
+
+	ChargedMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChargedMesh"));
+	ChargedMesh->SetupAttachment(TriggerArea);
+
+	// 충전 표시는 상태를 보여줄 뿐이므로 플레이어의 이동이나 판정을 막지 않습니다
+	ChargedMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void ARSHealingStructure::BeginPlay()
@@ -64,6 +60,20 @@ void ARSHealingStructure::BecomeCharged()
 {
 	SetCharged(true);
 
+	// 충전 표시가 나타난 프레임에 바로 회복하면 Mesh가 보이자마자 사라져 아무 일도 없었던 것처럼 보입니다
+	if (ChargedHealDelaySeconds <= 0.0f)
+	{
+		// 0은 Timer가 아예 예약되지 않아 회복이 사라지므로 직접 호출합니다
+		HandleChargedHealDelayFinished();
+
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(ChargedHealDelayTimerHandle, this, &ThisClass::HandleChargedHealDelayFinished, ChargedHealDelaySeconds, false);
+}
+
+void ARSHealingStructure::HandleChargedHealDelayFinished()
+{
 	// 충전이 찬 순간에 영역 안에 있던 대상이 다시 나갔다 들어와야 회복받는 상황을 만들지 않습니다
 	TryHealTargetInTriggerArea();
 }
@@ -76,7 +86,7 @@ bool ARSHealingStructure::TryHealTarget(AActor* TargetActor)
 	}
 
 	const ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(TargetActor);
-	if (!NeedsHealing(PlayerCharacter))
+	if (!CanReceiveHealing(PlayerCharacter))
 	{
 		return false;
 	}
@@ -140,7 +150,7 @@ bool ARSHealingStructure::TryApplyHealEffect(const ARSPlayerCharacter* TargetPla
 	return true;
 }
 
-bool ARSHealingStructure::NeedsHealing(const ARSPlayerCharacter* PlayerCharacter)
+bool ARSHealingStructure::CanReceiveHealing(const ARSPlayerCharacter* PlayerCharacter)
 {
 	if (!PlayerCharacter)
 	{
@@ -148,13 +158,11 @@ bool ARSHealingStructure::NeedsHealing(const ARSPlayerCharacter* PlayerCharacter
 	}
 
 	const URSHealthComponent* HealthComp = PlayerCharacter->GetHealthComponent();
-	if (!HealthComp || HealthComp->IsDead())
-	{
-		return false;
-	}
 
-	// 체력이 가득 찬 대상까지 회복시키면 다치지 않은 플레이어가 서 있는 것만으로 충전이 계속 소모됩니다
-	return HealthComp->GetHealth() < HealthComp->GetMaxHealth();
+	// 체력이 가득 찬 대상도 회복시켜 충전을 소모합니다
+	// 남겨 두면 영역 안에 서 있는 동안 재충전 타이머가 돌지 않아 그 자리에서 피해를 입어도 회복을 깨울 계기가 없습니다
+	// 넘치는 양은 URSHealthSet이 최대 체력으로 자릅니다
+	return HealthComp && !HealthComp->IsDead();
 }
 
 void ARSHealingStructure::SetCharged(bool bInCharged)
@@ -167,6 +175,9 @@ void ARSHealingStructure::SetCharged(bool bInCharged)
 void ARSHealingStructure::StartRecharge()
 {
 	SetCharged(false);
+
+	// 걸어 들어온 대상이 지연 중에 회복을 가져갔으면 남은 예약은 의미가 없습니다
+	GetWorldTimerManager().ClearTimer(ChargedHealDelayTimerHandle);
 
 	GetWorldTimerManager().SetTimer(RechargeTimerHandle, this, &ThisClass::HandleRechargeCompleted, RechargeSeconds, false);
 }
@@ -189,5 +200,24 @@ float ARSHealingStructure::GetRechargeRemainingForTest() const
 void ARSHealingStructure::CompleteRechargeForTest()
 {
 	HandleRechargeCompleted();
+}
+
+bool ARSHealingStructure::IsChargedHealDelayActiveForTest() const
+{
+	const UWorld* World = GetWorld();
+
+	return World && World->GetTimerManager().IsTimerActive(ChargedHealDelayTimerHandle);
+}
+
+float ARSHealingStructure::GetChargedHealDelayRemainingForTest() const
+{
+	const UWorld* World = GetWorld();
+
+	return World ? World->GetTimerManager().GetTimerRemaining(ChargedHealDelayTimerHandle) : -1.0f;
+}
+
+void ARSHealingStructure::CompleteChargedHealDelayForTest()
+{
+	HandleChargedHealDelayFinished();
 }
 #endif
