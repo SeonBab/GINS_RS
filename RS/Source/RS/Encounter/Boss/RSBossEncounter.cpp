@@ -71,7 +71,7 @@ void ARSBossEncounter::BeginPlay()
 void ARSBossEncounter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	CleanupOutcomeEvaluation();
-	UnbindAllParticipantDeathObservations();
+	UnbindAllParticipantHealthObservations();
 	StopTimeLimit();
 
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
@@ -113,7 +113,7 @@ void ARSBossEncounter::RegisterParticipant(ARSPlayerState* Participant)
 	}
 	else if (EncounterState == ERSBossEncounterState::Active)
 	{
-		BindParticipantDeathObservation(Participant);
+		BindParticipantHealthObservation(Participant);
 
 		if (ARSBossController* BossController = GetBossController())
 		{
@@ -139,7 +139,7 @@ void ARSBossEncounter::UnregisterParticipant(ARSPlayerState* Participant)
 		return;
 	}
 
-	UnbindParticipantDeathObservation(Participant);
+	UnbindParticipantHealthObservation(Participant);
 	Participants.Remove(Participant);
 
 	OnParticipantRemoved.Broadcast(this, Participant);
@@ -162,6 +162,8 @@ void ARSBossEncounter::BeginPreparing()
 
 	EncounterResult = ERSBossEncounterResult::None;
 	CompletionRemainingTimeSeconds = 0.0f;
+	CurrentHitCount = 0;
+	CompletionHitCount = 0;
 	EncounterState = ERSBossEncounterState::Preparing;
 	CleanupOutcomeEvaluation();
 }
@@ -176,12 +178,14 @@ void ARSBossEncounter::StartEncounter()
 	const ERSBossEncounterState OldState = EncounterState;
 
 	EncounterResult = ERSBossEncounterResult::None;
+	CurrentHitCount = 0;
+	CompletionHitCount = 0;
 	EncounterState = ERSBossEncounterState::Active;
 
 	// 시작 이벤트에서 유효한 제한 시간과 Boss 전투 상태를 관찰하도록 내부 준비를 먼저 끝냅니다
 	for (const TWeakObjectPtr<ARSPlayerState>& ParticipantReference : Participants)
 	{
-		BindParticipantDeathObservation(ParticipantReference.Get());
+		BindParticipantHealthObservation(ParticipantReference.Get());
 	}
 
 	StartTimeLimit();
@@ -208,10 +212,12 @@ void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
 
 	const ERSBossEncounterState OldState = EncounterState;
 	const float FinishedRemainingTimeSeconds = GetRemainingTimeSeconds();
+	const int32 FinishedHitCount = CurrentHitCount;
 
 	// 외부 getter가 중간 조합을 보지 않도록 종료 Snapshot과 Result를 먼저 구성한 뒤 State를 커밋합니다
 	EncounterResult = Result;
 	CompletionRemainingTimeSeconds = FinishedRemainingTimeSeconds;
+	CompletionHitCount = FinishedHitCount;
 	EncounterState = ERSBossEncounterState::Finished;
 
 	if (Result == ERSBossEncounterResult::Clear)
@@ -220,7 +226,7 @@ void ARSBossEncounter::ResolveEncounter(ERSBossEncounterResult Result)
 	}
 
 	CleanupOutcomeEvaluation();
-	UnbindAllParticipantDeathObservations();
+	UnbindAllParticipantHealthObservations();
 	StopTimeLimit();
 	NotifyBossEncounterEnded();
 
@@ -304,10 +310,12 @@ void ARSBossEncounter::ResetEncounter()
 	EncounterResult = ERSBossEncounterResult::None;
 	bHasTimeLimitExpired = false;
 	CompletionRemainingTimeSeconds = 0.0f;
+	CurrentHitCount = 0;
+	CompletionHitCount = 0;
 	EncounterState = ERSBossEncounterState::Inactive;
 
 	CleanupOutcomeEvaluation();
-	UnbindAllParticipantDeathObservations();
+	UnbindAllParticipantHealthObservations();
 	StopTimeLimit();
 
 	if (OldState == ERSBossEncounterState::Active)
@@ -355,6 +363,21 @@ float ARSBossEncounter::GetRemainingTimeSeconds() const
 
 	// 예약되지 않았거나 이미 만료된 타이머는 -1을 반환하므로 표시 계층에 그대로 전달하지 않습니다
 	return FMath::Max(RemainingSeconds, 0.0f);
+}
+
+int32 ARSBossEncounter::GetHitCount() const
+{
+	if (EncounterState == ERSBossEncounterState::Active)
+	{
+		return CurrentHitCount;
+	}
+
+	if (EncounterState == ERSBossEncounterState::Finished)
+	{
+		return CompletionHitCount;
+	}
+
+	return 0;
 }
 
 void ARSBossEncounter::GetActiveParticipantPawns(TArray<APawn*>& OutParticipantPawns) const
@@ -468,7 +491,7 @@ void ARSBossEncounter::NotifyBossEncounterEnded()
 	}
 }
 
-void ARSBossEncounter::BindParticipantDeathObservation(ARSPlayerState* Participant)
+void ARSBossEncounter::BindParticipantHealthObservation(ARSPlayerState* Participant)
 {
 	if (EncounterState != ERSBossEncounterState::Active || !IsValid(Participant))
 	{
@@ -482,7 +505,7 @@ void ARSBossEncounter::BindParticipantDeathObservation(ARSPlayerState* Participa
 		return;
 	}
 
-	if (TWeakObjectPtr<URSHealthComponent>* ExistingHealthComponentReference = ParticipantDeathHealthComponents.Find(Participant))
+	if (TWeakObjectPtr<URSHealthComponent>* ExistingHealthComponentReference = ParticipantHealthComponents.Find(Participant))
 	{
 		if (ExistingHealthComponentReference->Get() == HealthComponent)
 		{
@@ -491,39 +514,43 @@ void ARSBossEncounter::BindParticipantDeathObservation(ARSPlayerState* Participa
 
 		if (URSHealthComponent* ExistingHealthComponent = ExistingHealthComponentReference->Get())
 		{
+			ExistingHealthComponent->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleParticipantHealthChanged);
 			ExistingHealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
 		}
 	}
 
+	HealthComponent->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleParticipantHealthChanged);
 	HealthComponent->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleParticipantDeathStarted);
-	ParticipantDeathHealthComponents.Add(Participant, HealthComponent);
+	ParticipantHealthComponents.Add(Participant, HealthComponent);
 }
 
-void ARSBossEncounter::UnbindParticipantDeathObservation(ARSPlayerState* Participant)
+void ARSBossEncounter::UnbindParticipantHealthObservation(ARSPlayerState* Participant)
 {
 	TWeakObjectPtr<URSHealthComponent> HealthComponentReference;
-	if (!ParticipantDeathHealthComponents.RemoveAndCopyValue(Participant, HealthComponentReference))
+	if (!ParticipantHealthComponents.RemoveAndCopyValue(Participant, HealthComponentReference))
 	{
 		return;
 	}
 
 	if (URSHealthComponent* HealthComponent = HealthComponentReference.Get())
 	{
+		HealthComponent->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleParticipantHealthChanged);
 		HealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
 	}
 }
 
-void ARSBossEncounter::UnbindAllParticipantDeathObservations()
+void ARSBossEncounter::UnbindAllParticipantHealthObservations()
 {
-	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantDeathHealthComponents)
+	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantHealthComponents)
 	{
 		if (URSHealthComponent* HealthComponent = Observation.Value.Get())
 		{
+			HealthComponent->OnHealthChanged.RemoveDynamic(this, &ThisClass::HandleParticipantHealthChanged);
 			HealthComponent->OnDeathStarted.RemoveDynamic(this, &ThisClass::HandleParticipantDeathStarted);
 		}
 	}
 
-	ParticipantDeathHealthComponents.Reset();
+	ParticipantHealthComponents.Reset();
 }
 
 void ARSBossEncounter::RequestFailedOutcome()
@@ -764,6 +791,23 @@ void ARSBossEncounter::UnregisterParticipantEncounterSource(ARSPlayerState* Part
 	}
 }
 
+void ARSBossEncounter::HandleParticipantHealthChanged(URSHealthComponent* HealthComponent, float OldValue, float NewValue)
+{
+	if (EncounterState != ERSBossEncounterState::Active || !IsValid(HealthComponent) || NewValue >= OldValue)
+	{
+		return;
+	}
+
+	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantHealthComponents)
+	{
+		if (Observation.Value.Get() == HealthComponent)
+		{
+			++CurrentHitCount;
+			return;
+		}
+	}
+}
+
 void ARSBossEncounter::HandleParticipantDeathStarted(URSHealthComponent* HealthComponent)
 {
 	if (EncounterState != ERSBossEncounterState::Active || !IsValid(HealthComponent))
@@ -771,7 +815,7 @@ void ARSBossEncounter::HandleParticipantDeathStarted(URSHealthComponent* HealthC
 		return;
 	}
 
-	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantDeathHealthComponents)
+	for (const TPair<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>>& Observation : ParticipantHealthComponents)
 	{
 		if (Observation.Value.Get() == HealthComponent)
 		{

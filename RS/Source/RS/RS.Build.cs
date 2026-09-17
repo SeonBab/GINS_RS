@@ -40,6 +40,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "Input"),
 			Path.Combine(ModuleDirectory, "Loading"),
 			Path.Combine(ModuleDirectory, "PlayerState"),
+			Path.Combine(ModuleDirectory, "Scoreboard"),
 			Path.Combine(ModuleDirectory, "Settings"),
 			Path.Combine(ModuleDirectory, "UI"),
 			Path.Combine(ModuleDirectory, "UI", "HeadUpDisplay"),

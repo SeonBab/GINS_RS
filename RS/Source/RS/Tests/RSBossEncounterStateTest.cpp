@@ -36,6 +36,7 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("Initial state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Inactive);
 	TestEqual(TEXT("Initial result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
+	TestEqual(TEXT("Initial hit count"), BossEncounter->GetHitCount(), 0);
 	TestFalse(TEXT("Initial timer hidden"), TimerViewModel->bIsVisible);
 
 	BossEncounter->StartEncounter();
@@ -53,6 +54,7 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	BossEncounter->StartEncounter();
 	TestEqual(TEXT("Active state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Active);
 	TestEqual(TEXT("Active result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
+	TestEqual(TEXT("Active hit count starts at zero"), BossEncounter->GetHitCount(), 0);
 	TestTrue(TEXT("Active timer scheduled"), TestWorld->GetTimerManager().IsTimerActive(BossEncounter->TimeLimitTimerHandle));
 	TestTrue(TEXT("Started event refreshes timer visibility"), TimerViewModel->bIsVisible);
 	TestTrue(TEXT("Started event enables timer tick"), TimerViewModel->IsTickable());
@@ -61,9 +63,11 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Invalid result keeps active state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Active);
 	TestEqual(TEXT("Invalid result is not committed"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
 
+	AddExpectedError(TEXT("cannot apply boss clear damage immunity because its effect class is unset"), EAutomationExpectedErrorFlags::Contains, 1);
 	BossEncounter->ResolveEncounter(ERSBossEncounterResult::Clear);
 	TestEqual(TEXT("Clear state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Finished);
 	TestEqual(TEXT("Clear result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("Clear captures zero hit count"), BossEncounter->GetHitCount(), 0);
 	TestFalse(TEXT("Finished timer stopped"), TestWorld->GetTimerManager().IsTimerActive(BossEncounter->TimeLimitTimerHandle));
 	TestTrue(TEXT("Ended event keeps finished timer visible"), TimerViewModel->bIsVisible);
 	TestFalse(TEXT("Ended event stops timer tick"), TimerViewModel->IsTickable());
@@ -90,6 +94,7 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Finished reset state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Inactive);
 	TestEqual(TEXT("Finished reset result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
 	TestEqual(TEXT("Finished reset snapshot"), BossEncounter->GetRemainingTimeSeconds(), 0.0f);
+	TestEqual(TEXT("Finished reset hit count"), BossEncounter->GetHitCount(), 0);
 	// 실제 런타임에서는 Source 해제로 초기화되며, 직접 연결한 단위 테스트는 같은 Source 재동기화를 명시합니다
 	TimerViewModel->InitializeViewModel(BossEncounter);
 	TestEqual(TEXT("Finished reset clears ViewModel result"), TimerViewModel->Result, ERSBossEncounterResult::None);
@@ -121,30 +126,48 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 
 	BossEncounter->BeginPreparing();
 	BossEncounter->RegisterParticipant(FirstParticipant);
-	TestEqual(TEXT("Preparing participant death observation is deferred"), BossEncounter->ParticipantDeathHealthComponents.Num(), 0);
+	TestEqual(TEXT("Preparing participant health observation is deferred"), BossEncounter->ParticipantHealthComponents.Num(), 0);
 
 	AddExpectedError(TEXT("has no BossCharacter"), EAutomationExpectedErrorFlags::Contains, 1);
 	BossEncounter->StartEncounter();
-	TestEqual(TEXT("Preparing participant binds on active start"), BossEncounter->ParticipantDeathHealthComponents.Num(), 1);
-	TestEqual(TEXT("First participant uses actual health component"), BossEncounter->ParticipantDeathHealthComponents.FindRef(FirstParticipant).Get(), FirstHealthComponent);
+	TestEqual(TEXT("Preparing participant binds on active start"), BossEncounter->ParticipantHealthComponents.Num(), 1);
+	TestEqual(TEXT("First participant uses actual health component"), BossEncounter->ParticipantHealthComponents.FindRef(FirstParticipant).Get(), FirstHealthComponent);
+	TestTrue(TEXT("First participant health delegate is bound"), FirstHealthComponent->OnHealthChanged.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantHealthChanged));
 	TestTrue(TEXT("First participant death delegate is bound"), FirstHealthComponent->OnDeathStarted.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantDeathStarted));
+	TestEqual(TEXT("Participant encounter hit count starts at zero"), BossEncounter->GetHitCount(), 0);
+
+	BossEncounter->HandleParticipantHealthChanged(FirstHealthComponent, 100.0f, 90.0f);
+	TestEqual(TEXT("Health decrease notification counts one hit"), BossEncounter->GetHitCount(), 1);
+	BossEncounter->HandleParticipantHealthChanged(FirstHealthComponent, 90.0f, 90.0f);
+	TestEqual(TEXT("Unchanged health does not count a hit"), BossEncounter->GetHitCount(), 1);
+	BossEncounter->HandleParticipantHealthChanged(FirstHealthComponent, 90.0f, 100.0f);
+	TestEqual(TEXT("Health recovery does not count a hit"), BossEncounter->GetHitCount(), 1);
+	BossEncounter->HandleParticipantHealthChanged(FirstHealthComponent, 90.0f, 80.0f);
+	TestEqual(TEXT("Repeated health decrease counts another hit"), BossEncounter->GetHitCount(), 2);
 
 	BossEncounter->RegisterParticipant(FirstParticipant);
-	TestEqual(TEXT("Duplicate participant does not duplicate death observation"), BossEncounter->ParticipantDeathHealthComponents.Num(), 1);
+	TestEqual(TEXT("Duplicate participant does not duplicate health observation"), BossEncounter->ParticipantHealthComponents.Num(), 1);
 
 	ARSPlayerState* SecondParticipant = TestWorld->SpawnActor<ARSPlayerState>();
 	ARSPlayerCharacter* SecondPlayerCharacter = TestWorld->SpawnActor<ARSPlayerCharacter>();
 	SecondPlayerCharacter->SetPlayerState(SecondParticipant);
 	URSHealthComponent* SecondHealthComponent = SecondPlayerCharacter->GetHealthComponent();
 	BossEncounter->RegisterParticipant(SecondParticipant);
-	TestEqual(TEXT("Active participant binds immediately"), BossEncounter->ParticipantDeathHealthComponents.Num(), 2);
-	TestEqual(TEXT("Second participant uses actual health component"), BossEncounter->ParticipantDeathHealthComponents.FindRef(SecondParticipant).Get(), SecondHealthComponent);
+	TestEqual(TEXT("Active participant binds immediately"), BossEncounter->ParticipantHealthComponents.Num(), 2);
+	TestEqual(TEXT("Second participant uses actual health component"), BossEncounter->ParticipantHealthComponents.FindRef(SecondParticipant).Get(), SecondHealthComponent);
+	TestTrue(TEXT("Second participant health delegate is bound"), SecondHealthComponent->OnHealthChanged.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantHealthChanged));
+	BossEncounter->HandleParticipantHealthChanged(SecondHealthComponent, 100.0f, 95.0f);
+	TestEqual(TEXT("Active participants share the encounter hit count"), BossEncounter->GetHitCount(), 3);
 
 	BossEncounter->UnregisterParticipant(SecondParticipant);
-	TestEqual(TEXT("Participant removal unbinds death observation"), BossEncounter->ParticipantDeathHealthComponents.Num(), 1);
-	TestEqual(TEXT("First participant observation remains after second removal"), BossEncounter->ParticipantDeathHealthComponents.FindRef(FirstParticipant).Get(), FirstHealthComponent);
+	TestEqual(TEXT("Participant removal unbinds health observation"), BossEncounter->ParticipantHealthComponents.Num(), 1);
+	TestEqual(TEXT("First participant observation remains after second removal"), BossEncounter->ParticipantHealthComponents.FindRef(FirstParticipant).Get(), FirstHealthComponent);
+	TestTrue(TEXT("First participant health delegate remains after second removal"), FirstHealthComponent->OnHealthChanged.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantHealthChanged));
 	TestTrue(TEXT("First participant delegate remains after second removal"), FirstHealthComponent->OnDeathStarted.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantDeathStarted));
+	TestFalse(TEXT("Removed participant health delegate is unbound"), SecondHealthComponent->OnHealthChanged.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantHealthChanged));
 	TestFalse(TEXT("Removed participant death delegate is unbound"), SecondHealthComponent->OnDeathStarted.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantDeathStarted));
+	BossEncounter->HandleParticipantHealthChanged(SecondHealthComponent, 95.0f, 90.0f);
+	TestEqual(TEXT("Removed participant health change does not count"), BossEncounter->GetHitCount(), 3);
 
 	TestEqual(TEXT("Death callback scenario remains active"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Active);
 	TestTrue(TEXT("Death callback health component is valid"), IsValid(FirstHealthComponent));
@@ -189,10 +212,17 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 
 	BossEncounter->ClearCandidateFrame.Emplace(GFrameCounter - 1);
 	BossEncounter->FailedCandidateFrame.Emplace(GFrameCounter - 1);
+	const int32 ExpectedCompletionHitCount = BossEncounter->GetHitCount();
+	AddExpectedError(TEXT("cannot apply boss clear damage immunity because its effect class is unset"), EAutomationExpectedErrorFlags::Contains, 1);
 	BossEncounter->EvaluateOutcome();
 	TestEqual(TEXT("Same-frame integration result clears"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::Clear);
-	TestEqual(TEXT("Finished cleanup removes death observations"), BossEncounter->ParticipantDeathHealthComponents.Num(), 0);
+	TestEqual(TEXT("Finished encounter preserves hit count snapshot"), BossEncounter->GetHitCount(), ExpectedCompletionHitCount);
+	TestEqual(TEXT("Finished encounter stores hit count snapshot"), BossEncounter->CompletionHitCount, ExpectedCompletionHitCount);
+	TestEqual(TEXT("Finished cleanup removes health observations"), BossEncounter->ParticipantHealthComponents.Num(), 0);
+	TestFalse(TEXT("Finished cleanup unbinds participant health delegate"), FirstHealthComponent->OnHealthChanged.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantHealthChanged));
 	TestFalse(TEXT("Finished cleanup unbinds participant delegate"), FirstHealthComponent->OnDeathStarted.IsAlreadyBound(BossEncounter, &ARSBossEncounter::HandleParticipantDeathStarted));
+	BossEncounter->HandleParticipantHealthChanged(FirstHealthComponent, 80.0f, 70.0f);
+	TestEqual(TEXT("Finished health change cannot alter hit count snapshot"), BossEncounter->GetHitCount(), ExpectedCompletionHitCount);
 	TestFalse(TEXT("Finished cleanup removes pending evaluation"), BossEncounter->bIsOutcomeEvaluationPending);
 	TestFalse(TEXT("Finished cleanup invalidates evaluation timer"), BossEncounter->OutcomeEvaluationTimerHandle.IsValid());
 
@@ -209,6 +239,7 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	BossEncounter->RegisterParticipant(FirstParticipant);
 	BossEncounter->RequestClearOutcome();
 	BossEncounter->ClearCandidateFrame.Emplace(GFrameCounter - 1);
+	AddExpectedError(TEXT("cannot apply boss clear damage immunity because its effect class is unset"), EAutomationExpectedErrorFlags::Contains, 1);
 	BossEncounter->EvaluateOutcome();
 	TestEqual(TEXT("Boss-only integration result clears"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::Clear);
 
@@ -221,7 +252,8 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Reset clears pending evaluation"), BossEncounter->bIsOutcomeEvaluationPending);
 	TestFalse(TEXT("Reset clears failed candidate"), BossEncounter->FailedCandidateFrame.IsSet());
 	TestFalse(TEXT("Reset invalidates evaluation timer"), BossEncounter->OutcomeEvaluationTimerHandle.IsValid());
-	TestEqual(TEXT("Reset removes death observations"), BossEncounter->ParticipantDeathHealthComponents.Num(), 0);
+	TestEqual(TEXT("Reset removes health observations"), BossEncounter->ParticipantHealthComponents.Num(), 0);
+	TestEqual(TEXT("Reset clears hit count"), BossEncounter->GetHitCount(), 0);
 	BossEncounter->EvaluateOutcome();
 	TestEqual(TEXT("Stale evaluation cannot change reset state"), BossEncounter->GetEncounterState(), ERSBossEncounterState::Inactive);
 	TestEqual(TEXT("Stale evaluation cannot set reset result"), BossEncounter->GetEncounterResult(), ERSBossEncounterResult::None);
@@ -259,6 +291,8 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("GameMode preserves Clear result"), GameMode->GetBossResult(), ERSBossEncounterResult::Clear);
 	TestTrue(TEXT("Clear enters local Result Presentation boundary"), PlayerController->HasBossResultPresentationStarted());
 	TestEqual(TEXT("PlayerController receives Clear result"), PlayerController->GetBossResultPresentation(), ERSBossEncounterResult::Clear);
+	TestEqual(TEXT("PlayerController receives remaining time snapshot"), PlayerController->GetBossResultRemainingTimeSeconds(), BoundBossEncounter->GetRemainingTimeSeconds());
+	TestEqual(TEXT("PlayerController receives hit count snapshot"), PlayerController->GetBossResultHitCount(), BoundBossEncounter->GetHitCount());
 
 	GameMode->HandleBossEncounterFinished(BoundBossEncounter, ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("Duplicate Result Flow keeps first GameMode result"), GameMode->GetBossResult(), ERSBossEncounterResult::Clear);
@@ -273,6 +307,8 @@ bool FRSBossEncounterStateTest::RunTest(const FString& Parameters)
 	GameMode->BoundBossEncounter = BoundBossEncounter;
 	GameMode->BossResult.Reset();
 	PlayerController->BossResultPresentation.Reset();
+	PlayerController->BossResultRemainingTimeSeconds = 0.0f;
+	PlayerController->BossResultHitCount = 0;
 	GameMode->HandleBossEncounterFinished(BoundBossEncounter, ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("Failed starts a fresh GameMode Result Flow"), GameMode->GetBossResult(), ERSBossEncounterResult::Failed);
 	TestEqual(TEXT("PlayerController receives Failed result"), PlayerController->GetBossResultPresentation(), ERSBossEncounterResult::Failed);

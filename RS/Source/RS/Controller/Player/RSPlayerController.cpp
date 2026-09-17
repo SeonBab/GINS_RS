@@ -132,7 +132,7 @@ void ARSPlayerController::UnregisterViewModelSource(UObject* Source)
 	}
 }
 
-void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Result)
+void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount)
 {
 	const bool bIsValidResult = Result == ERSBossEncounterResult::Clear || Result == ERSBossEncounterResult::Failed;
 	if (!IsLocalController() || !bIsValidResult || BossResultPresentation.IsSet())
@@ -147,10 +147,12 @@ void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Res
 
 	// 기존 입력 정책은 유지하고 HUD에 정적으로 배치된 Result Widget만 표시합니다
 	BossResultPresentation.Emplace(Result);
+	BossResultRemainingTimeSeconds = FMath::Max(RemainingTimeSeconds, 0.0f);
+	BossResultHitCount = FMath::Max(HitCount, 0);
 
 	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
 	{
-		PlayerHeadUpDisplay->ShowBossResultPresentation(Result);
+		PlayerHeadUpDisplay->ShowBossResultPresentation(Result, BossResultRemainingTimeSeconds, BossResultHitCount);
 	}
 }
 

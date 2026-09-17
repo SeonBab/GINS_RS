@@ -62,8 +62,8 @@ private:
 	UFUNCTION()
 	void HandleBossEncounterFinished(ARSBossEncounter* BossEncounter, ERSBossEncounterResult Result);
 
-	/** Local PlayerController의 중립적인 Result Presentation 경계에 결과를 전달합니다 */
-	void RequestLocalBossResultPresentation(ERSBossEncounterResult Result);
+	/** Local PlayerController에 결과와 Encounter 완료 Snapshot을 전달합니다 */
+	void RequestLocalBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount);
 
 	/** 현재 Result Flow와 Action을 검증하고 최초 유효 Action을 커밋합니다 */
 	bool TryCommitBossResultAction(ERSBossResultAction Action);

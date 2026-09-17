@@ -56,14 +56,20 @@ public:
 	/** 로컬 ViewModel에 등록한 게임 데이터 원본을 해제합니다 */
 	void UnregisterViewModelSource(UObject* Source);
 
-	/** 확정된 Boss 결과를 후속 Local Presentation이 소비할 수 있도록 한 번만 기록합니다 */
-	void BeginBossResultPresentation(ERSBossEncounterResult Result);
+	/** 확정된 Boss 결과와 완료 Snapshot을 후속 Local Presentation이 소비할 수 있도록 한 번만 기록합니다 */
+	void BeginBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount);
 
 	/** Boss Result Presentation 진입 요청을 이미 받았는지 반환합니다 */
 	bool HasBossResultPresentationStarted() const { return BossResultPresentation.IsSet(); }
 
 	/** Local Presentation에 전달된 Boss Encounter 결과를 반환합니다 */
 	ERSBossEncounterResult GetBossResultPresentation() const;
+
+	/** Local Presentation에 전달된 완료 순간 남은 시간을 반환합니다 */
+	float GetBossResultRemainingTimeSeconds() const { return BossResultRemainingTimeSeconds; }
+
+	/** Local Presentation에 전달된 완료 순간 피격 횟수를 반환합니다 */
+	int32 GetBossResultHitCount() const { return BossResultHitCount; }
 
 	/** Local Result UI의 Action 의도를 현재 World의 Game Rule 계층으로 전달합니다 */
 	bool RequestBossResultAction(ERSBossResultAction Action);
@@ -115,6 +121,12 @@ private:
 
 	/** 후속 Presentation 정책과 분리해 보존하는 최초 Boss Encounter 결과입니다 */
 	TOptional<ERSBossEncounterResult> BossResultPresentation;
+
+	/** Result Presentation 수명 동안 보존하는 완료 순간 남은 시간입니다 */
+	float BossResultRemainingTimeSeconds = 0.0f;
+
+	/** Result Presentation 수명 동안 보존하는 완료 순간 피격 횟수입니다 */
+	int32 BossResultHitCount = 0;
 
 	/** Controller가 인게임 메뉴의 Pause와 입력 수명을 소유 중인지 나타냅니다 */
 	bool bIsInGameMenuOpen = false;

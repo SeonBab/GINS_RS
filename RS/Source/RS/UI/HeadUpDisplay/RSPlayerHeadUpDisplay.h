@@ -32,8 +32,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|User Interface")
 	URSPrimaryLayout* GetPrimaryLayout() const;
 
-	/** 정적으로 배치된 Boss Result Widget을 확정 결과와 함께 표시합니다 */
-	void ShowBossResultPresentation(ERSBossEncounterResult Result);
+	/** 정적으로 배치된 Boss Result Widget을 확정 결과와 완료 Snapshot으로 표시합니다 */
+	void ShowBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount);
 
 	/** 정적으로 배치된 Boss Result Widget의 두 Action Button 상태를 함께 변경합니다 */
 	void SetBossResultActionsEnabled(bool bEnabled);

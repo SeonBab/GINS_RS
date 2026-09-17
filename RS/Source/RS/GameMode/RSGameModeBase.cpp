@@ -93,10 +93,10 @@ void ARSGameModeBase::HandleBossEncounterFinished(ARSBossEncounter* BossEncounte
 	}
 
 	BossResult.Emplace(Result);
-	RequestLocalBossResultPresentation(Result);
+	RequestLocalBossResultPresentation(Result, BossEncounter->GetRemainingTimeSeconds(), BossEncounter->GetHitCount());
 }
 
-void ARSGameModeBase::RequestLocalBossResultPresentation(ERSBossEncounterResult Result)
+void ARSGameModeBase::RequestLocalBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -112,7 +112,7 @@ void ARSGameModeBase::RequestLocalBossResultPresentation(ERSBossEncounterResult 
 			continue;
 		}
 
-		PlayerController->BeginBossResultPresentation(Result);
+		PlayerController->BeginBossResultPresentation(Result, RemainingTimeSeconds, HitCount);
 		return;
 	}
 }

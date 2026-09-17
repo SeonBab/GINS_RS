@@ -53,7 +53,7 @@ URSPrimaryLayout* ARSPlayerHeadUpDisplay::GetPrimaryLayout() const
 	return PrimaryLayout;
 }
 
-void ARSPlayerHeadUpDisplay::ShowBossResultPresentation(ERSBossEncounterResult Result)
+void ARSPlayerHeadUpDisplay::ShowBossResultPresentation(ERSBossEncounterResult Result, float RemainingTimeSeconds, int32 HitCount)
 {
 	const bool bIsValidResult = Result == ERSBossEncounterResult::Clear || Result == ERSBossEncounterResult::Failed;
 	URSBossResultWidget* BossResultWidget = FindBossResultWidget();
@@ -65,6 +65,7 @@ void ARSPlayerHeadUpDisplay::ShowBossResultPresentation(ERSBossEncounterResult R
 	BossResultWidget->GetBossResultActionRequested().RemoveAll(this);
 	BossResultWidget->GetBossResultActionRequested().AddUObject(this, &ThisClass::HandleBossResultActionRequested);
 	BossResultWidget->SetActionsEnabled(true);
+	BossResultWidget->PresentResult(Result, RemainingTimeSeconds, HitCount);
 
 	// Widget 자신은 뒤쪽 입력을 막지 않고 Action Button만 Pointer 입력을 받게 합니다
 	BossResultWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -155,7 +156,10 @@ void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 	const ARSPlayerController* PlayerController = Cast<ARSPlayerController>(OwningPlayerController);
 	if (PlayerController && PlayerController->HasBossResultPresentationStarted())
 	{
-		ShowBossResultPresentation(PlayerController->GetBossResultPresentation());
+		ShowBossResultPresentation(
+			PlayerController->GetBossResultPresentation(),
+			PlayerController->GetBossResultRemainingTimeSeconds(),
+			PlayerController->GetBossResultHitCount());
 	}
 }
 

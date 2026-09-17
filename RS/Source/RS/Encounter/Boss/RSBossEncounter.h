@@ -137,6 +137,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	float GetRemainingTimeSeconds() const;
 
+	/** 진행 중에는 현재 피격 횟수를, 완료 뒤에는 종료 순간에 고정한 피격 횟수를 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Boss")
+	int32 GetHitCount() const;
+
 	/** 현재 보스전에서 제한 시간이 이미 만료되었는지 반환합니다 */
 	UFUNCTION(BlueprintPure, Category = "RS|Boss")
 	bool HasTimeLimitExpired() const { return bHasTimeLimitExpired; }
@@ -227,14 +231,14 @@ private:
 	/** Clear가 확정된 시점의 살아 있는 참가자에게 영구 피해 면역을 적용합니다 */
 	void ApplyBossClearDamageImmunity();
 
-	/** Active 참가자의 현재 HealthComponent에 사망 관찰을 중복 없이 연결합니다 */
-	void BindParticipantDeathObservation(ARSPlayerState* Participant);
+	/** Active 참가자의 현재 HealthComponent에 체력 변경과 사망 관찰을 중복 없이 연결합니다 */
+	void BindParticipantHealthObservation(ARSPlayerState* Participant);
 
-	/** 참가자에 대해 실제 연결했던 HealthComponent에서 사망 관찰을 해제합니다 */
-	void UnbindParticipantDeathObservation(ARSPlayerState* Participant);
+	/** 참가자에 대해 실제 연결했던 HealthComponent에서 체력 변경과 사망 관찰을 해제합니다 */
+	void UnbindParticipantHealthObservation(ARSPlayerState* Participant);
 
-	/** 모든 참가자 HealthComponent의 Active 범위 사망 관찰을 해제합니다 */
-	void UnbindAllParticipantDeathObservations();
+	/** 모든 참가자 HealthComponent의 Active 범위 체력 변경과 사망 관찰을 해제합니다 */
+	void UnbindAllParticipantHealthObservations();
 
 	/** 플레이어 사망으로 발생한 Failed 후보를 현재 Frame의 결과 판정에 기록합니다 */
 	void RequestFailedOutcome();
@@ -299,6 +303,10 @@ private:
 	 */
 	void UnregisterParticipantEncounterSource(ARSPlayerState* Participant);
 
+	/** 관찰 중인 참가자의 실제 체력 감소 통지 1건을 피격 1회로 집계합니다 */
+	UFUNCTION()
+	void HandleParticipantHealthChanged(URSHealthComponent* HealthComponent, float OldValue, float NewValue);
+
 	/** 관찰 중인 참가자의 사망을 Failed 결과 후보로 변환합니다 */
 	UFUNCTION()
 	void HandleParticipantDeathStarted(URSHealthComponent* HealthComponent);
@@ -318,8 +326,8 @@ private:
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<ARSPlayerState>> Participants;
 
-	/** 참가자별로 실제 사망 이벤트를 연결한 HealthComponent입니다 */
-	TMap<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>> ParticipantDeathHealthComponents;
+	/** 참가자별로 실제 체력 변경과 사망 이벤트를 연결한 HealthComponent입니다 */
+	TMap<TWeakObjectPtr<ARSPlayerState>, TWeakObjectPtr<URSHealthComponent>> ParticipantHealthComponents;
 
 	/** 서버에서 결정하고 클라이언트에 복제하는 보스전 결과입니다 */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
@@ -341,6 +349,12 @@ private:
 
 	/** 전투가 완료된 순간에 고정한 남은 시간이며 완료 이후 표시에 사용합니다 */
 	float CompletionRemainingTimeSeconds = 0.0f;
+
+	/** Active 전투 구간에서 집계 중인 피격 횟수입니다 */
+	int32 CurrentHitCount = 0;
+
+	/** Clear 또는 Failed 판정 순간에 고정한 피격 횟수입니다 */
+	int32 CompletionHitCount = 0;
 
 	/** Boss Death가 처음 기록된 엔진 Frame입니다 */
 	TOptional<uint64> ClearCandidateFrame;
