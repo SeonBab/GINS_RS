@@ -11,7 +11,7 @@
 
 namespace
 {
-	constexpr int32 ScoreboardSlotCount = 3;
+	constexpr int32 TestScoreboardSlotCount = 3;
 
 	FRSBossClearRecord MakeRecord(const FString& PlayerName, int32 RemainingTimeMilliseconds, int32 HitCount)
 	{
@@ -45,7 +45,7 @@ namespace
 
 		void DeleteSlots() const
 		{
-			for (int32 SlotIndex = 0; SlotIndex < ScoreboardSlotCount; ++SlotIndex)
+			for (int32 SlotIndex = 0; SlotIndex < TestScoreboardSlotCount; ++SlotIndex)
 			{
 				UGameplayStatics::DeleteGameInSlot(GetSlotName(SlotIndex), 0);
 			}
