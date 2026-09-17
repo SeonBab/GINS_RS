@@ -13,6 +13,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "GameplayEffect.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Combat/RSCombatFunctionLibrary.h"
@@ -135,6 +136,16 @@ namespace RSMeteorHazardTest
 		return PlayerCharacter;
 	}
 
+	/** 생성 Ability가 전달하는 것과 같은 유효한 장판 적중 스냅샷을 만듭니다 */
+	FRSBossPatternHitSpec MakeMeteorHitSpec()
+	{
+		FRSBossPatternHitSpec HitSpec;
+		HitSpec.DamageAmount = 100.0f;
+		HitSpec.DamageEffectClass = LoadClass<UGameplayEffect>(nullptr, TEXT("/Game/AbilitySystem/GameplayEffects/GE_Damage_Basic.GE_Damage_Basic_C"));
+
+		return HitSpec;
+	}
+
 	/** BeginPlay 전에 정의와 대상을 주입해 실제 운석 Actor 하나를 생성합니다 */
 	ARSBossMeteorHazard* SpawnMeteorHazard(UWorld* TestWorld, AActor* OwnerActor, AActor* TargetActor, const FRSBossMeteorHazardDefinition& Definition)
 	{
@@ -150,8 +161,7 @@ namespace RSMeteorHazardTest
 			return nullptr;
 		}
 
-		MeteorHazard->SetDefinitionForTest(Definition);
-		MeteorHazard->Initialize(TargetActor);
+		MeteorHazard->Initialize(TargetActor, Definition, MakeMeteorHitSpec());
 
 		// 표시 컴포넌트를 Actor가 직접 소유하므로 BeginPlay 전에 Blueprint 몫의 Material을 주입합니다
 		if (!ApplyTelegraphMaterial(MeteorHazard->FindComponentByClass<URSAttackTelegraphComponent>()))
@@ -269,8 +279,7 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	MeteorHazard->SetDefinitionForTest(Definition);
-	MeteorHazard->Initialize(TargetCharacter);
+	MeteorHazard->Initialize(TargetCharacter, Definition, RSMeteorHazardTest::MakeMeteorHitSpec());
 	URSAttackTelegraphComponent* TelegraphComp = MeteorHazard->FindComponentByClass<URSAttackTelegraphComponent>();
 	TestNotNull(TEXT("Meteor owns its telegraph component"), TelegraphComp);
 	TestTrue(TEXT("Meteor test telegraph material"), RSMeteorHazardTest::ApplyTelegraphMaterial(TelegraphComp));

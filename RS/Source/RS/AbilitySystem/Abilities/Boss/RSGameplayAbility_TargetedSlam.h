@@ -124,21 +124,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Aim", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float MaxAimDuration = 1.5f;
 
-	/** Cone에 포함된 대상에게 적용할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Hit", meta = (AllowPrivateAccess = "true"))
-	FScalableFloat Damage = 15.0f;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Hit", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
 	/** 보스 공격이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Hit", meta = (AllowPrivateAccess = "true"))
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
-
-	/** 판정에 걸린 대상에게 요청할 피격 반응이며 첫 통합 검증은 None입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Targeted Slam|Reaction", meta = (AllowPrivateAccess = "true"))
-	FRSHitReactionDefinition Reaction;
 
 private:
 	/** Telegraph와 HitCheck가 함께 사용하는 공격 확정 시점의 월드 Transform입니다 */

@@ -54,14 +54,6 @@ struct FRSSequentialSweepExplosionDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float TelegraphHideLeadTime = 0.05f;
 
-	/** 모든 부채꼴이 공유할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit")
-	FScalableFloat Damage = 10.0f;
-
-	/** 모든 부채꼴이 공유할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Reaction")
-	FRSHitReactionDefinition Reaction;
-
 	/** 런타임 계산에 사용할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
@@ -172,10 +164,6 @@ protected:
 	/** 초과하면 현재 Facing으로 공격을 강제 확정할 Aim 최대 시간입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Aim", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float MaxAimDuration = 1.5f;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 	/** 보스 공격이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Sequential Sweep Explosion|Hit")

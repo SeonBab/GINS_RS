@@ -70,15 +70,6 @@ bool FRSRandomFallingRocksDefinition::IsDataValid(FString* OutValidationError) c
 		return false;
 	}
 
-	const float DamageValue = Damage.GetValueAtLevel(1.0f);
-	constexpr float DamageIntegerTolerance = 0.01f;
-	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
-	{
-		SetValidationError(TEXT("Damage must evaluate to a finite non-negative integer at level 1."));
-
-		return false;
-	}
-
 	return true;
 }
 
@@ -190,11 +181,9 @@ void URSGameplayAbility_RandomFallingRocks::HandleRockImpact(FTransform ImpactTr
 	// 낙석은 빗나가도 바닥이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 재생합니다
 	PlayPatternPresentation(ImpactTransform);
 
-	const float DamageAmount = FallingRocksDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{
-		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(AvatarActor, HitTarget, FallingRocksDefinition.Reaction);
+		ApplyPatternHitToTarget(HitTarget);
 	}
 }
 
@@ -216,12 +205,6 @@ EDataValidationResult URSGameplayAbility_RandomFallingRocks::IsDataValid(FDataVa
 	if (!FallingRocksDefinition.IsDataValid(&ValidationError))
 	{
 		Context.AddError(FText::FromString(FString::Printf(TEXT("FallingRocksDefinition is invalid: %s"), *ValidationError)));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is not configured.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

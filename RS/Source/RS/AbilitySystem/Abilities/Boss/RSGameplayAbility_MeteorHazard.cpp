@@ -106,6 +106,13 @@ EDataValidationResult URSGameplayAbility_MeteorHazard::IsDataValid(FDataValidati
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
+	FString ValidationError;
+	if (!MeteorHazardDefinition.IsDataValid(&ValidationError))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("MeteorHazardDefinition is invalid: %s"), *ValidationError)));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
 	if (!FMath::IsFinite(AttackStartDelay) || AttackStartDelay < 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("AttackStartDelay must be a finite non-negative value.")));
@@ -165,7 +172,7 @@ void URSGameplayAbility_MeteorHazard::HandleStartDelayFinished()
 		return;
 	}
 
-	MeteorHazard->Initialize(TargetActor);
+	MeteorHazard->Initialize(TargetActor, MeteorHazardDefinition, MakePatternHitSpec());
 	PreparationFinishedDelegateHandle = MeteorHazard->OnPreparationFinished().AddUObject(this, &ThisClass::HandlePreparationFinished);
 	ActiveMeteorHazard = MeteorHazard;
 	UGameplayStatics::FinishSpawningActor(MeteorHazard, SpawnTransform);

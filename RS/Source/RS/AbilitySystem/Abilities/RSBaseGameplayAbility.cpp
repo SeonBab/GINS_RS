@@ -22,6 +22,11 @@ ERSAbilityActivationPolicy URSBaseGameplayAbility::GetActivationPolicy() const
 	return ActivationPolicy;
 }
 
+bool URSBaseGameplayAbility::ShouldRepeatWhileInputHeld() const
+{
+	return bRepeatWhileInputHeld;
+}
+
 const URSAbilityDefinition* URSBaseGameplayAbility::GetAbilityDefinition() const
 {
 	return AbilityDefinition;

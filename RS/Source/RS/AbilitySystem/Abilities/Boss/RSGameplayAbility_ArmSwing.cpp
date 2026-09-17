@@ -41,7 +41,7 @@ URSGameplayAbility_ArmSwing::URSGameplayAbility_ArmSwing()
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
-	Reaction.Type = ERSHitReactionType::Knockdown;
+	HitDefinition.Reaction.Type = ERSHitReactionType::Knockdown;
 }
 
 void URSGameplayAbility_ArmSwing::BeginPatternTimeline()
@@ -59,16 +59,16 @@ void URSGameplayAbility_ArmSwing::BeginPatternTimeline()
 		|| !IsVariantRuntimeValid(RightVariant)
 		|| LeftVariant.AttackMontage == RightVariant.AttackMontage
 		|| !AttackSector.IsDataValid()
-		|| !DamageEffectClass
-		|| Reaction.Type != ERSHitReactionType::Knockdown
-		|| !FMath::IsFinite(Reaction.KnockbackDistance)
-		|| !FMath::IsFinite(Reaction.KnockbackHeight)
-		|| !FMath::IsFinite(Reaction.KnockbackDuration)
+		|| !HitDefinition.DamageEffectClass
+		|| HitDefinition.Reaction.Type != ERSHitReactionType::Knockdown
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackDistance)
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackHeight)
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackDuration)
 		|| !FMath::IsFinite(MontagePlayRate)
 		|| MontagePlayRate <= 0.0f
-		|| Reaction.KnockbackDistance < 0.0f
-		|| Reaction.KnockbackHeight < 0.0f
-		|| Reaction.KnockbackDuration <= 0.0f
+		|| HitDefinition.Reaction.KnockbackDistance < 0.0f
+		|| HitDefinition.Reaction.KnockbackHeight < 0.0f
+		|| HitDefinition.Reaction.KnockbackDuration <= 0.0f
 		|| !FMath::IsFinite(AimRotationSpeed)
 		|| !FMath::IsFinite(AimYawTolerance)
 		|| !FMath::IsFinite(TargetDriftTolerance)
@@ -429,7 +429,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 	TArray<AActor*> CandidateTargets;
 	URSCombatFunctionLibrary::FindTargetsInShapeWithoutDebugDraw(BossCharacter, TargetChannel, CandidateShape, LockedAttackTransform, CandidateTargets);
 
-	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
+	const float DamageAmount = GetPatternDamageAmount();
 	if (!FMath::IsFinite(DamageAmount))
 	{
 		return false;
@@ -458,8 +458,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 
 		// 면역 결과와 무관하게 이 Window에서 같은 Actor에게 요청을 반복하지 않습니다
 		HitActors.Add(HitTargetPointer);
-		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(BossCharacter, HitTarget, Reaction, TangentDirection);
+		ApplyPatternHitToTarget(HitTarget, TangentDirection);
 	}
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
@@ -630,30 +629,19 @@ EDataValidationResult URSGameplayAbility_ArmSwing::IsDataValid(FDataValidationCo
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
 	if (!FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("MontagePlayRate must be finite and greater than zero.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(Damage, TEXT("Damage"), Context))
-	{
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (Reaction.Type != ERSHitReactionType::Knockdown
-		|| !FMath::IsFinite(Reaction.KnockbackDistance)
-		|| !FMath::IsFinite(Reaction.KnockbackHeight)
-		|| !FMath::IsFinite(Reaction.KnockbackDuration)
-		|| Reaction.KnockbackDistance < 0.0f
-		|| Reaction.KnockbackHeight < 0.0f
-		|| Reaction.KnockbackDuration <= 0.0f)
+	if (HitDefinition.Reaction.Type != ERSHitReactionType::Knockdown
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackDistance)
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackHeight)
+		|| !FMath::IsFinite(HitDefinition.Reaction.KnockbackDuration)
+		|| HitDefinition.Reaction.KnockbackDistance < 0.0f
+		|| HitDefinition.Reaction.KnockbackHeight < 0.0f
+		|| HitDefinition.Reaction.KnockbackDuration <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("Reaction must be a Knockdown with finite non-negative distance and height, and positive duration.")));
 		ValidationResult = EDataValidationResult::Invalid;

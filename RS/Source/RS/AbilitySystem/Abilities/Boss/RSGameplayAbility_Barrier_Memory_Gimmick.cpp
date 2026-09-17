@@ -485,13 +485,12 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ExecuteCurrentHitCheck()
 	TArray<AActor*> HitTargets;
 	URSCombatFunctionLibrary::FindTargetsInShape(AvatarActor, TargetChannel, AttackShape, PatternCenterTransform, HitTargets);
 
-	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{
 		ARSPlayerCharacter* PlayerCharacter = Cast<ARSPlayerCharacter>(HitTarget);
 		if (PlayerCharacter && !IsPlayerInsideCurrentSafeZone(*PlayerCharacter))
 		{
-			ApplyDamageToTarget(PlayerCharacter, DamageEffectClass, DamageAmount);
+			ApplyPatternHitToTarget(PlayerCharacter);
 		}
 	}
 }
@@ -636,12 +635,7 @@ EDataValidationResult URSGameplayAbility_Barrier_Memory_Gimmick::IsDataValid(FDa
 		}
 	}
 
-	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(Damage, TEXT("Damage"), Context))
-	{
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	const UGameplayEffect* DamageEffect = DamageEffectClass ? DamageEffectClass->GetDefaultObject<UGameplayEffect>() : nullptr;
+	const UGameplayEffect* DamageEffect = HitDefinition.DamageEffectClass ? HitDefinition.DamageEffectClass->GetDefaultObject<UGameplayEffect>() : nullptr;
 	if (!DamageEffect)
 	{
 		AddError(TEXT("DamageEffectClass is required."));

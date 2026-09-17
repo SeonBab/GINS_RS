@@ -196,12 +196,6 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Hit", meta = (AllowPrivateAccess = "true"))
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Hit", meta = (AllowPrivateAccess = "true"))
-	FScalableFloat Damage = 100.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Barrier Memory|Hit", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
 	UPROPERTY(Transient)
 	TObjectPtr<UAbilityTask_WaitGameplayEvent> PresentationEventTask;
 

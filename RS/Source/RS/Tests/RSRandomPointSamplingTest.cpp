@@ -40,10 +40,6 @@ bool FRSFallingRocksDefinitionTest::RunTest(const FString& Parameters)
 	InvalidDefinition.AttackShape.InnerRadius = 1.0f;
 	TestFalse(TEXT("A donut attack shape is invalid"), InvalidDefinition.IsDataValid());
 
-	InvalidDefinition = Definition;
-	InvalidDefinition.Damage = 10.5f;
-	TestFalse(TEXT("Fractional damage is invalid"), InvalidDefinition.IsDataValid());
-
 	return true;
 }
 

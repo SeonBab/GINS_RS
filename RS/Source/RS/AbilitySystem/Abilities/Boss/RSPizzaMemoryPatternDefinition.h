@@ -72,14 +72,6 @@ struct FRSPizzaMemoryPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Timing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ExplosionInterval = 1.0f;
 
-	/** 모든 폭발이 대상에게 공통으로 가할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")
-	FScalableFloat Damage = 10.0f;
-
-	/** 모든 폭발이 대상에게 공통으로 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Reaction")
-	FRSHitReactionDefinition Reaction;
-
 	/** 후보 목록, 공간, 시간과 피해 설정이 런타임에서 사용할 수 있는지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 

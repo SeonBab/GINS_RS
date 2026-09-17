@@ -24,7 +24,7 @@ URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 	AttackShape.OuterRadius = 600.0f;
 	AttackShape.StartYawOffset = -30.0f;
 	AttackShape.SweepAngleDegrees = 60.0f;
-	Reaction.Type = ERSHitReactionType::None;
+	HitDefinition.Reaction.Type = ERSHitReactionType::None;
 
 	// 이 패턴은 배치 방식이 생기기 전부터 범위를 채우고 있었으므로 기본값으로 그 연출을 유지합니다
 	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
@@ -52,7 +52,7 @@ void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !AttackMontage
-		|| !DamageEffectClass
+		|| !HitDefinition.DamageEffectClass
 		|| StrikeCount < 1
 		|| StrikeCount > 2
 		|| AttackShape.Type != ERSCombatShapeType::AnnularSector
@@ -296,11 +296,9 @@ void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 	// 내려찍기는 빗나가도 땅이 울려야 하므로 적중 여부와 무관하게 판정하는 순간에 재생합니다
 	PlayPatternPresentation(ActiveAttackShape, LockedAttackTransform);
 
-	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{
-		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(BossCharacter, HitTarget, Reaction);
+		ApplyPatternHitToTarget(HitTarget);
 	}
 
 	TryFinishStrike();
@@ -437,17 +435,6 @@ EDataValidationResult URSGameplayAbility_TargetedSlam::IsDataValid(FDataValidati
 		|| !FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("Aim and Montage timing values are outside their supported ranges.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(Damage, TEXT("Damage"), Context))
-	{
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

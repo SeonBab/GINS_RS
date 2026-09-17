@@ -99,6 +99,90 @@ namespace
 		FGameplayEffectSpec DamageSpec(DamageEffect, EffectContext, 1.0f);
 		TargetAbilitySystemComponent->ApplyGameplayEffectSpecToSelf(DamageSpec);
 	}
+
+	/** 생성 Ability가 전달하는 것과 같은 유효한 장판 적중 스냅샷을 만듭니다 */
+	FRSBossPatternHitSpec MakeFireballHitSpec()
+	{
+		FRSBossPatternHitSpec HitSpec;
+		HitSpec.DamageAmount = 50.0f;
+		HitSpec.DamageEffectClass = LoadClass<UGameplayEffect>(nullptr, TEXT("/Game/AbilitySystem/GameplayEffects/GE_Damage_Basic.GE_Damage_Basic_C"));
+
+		return HitSpec;
+	}
+
+	/** 설정한 개수만큼 180도를 균등 분할하고 각 구역에 화염구 하나씩 배치했는지 검사합니다 */
+	void VerifyLandingLocations(FAutomationTestBase& Test, const FRSFireballSpreadDefinition& Definition)
+	{
+		const FVector Center(100.0f, 200.0f, 300.0f);
+
+		// 배치 코드와 같은 식을 재사용하지 않도록 기대하는 구역 각도를 테스트에서 직접 계산합니다
+		const float SectorAngle = 180.0f / Definition.FireballCount;
+		const float EffectiveMinimumRadius = Definition.MinSpawnRadius + Definition.PlacementRadius + Definition.BoundaryMargin;
+		const float EffectiveMaximumRadius = Definition.MaxSpawnRadius - Definition.PlacementRadius - Definition.BoundaryMargin;
+		const float RequiredCenterDistance = Definition.PlacementRadius * 2.0f + Definition.MinimumGap;
+
+		FRandomStream FirstRandomStream(13579);
+		TArray<FVector> FirstLocations;
+		Test.TestTrue(FString::Printf(TEXT("Count %d generates landing locations"), Definition.FireballCount), Definition.TryGenerateLandingLocations(Center, FVector::XAxisVector, FirstRandomStream, FirstLocations));
+		Test.TestEqual(FString::Printf(TEXT("Count %d places exactly that many Fireballs"), Definition.FireballCount), FirstLocations.Num(), Definition.FireballCount);
+		if (FirstLocations.Num() != Definition.FireballCount)
+		{
+			return;
+		}
+
+		for (int32 LocationIndex = 0; LocationIndex < FirstLocations.Num(); ++LocationIndex)
+		{
+			const FVector Offset = FirstLocations[LocationIndex] - Center;
+			const float Radius = FVector2D(Offset.X, Offset.Y).Size();
+			const float Angle = FMath::RadiansToDegrees(FMath::Atan2(Offset.Y, Offset.X));
+			const float SectorMinimumAngle = -90.0f + LocationIndex * SectorAngle;
+			const float SectorMaximumAngle = SectorMinimumAngle + SectorAngle;
+
+			Test.TestTrue(FString::Printf(TEXT("Count %d location %d stays inside its radial range"), Definition.FireballCount, LocationIndex), Radius >= EffectiveMinimumRadius && Radius <= EffectiveMaximumRadius);
+			Test.TestTrue(FString::Printf(TEXT("Count %d location %d stays inside its sector"), Definition.FireballCount, LocationIndex), Angle > SectorMinimumAngle && Angle < SectorMaximumAngle);
+			Test.TestTrue(FString::Printf(TEXT("Count %d location %d stays on the captured floor plane"), Definition.FireballCount, LocationIndex), FMath::IsNearlyEqual(FirstLocations[LocationIndex].Z, Center.Z));
+		}
+
+		for (int32 FirstIndex = 0; FirstIndex < FirstLocations.Num(); ++FirstIndex)
+		{
+			for (int32 SecondIndex = FirstIndex + 1; SecondIndex < FirstLocations.Num(); ++SecondIndex)
+			{
+				const float Distance = FVector::Dist2D(FirstLocations[FirstIndex], FirstLocations[SecondIndex]);
+				Test.TestTrue(FString::Printf(TEXT("Count %d locations %d and %d preserve the configured gap"), Definition.FireballCount, FirstIndex, SecondIndex), Distance >= RequiredCenterDistance);
+			}
+		}
+
+		FRandomStream SecondRandomStream(13579);
+		TArray<FVector> SecondLocations;
+		Test.TestTrue(FString::Printf(TEXT("Count %d regenerates from the same seed"), Definition.FireballCount), Definition.TryGenerateLandingLocations(Center, FVector::XAxisVector, SecondRandomStream, SecondLocations));
+		Test.TestTrue(FString::Printf(TEXT("Count %d is deterministic for the same seed"), Definition.FireballCount), FirstLocations == SecondLocations);
+	}
+
+	/** BeginPlay 전에 Ability 소유 설정을 주입해 실제 화염구 생성 경로를 재현합니다 */
+	ARSBossFireball* SpawnFireball(UWorld* TestWorld, const FRSBossFireballDefinition& Definition, bool bApplyTelegraphMaterial)
+	{
+		if (!TestWorld)
+		{
+			return nullptr;
+		}
+
+		const FTransform SpawnTransform = FTransform::Identity;
+		ARSBossFireball* Fireball = TestWorld->SpawnActorDeferred<ARSBossFireball>(ARSBossFireball::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (!Fireball)
+		{
+			return nullptr;
+		}
+
+		Fireball->Initialize(Definition, MakeFireballHitSpec());
+		if (bApplyTelegraphMaterial && !ApplyFireballTelegraphMaterial(Fireball))
+		{
+			return nullptr;
+		}
+
+		Fireball->FinishSpawning(SpawnTransform);
+
+		return Fireball;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSFireballSpreadPlacementTest, "RS.Boss.FireballSpread.Placement", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -108,46 +192,33 @@ bool FRSFireballSpreadPlacementTest::RunTest(const FString& Parameters)
 	FRSFireballSpreadDefinition Definition;
 	TestTrue(TEXT("Default spread definition is valid"), Definition.IsDataValid());
 
-	const FVector Center(100.0f, 200.0f, 300.0f);
-	FRandomStream FirstRandomStream(13579);
-	TArray<FVector> FirstLocations;
-	TestTrue(TEXT("Four landing locations are generated"), Definition.TryGenerateLandingLocations(Center, FVector::XAxisVector, FirstRandomStream, FirstLocations));
-	TestEqual(TEXT("Exactly four Fireballs are placed"), FirstLocations.Num(), FRSFireballSpreadDefinition::FireballCount);
+	VerifyLandingLocations(*this, Definition);
 
-	const float EffectiveMinimumRadius = Definition.MinSpawnRadius + Definition.PlacementRadius + Definition.BoundaryMargin;
-	const float EffectiveMaximumRadius = Definition.MaxSpawnRadius - Definition.PlacementRadius - Definition.BoundaryMargin;
-	for (int32 LocationIndex = 0; LocationIndex < FirstLocations.Num(); ++LocationIndex)
-	{
-		const FVector Offset = FirstLocations[LocationIndex] - Center;
-		const float Radius = FVector2D(Offset.X, Offset.Y).Size();
-		const float Angle = FMath::RadiansToDegrees(FMath::Atan2(Offset.Y, Offset.X));
-		const float SectorMinimumAngle = -90.0f + LocationIndex * 45.0f;
-		const float SectorMaximumAngle = SectorMinimumAngle + 45.0f;
+	// 기획자가 개수를 바꾸면 구역 수와 각 구역의 폭이 함께 따라갑니다
+	FRSFireballSpreadDefinition ThreeFireballDefinition = Definition;
+	ThreeFireballDefinition.FireballCount = 3;
+	TestTrue(TEXT("Three Fireballs fit the default radii"), ThreeFireballDefinition.IsDataValid());
+	VerifyLandingLocations(*this, ThreeFireballDefinition);
 
-		TestTrue(FString::Printf(TEXT("Location %d stays inside its radial range"), LocationIndex), Radius >= EffectiveMinimumRadius && Radius <= EffectiveMaximumRadius);
-		TestTrue(FString::Printf(TEXT("Location %d stays inside its 45 degree sector"), LocationIndex), Angle > SectorMinimumAngle && Angle < SectorMaximumAngle);
-		TestTrue(FString::Printf(TEXT("Location %d stays on the captured floor plane"), LocationIndex), FMath::IsNearlyEqual(FirstLocations[LocationIndex].Z, Center.Z));
-	}
+	// 구역이 좁아지는 만큼 안쪽 반경이 넓어야 화염구 하나가 들어갈 각도가 남습니다
+	FRSFireballSpreadDefinition SixFireballDefinition = Definition;
+	SixFireballDefinition.FireballCount = 6;
+	TestFalse(TEXT("Six Fireballs do not fit the default inner radius"), SixFireballDefinition.IsDataValid());
+	SixFireballDefinition.MinSpawnRadius = 400.0f;
+	TestTrue(TEXT("Six Fireballs fit a wider inner radius"), SixFireballDefinition.IsDataValid());
+	VerifyLandingLocations(*this, SixFireballDefinition);
 
-	const float RequiredCenterDistance = Definition.PlacementRadius * 2.0f + Definition.MinimumGap;
-	for (int32 FirstIndex = 0; FirstIndex < FirstLocations.Num(); ++FirstIndex)
-	{
-		for (int32 SecondIndex = FirstIndex + 1; SecondIndex < FirstLocations.Num(); ++SecondIndex)
-		{
-			const float Distance = FVector::Dist2D(FirstLocations[FirstIndex], FirstLocations[SecondIndex]);
-			TestTrue(FString::Printf(TEXT("Locations %d and %d preserve the configured gap"), FirstIndex, SecondIndex), Distance >= RequiredCenterDistance);
-		}
-	}
-
-	FRandomStream SecondRandomStream(13579);
-	TArray<FVector> SecondLocations;
-	TestTrue(TEXT("The same seed generates another valid set"), Definition.TryGenerateLandingLocations(Center, FVector::XAxisVector, SecondRandomStream, SecondLocations));
-	TestTrue(TEXT("The same seed is deterministic"), FirstLocations == SecondLocations);
+	FRSFireballSpreadDefinition EmptyDefinition = Definition;
+	EmptyDefinition.FireballCount = 0;
+	TestFalse(TEXT("A spread without Fireballs is invalid"), EmptyDefinition.IsDataValid());
 
 	FRSFireballSpreadDefinition InvalidDefinition = Definition;
 	InvalidDefinition.MaxSpawnRadius = InvalidDefinition.MinSpawnRadius + 10.0f;
 	TestFalse(TEXT("A range consumed by placement insets is invalid"), InvalidDefinition.IsDataValid());
-	TestFalse(TEXT("A zero horizontal direction is rejected"), Definition.TryGenerateLandingLocations(Center, FVector::UpVector, SecondRandomStream, SecondLocations));
+
+	FRandomStream RejectedRandomStream(13579);
+	TArray<FVector> RejectedLocations;
+	TestFalse(TEXT("A zero horizontal direction is rejected"), Definition.TryGenerateLandingLocations(FVector(100.0f, 200.0f, 300.0f), FVector::UpVector, RejectedRandomStream, RejectedLocations));
 
 	FRSBossFireballDefinition FireballDefinition;
 	TestFalse(TEXT("The next special pattern keeps the previous batch"), URSBossPersistentObjectLifetimeComponent::ShouldCleanupForSpecialPattern(7, 8, FireballDefinition.SpecialPatternCleanupOffset));
@@ -169,7 +240,9 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	ARSBossFireball* Fireball = TestWorld->SpawnActor<ARSBossFireball>();
+	FRSBossFireballDefinition FireballDefinition;
+	FireballDefinition.RequiredHitCount = 4;
+	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, false);
 	TestNotNull(TEXT("Fireball actor"), Fireball);
 	if (!Fireball)
 	{
@@ -177,7 +250,8 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 
 		return false;
 	}
-	Fireball->DispatchBeginPlay();
+
+	const float ConfiguredHitPoints = static_cast<float>(FireballDefinition.RequiredHitCount);
 
 	Fireball->Tick(1.1f);
 	TestEqual(TEXT("Finishing the fall starts charging"), Fireball->GetFireballState(), ERSBossFireballState::Charging);
@@ -191,25 +265,26 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("Charging applies the vulnerable state tag"), FireballAbilitySystem->HasMatchingGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable));
-	TestEqual(TEXT("Fireball starts with three health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
-	TestEqual(TEXT("Fireball starts with three max health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetMaxHealthAttribute()), 3.0f);
+	TestEqual(TEXT("Fireball starts with the configured health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), ConfiguredHitPoints);
+	TestEqual(TEXT("Fireball starts with the configured max health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetMaxHealthAttribute()), ConfiguredHitPoints);
 	FireballAbilitySystem->AddLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
 	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
-	TestEqual(TEXT("Damage immunity takes priority over unit damage"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
+	TestEqual(TEXT("Damage immunity takes priority over unit damage"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), ConfiguredHitPoints);
 	FireballAbilitySystem->RemoveLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
 	ApplyFireballTestDamage(FireballAbilitySystem, 0.0f);
-	TestEqual(TEXT("Zero damage does not consume health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 3.0f);
+	TestEqual(TEXT("Zero damage does not consume health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), ConfiguredHitPoints);
 
 	Fireball->Tick(3.1f);
 	TestEqual(TEXT("Charge completion waits for a later frame before becoming a field"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
 	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
+	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	TestEqual(TEXT("Each damage effect removes exactly one health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 1.0f);
 	TestEqual(TEXT("Pending charge completion still accepts same-frame hits"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
 	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
-	TestEqual(TEXT("The third same-frame damage reduces health to zero"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 0.0f);
+	TestEqual(TEXT("The last same-frame damage reduces health to zero"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 0.0f);
 	TestEqual(TEXT("Zero health moves the actor to cleanup before field transition"), Fireball->GetFireballState(), ERSBossFireballState::Cleanup);
 
 	DestroyFireballTestWorld(TestWorld);
@@ -229,7 +304,8 @@ bool FRSBossFireballChargeTelegraphTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	ARSBossFireball* Fireball = TestWorld->SpawnActor<ARSBossFireball>();
+	FRSBossFireballDefinition FireballDefinition;
+	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, true);
 	TestNotNull(TEXT("Fireball actor"), Fireball);
 	if (!Fireball)
 	{
@@ -237,10 +313,6 @@ bool FRSBossFireballChargeTelegraphTest::RunTest(const FString& Parameters)
 
 		return false;
 	}
-
-	// 표시 컴포넌트를 Actor가 직접 소유하므로 첫 Tick 전에 Blueprint 몫의 Material을 주입합니다
-	TestTrue(TEXT("Fireball test telegraph material"), ApplyFireballTelegraphMaterial(Fireball));
-	Fireball->DispatchBeginPlay();
 
 	TestTrue(TEXT("Falling shows no ground display"), Fireball->GetTelegraphHandleForTest() == INDEX_NONE);
 

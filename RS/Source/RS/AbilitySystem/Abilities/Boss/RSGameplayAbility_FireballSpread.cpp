@@ -15,7 +15,11 @@
 
 namespace
 {
-	constexpr float FireballSectorAngle = 45.0f;
+	/** 대상 180도를 화염구 개수만큼 균등 분할한 한 구역의 폭입니다 */
+	float GetSectorAngle(const FRSFireballSpreadDefinition& Definition)
+	{
+		return 180.0f / Definition.FireballCount;
+	}
 
 	bool TryGetEffectiveRadii(const FRSFireballSpreadDefinition& Definition, float& OutMinRadius, float& OutMaxRadius, float& OutLateralInset)
 	{
@@ -35,13 +39,20 @@ bool FRSFireballSpreadDefinition::IsDataValid(FString* OutValidationError) const
 		OutValidationError->Reset();
 	}
 
-	auto SetValidationError = [OutValidationError](const TCHAR* ErrorMessage)
+	auto SetValidationError = [OutValidationError](const FString& ErrorMessage)
 		{
 			if (OutValidationError)
 			{
 				*OutValidationError = ErrorMessage;
 			}
 		};
+
+	if (FireballCount < 1)
+	{
+		SetValidationError(TEXT("FireballCount must be at least 1."));
+
+		return false;
+	}
 
 	if (!FMath::IsFinite(MinSpawnRadius) || !FMath::IsFinite(MaxSpawnRadius) || MinSpawnRadius < 0.0f || MaxSpawnRadius <= MinSpawnRadius)
 	{
@@ -205,6 +216,12 @@ EDataValidationResult URSGameplayAbility_FireballSpread::IsDataValid(FDataValida
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
+	if (!FireballDefinition.IsDataValid(&ValidationError))
+	{
+		Context.AddError(FText::FromString(FString::Printf(TEXT("FireballDefinition is invalid: %s"), *ValidationError)));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
 	if (!FireballClass)
 	{
 		Context.AddError(FText::FromString(TEXT("FireballClass is not configured.")));
@@ -253,7 +270,7 @@ bool URSGameplayAbility_FireballSpread::SpawnFireballs()
 {
 	UWorld* World = GetWorld();
 	AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
-	if (!World || !AvatarActor || ActiveLandingLocations.Num() != FRSFireballSpreadDefinition::FireballCount)
+	if (!World || !AvatarActor || ActiveLandingLocations.Num() != SpreadDefinition.FireballCount)
 	{
 		return false;
 	}
@@ -277,6 +294,7 @@ bool URSGameplayAbility_FireballSpread::SpawnFireballs()
 			return false;
 		}
 
+		Fireball->Initialize(FireballDefinition, MakePatternHitSpec());
 		UGameplayStatics::FinishSpawningActor(Fireball, SpawnTransform);
 		SpawnedFireballs.Add(Fireball);
 	}

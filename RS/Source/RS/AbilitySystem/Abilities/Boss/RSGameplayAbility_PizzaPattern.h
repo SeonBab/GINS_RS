@@ -53,14 +53,6 @@ struct FRSPizzaPatternDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float ExplosionInterval = 0.0f;
 
-	/** 폭발 하나가 대상에게 가할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit")
-	FScalableFloat Damage = 0.0f;
-
-	/** 판정에 걸린 대상에게 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Reaction")
-	FRSHitReactionDefinition Reaction;
-
 	/** 런타임 계산에 사용할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 
@@ -160,10 +152,6 @@ protected:
 	/** Ability 활성화 시 한 번만 재생을 요청할 선택적 Montage입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 	/** 보스 공격이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Pattern|Hit")

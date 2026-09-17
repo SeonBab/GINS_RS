@@ -96,13 +96,6 @@ bool FRSPizzaMemoryPatternDefinition::IsDataValid(FString* OutValidationError) c
 		return FailValidation(TEXT("ExplosionInterval must be finite and greater than zero."));
 	}
 
-	const float DamageValue = Damage.GetValueAtLevel(1.0f);
-	constexpr float DamageIntegerTolerance = 0.01f;
-	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
-	{
-		return FailValidation(TEXT("Damage must evaluate to a finite non-negative integer at level 1."));
-	}
-
 	return true;
 }
 

@@ -88,25 +88,6 @@ bool FRSSequentialSweepExplosionDefinition::IsDataValid(FString* OutValidationEr
 		return false;
 	}
 
-	const float DamageValue = Damage.GetValueAtLevel(1.0f);
-	constexpr float DamageIntegerTolerance = 0.01f;
-	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
-	{
-		SetValidationError(TEXT("Damage must evaluate to a finite non-negative integer at level 1."));
-
-		return false;
-	}
-
-	if (Reaction.Type == ERSHitReactionType::Knockdown
-		&& (!FMath::IsFinite(Reaction.KnockbackDistance) || Reaction.KnockbackDistance < 0.0f
-			|| !FMath::IsFinite(Reaction.KnockbackHeight) || Reaction.KnockbackHeight < 0.0f
-			|| !FMath::IsFinite(Reaction.KnockbackDuration) || Reaction.KnockbackDuration <= 0.0f))
-	{
-		SetValidationError(TEXT("Knockdown reaction values are outside their supported ranges."));
-
-		return false;
-	}
-
 	return true;
 }
 
@@ -138,7 +119,7 @@ void URSGameplayAbility_SequentialSweepExplosion::BeginPatternTimeline()
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !PatternDefinition.IsDataValid()
-		|| !DamageEffectClass
+		|| !HitDefinition.DamageEffectClass
 		|| !FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f
 		|| !FMath::IsFinite(AimRotationSpeed) || AimRotationSpeed <= 0.0f
 		|| !FMath::IsFinite(AimYawTolerance) || AimYawTolerance < 0.0f
@@ -432,7 +413,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		return false;
 	}
 
-	const float DamageAmount = PatternDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
+	const float DamageAmount = GetPatternDamageAmount();
 	if (!FMath::IsFinite(DamageAmount) || DamageAmount < 0.0f)
 	{
 		return false;
@@ -474,8 +455,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 		}
 
 		HitActors.Add(TargetPointer);
-		ApplyDamageToTarget(CandidateTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(BossCharacter, CandidateTarget, PatternDefinition.Reaction);
+		ApplyPatternHitToTarget(CandidateTarget);
 	}
 
 	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
@@ -556,12 +536,6 @@ EDataValidationResult URSGameplayAbility_SequentialSweepExplosion::IsDataValid(F
 		}
 	}
 
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
 	if (!FMath::IsFinite(MontagePlayRate) || MontagePlayRate <= 0.0f
 		|| !FMath::IsFinite(AimRotationSpeed) || AimRotationSpeed <= 0.0f
 		|| !FMath::IsFinite(AimYawTolerance) || AimYawTolerance < 0.0f
@@ -569,11 +543,6 @@ EDataValidationResult URSGameplayAbility_SequentialSweepExplosion::IsDataValid(F
 		|| !FMath::IsFinite(MaxAimDuration) || MaxAimDuration <= 0.0f)
 	{
 		Context.AddError(FText::FromString(TEXT("Aim and Montage values are outside their supported ranges.")));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
-	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(PatternDefinition.Damage, TEXT("PatternDefinition.Damage"), Context))
-	{
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

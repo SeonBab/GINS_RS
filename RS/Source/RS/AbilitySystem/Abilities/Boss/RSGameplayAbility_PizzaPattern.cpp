@@ -99,15 +99,6 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 		}
 	}
 
-	const float DamageValue = Damage.GetValueAtLevel(1.0f);
-	constexpr float DamageIntegerTolerance = 0.01f;
-	if (!FMath::IsFinite(DamageValue) || DamageValue < 0.0f || !FMath::IsNearlyEqual(DamageValue, FMath::RoundToFloat(DamageValue), DamageIntegerTolerance))
-	{
-		SetValidationError(TEXT("Damage must evaluate to a finite non-negative integer at level 1."));
-
-		return false;
-	}
-
 	return true;
 }
 
@@ -215,7 +206,7 @@ void URSGameplayAbility_PizzaPattern::BeginPatternTimeline()
 	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
 
-	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !HitDefinition.DamageEffectClass)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -510,7 +501,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 		return false;
 	}
 
-	const float DamageAmount = PizzaPatternDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
+	const float DamageAmount = GetPatternDamageAmount();
 	if (!FMath::IsFinite(DamageAmount) || DamageAmount < 0.0f)
 	{
 		return false;
@@ -536,8 +527,7 @@ bool URSGameplayAbility_PizzaPattern::ExecuteCurrentExplosion()
 		}
 
 		HitActors.Add(TargetPointer);
-		ApplyDamageToTarget(CandidateTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(AvatarActor, CandidateTarget, PizzaPatternDefinition.Reaction);
+		ApplyPatternHitToTarget(CandidateTarget);
 	}
 
 	return true;
@@ -584,12 +574,6 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 		{
 			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 		}
-	}
-
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	const FGameplayTagContainer& AssetTags = GetAssetTags();

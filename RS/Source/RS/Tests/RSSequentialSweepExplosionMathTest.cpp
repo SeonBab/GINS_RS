@@ -38,10 +38,6 @@ bool FRSSequentialSweepExplosionDefinitionTest::RunTest(const FString& Parameter
 	TestFalse(TEXT("Zero explosion interval is invalid"), InvalidDefinition.IsDataValid());
 
 	InvalidDefinition = Definition;
-	InvalidDefinition.Damage = 10.5f;
-	TestFalse(TEXT("Fractional damage is invalid"), InvalidDefinition.IsDataValid());
-
-	InvalidDefinition = Definition;
 	InvalidDefinition.TelegraphHideLeadTime = -0.01f;
 	TestFalse(TEXT("Negative telegraph hide lead time is invalid"), InvalidDefinition.IsDataValid());
 

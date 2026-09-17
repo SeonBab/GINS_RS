@@ -5,6 +5,7 @@
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "RSAbilitySet.h"
+#include "Abilities/Boss/RSBossPatternHitDefinition.h"
 #include "RSBossFireball.generated.h"
 
 class UCurveFloat;
@@ -147,6 +148,9 @@ private:
 #pragma region State
 
 public:
+	/** FinishSpawning 전에 생성 Ability가 확정한 게임플레이 설정을 전달합니다 */
+	void Initialize(const FRSBossFireballDefinition& InFireballDefinition, const FRSBossPatternHitSpec& InHitSpec);
+
 	/** 현재 화염구 상태를 반환합니다 */
 	ERSBossFireballState GetFireballState() const { return FireballState; }
 
@@ -188,8 +192,12 @@ private:
 	void ClearTimers();
 
 private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Transient)
 	FRSBossFireballDefinition FireballDefinition;
+
+	/** 생성 Ability 레벨에서 확정한 장판 피해와 피격 반응입니다 */
+	UPROPERTY(Transient)
+	FRSBossPatternHitSpec HitSpec;
 
 	UPROPERTY(Transient)
 	ERSBossFireballState FireballState = ERSBossFireballState::Falling;

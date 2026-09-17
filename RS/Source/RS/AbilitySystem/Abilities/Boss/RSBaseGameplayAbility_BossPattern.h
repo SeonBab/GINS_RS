@@ -6,6 +6,7 @@
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Containers/ArrayView.h"
 #include "RSBaseGameplayAbility.h"
+#include "RSBossPatternHitDefinition.h"
 #include "RSNiagaraSpawnDefinition.h"
 #include "RSBaseGameplayAbility_BossPattern.generated.h"
 
@@ -111,12 +112,29 @@ public:
 	 */
 	virtual bool HasGimmickBreakCondition() const { return true; }
 
+#if WITH_EDITOR
+	/** 모든 보스 패턴이 공유하는 피해 GameplayEffect, 피해량과 피격 반응 설정을 검사합니다 */
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
+
 #if WITH_DEV_AUTOMATION_TESTS
 	/** 자동 테스트에서 배열 방식의 좌표 변환과 Bounds 계산을 검증합니다 */
 	static bool BuildNiagaraTransformArraysForTest(TArrayView<const FTransform> WorldTransforms, const FTransform& SystemTransform, float BoundsPadding, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<FVector>& OutScales, FBox& OutLocalBounds);
 #endif
 
 protected:
+	/** 부모가 소유한 공통 정의로 대상에게 피해와 피격 반응을 함께 적용합니다 */
+	void ApplyPatternHitToTarget(AActor* TargetActor);
+
+	/** Arm Swing처럼 패턴이 계산한 방향으로 넉다운을 요청하며 피해 설정은 같은 공통 정의를 사용합니다 */
+	void ApplyPatternHitToTarget(AActor* TargetActor, const FVector& KnockbackDirection);
+
+	/** 현재 Ability 레벨에서 확정한 적중 설정을 생성된 장판 Actor에 전달할 스냅샷으로 만듭니다 */
+	FRSBossPatternHitSpec MakePatternHitSpec() const;
+
+	/** 현재 Ability 레벨에서 공통 피해량을 반환합니다 */
+	float GetPatternDamageAmount() const;
+
 	/**
 	 * 이전 실행의 상태를 되돌린 뒤 선딜만큼 기다렸다가 BeginPatternTimeline()을 부릅니다
 	 * 패턴이 이 함수를 재정의하지 않으므로 Super 호출을 빠뜨려 부모의 초기화가 통째로 건너뛰어지는 일이 생기지 않습니다
@@ -209,6 +227,10 @@ protected:
 	 */
 	UNiagaraComponent* SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const;
 protected:
+	/** 모든 보스 패턴이 공통으로 사용하는 피해, GameplayEffect와 피격 반응 설정입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Hit")
+	FRSBossPatternHitDefinition HitDefinition;
+
 	/**
 	 * 이 패턴이 자기 연출 시점에 재생할 Niagara, Sound와 카메라 셰이크입니다
 	 * 비워 두면 아무것도 재생하지 않으므로 Data Validation은 이 값을 필수로 검사하지 않습니다

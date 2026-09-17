@@ -112,10 +112,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Facing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float MaxFacingDuration = 1.5f;
 
-	/** 위험 조각 판정에 걸린 대상에게 적용할 필수 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
 	/** 보스 공격이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;

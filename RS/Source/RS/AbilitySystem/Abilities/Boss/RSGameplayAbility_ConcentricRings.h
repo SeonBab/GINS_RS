@@ -112,24 +112,12 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Timing", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float StrikeInterval = 1.0f;
 
-	/** 링 하나가 대상에게 가할 피해량이며 링마다 다르게 두지 않습니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Hit", meta = (AllowPrivateAccess = "true"))
-	FScalableFloat Damage = 15.0f;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Hit", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
 	/**
 	 * 이 패턴이 노릴 진영의 허트박스 Trace Channel입니다
 	 * 보스 공격이므로 기본값은 PlayerHurtBox이며, 플레이어가 적을 때리는 채널과 반대입니다
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Hit", meta = (AllowPrivateAccess = "true"))
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
-
-	/** 판정에 걸린 대상에게 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Rings|Reaction", meta = (AllowPrivateAccess = "true"))
-	FRSHitReactionDefinition Reaction;
 
 	/**
 	 * 어빌리티 활성화와 동시에 한 번만 재생을 요청할 선택적 Montage입니다

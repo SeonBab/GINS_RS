@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
+#include "Abilities/Boss/RSBossPatternHitDefinition.h"
 #include "TimerManager.h"
 #include "RSBossMeteorHazard.generated.h"
 
@@ -97,7 +98,7 @@ protected:
 
 public:
 	/** FinishSpawning 전에 이번 실행이 추적할 대상을 전달합니다 */
-	void Initialize(AActor* InTargetActor);
+	void Initialize(AActor* InTargetActor, const FRSBossMeteorHazardDefinition& InMeteorHazardDefinition, const FRSBossPatternHitSpec& InHitSpec);
 
 	/** 모든 표시와 Timer를 정리하고 Actor를 제거합니다 */
 	void RequestCleanup();
@@ -119,7 +120,6 @@ public:
 
 #if WITH_DEV_AUTOMATION_TESTS
 	/** 자동 테스트가 BeginPlay 전에 설정값을 교체합니다 */
-	void SetDefinitionForTest(const FRSBossMeteorHazardDefinition& InDefinition) { MeteorHazardDefinition = InDefinition; }
 
 	/** 자동 테스트가 첫 피해가 즉시 실행되지 않고 Timer로 예약됐는지 확인합니다 */
 	bool IsDamageTimerActiveForTest() const;
@@ -189,8 +189,12 @@ private:
 	TObjectPtr<URSBossPersistentObjectLifetimeComponent> PersistentObjectLifetimeComp;
 
 	/** 운석 예고와 장판의 시간, 범위와 수명 설정입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Transient)
 	FRSBossMeteorHazardDefinition MeteorHazardDefinition;
+
+	/** 생성 Ability 레벨에서 확정한 장판 피해와 피격 반응입니다 */
+	UPROPERTY(Transient)
+	FRSBossPatternHitSpec HitSpec;
 
 	/** 장판 HitCheck가 플레이어 HurtBox를 찾을 채널입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Damage", meta = (AllowPrivateAccess = "true"))

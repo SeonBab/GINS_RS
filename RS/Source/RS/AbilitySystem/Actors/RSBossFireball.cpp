@@ -9,6 +9,7 @@
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/World.h"
+#include "GameplayEffect.h"
 #include "NiagaraComponent.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
@@ -152,7 +153,7 @@ void ARSBossFireball::BeginPlay()
 	PersistentObjectLifetimeComp->StartObserving(GetOwner(), FireballDefinition.SpecialPatternCleanupOffset);
 	ChargeWidgetComp->SetWidgetClass(ChargeWidgetClass);
 
-	if (!FireballDefinition.IsDataValid())
+	if (!FireballDefinition.IsDataValid() || !HitSpec.IsValid())
 	{
 		RequestCleanup();
 
@@ -183,13 +184,6 @@ void ARSBossFireball::EndPlay(const EEndPlayReason::Type EndPlayReason)
 EDataValidationResult ARSBossFireball::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
-
-	FString ValidationError;
-	if (!FireballDefinition.IsDataValid(&ValidationError))
-	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("FireballDefinition is invalid: %s"), *ValidationError)));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
 
 	if (!DefaultAbilitySet)
 	{
@@ -228,6 +222,12 @@ EDataValidationResult ARSBossFireball::IsDataValid(FDataValidationContext& Conte
 UAbilitySystemComponent* ARSBossFireball::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComp;
+}
+
+void ARSBossFireball::Initialize(const FRSBossFireballDefinition& InFireballDefinition, const FRSBossPatternHitSpec& InHitSpec)
+{
+	FireballDefinition = InFireballDefinition;
+	HitSpec = InHitSpec;
 }
 
 void ARSBossFireball::InitializeAbilitySystem()
@@ -413,7 +413,10 @@ void ARSBossFireball::ApplyFireFieldDamage()
 		DamagePayload.EventTag = RSGameplayTags::GameplayEvent_Combat_FireFieldDamage;
 		DamagePayload.Instigator = this;
 		DamagePayload.Target = HitTarget;
+		DamagePayload.EventMagnitude = HitSpec.DamageAmount;
+		DamagePayload.OptionalObject = HitSpec.DamageEffectClass->GetDefaultObject<UGameplayEffect>();
 		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, DamagePayload.EventTag, DamagePayload);
+		URSCombatFunctionLibrary::SendHitReaction(this, HitTarget, HitSpec.Reaction);
 	}
 }
 

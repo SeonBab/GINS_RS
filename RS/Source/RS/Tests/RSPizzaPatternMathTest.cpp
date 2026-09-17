@@ -18,7 +18,6 @@ bool FRSPizzaPatternDefinitionTest::RunTest(const FString& Parameters)
 	Definition.TelegraphCueGap = 0.2f;
 	Definition.RecallDelay = 1.0f;
 	Definition.ExplosionInterval = 0.8f;
-	Definition.Damage = 10.0f;
 	TestTrue(TEXT("Valid pizza pattern definition"), Definition.IsDataValid());
 
 	const FRSPizzaCueTimings CueTimings = Definition.MakeCueTimings();
@@ -92,10 +91,6 @@ bool FRSPizzaPatternDefinitionTest::RunTest(const FString& Parameters)
 	SingleExplosionDefinition.TelegraphCueGap = 0.0f;
 	SingleExplosionDefinition.ExplosionInterval = 0.0f;
 	TestTrue(TEXT("Single explosion definition does not require gap or interval"), SingleExplosionDefinition.IsDataValid());
-
-	InvalidDefinition = Definition;
-	InvalidDefinition.Damage = 10.5f;
-	TestFalse(TEXT("Fractional damage is invalid"), InvalidDefinition.IsDataValid());
 
 	return true;
 }

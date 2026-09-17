@@ -191,18 +191,6 @@ bool FRSPizzaMemoryPatternDefinitionTest::RunTest(const FString& Parameters)
 	ZeroDelayDefinition.RecallDelay = 0.0f;
 	TestTrue(TEXT("Zero attack start and recall delays are valid"), ZeroDelayDefinition.IsDataValid());
 
-	FRSPizzaMemoryPatternDefinition NegativeDamageDefinition;
-	NegativeDamageDefinition.Damage = -1.0f;
-	TestFalse(TEXT("Negative damage is invalid"), NegativeDamageDefinition.IsDataValid());
-
-	FRSPizzaMemoryPatternDefinition FractionalDamageDefinition;
-	FractionalDamageDefinition.Damage = 10.5f;
-	TestFalse(TEXT("Fractional damage is invalid"), FractionalDamageDefinition.IsDataValid());
-
-	FRSPizzaMemoryPatternDefinition NonFiniteDamageDefinition;
-	NonFiniteDamageDefinition.Damage = std::numeric_limits<float>::quiet_NaN();
-	TestFalse(TEXT("Non-finite damage is invalid"), NonFiniteDamageDefinition.IsDataValid());
-
 	int32 FirstSliceIndex = 0;
 	int32 SecondSliceIndex = 0;
 	TestFalse(TEXT("Unknown safe pair cannot produce slice indices"), FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(static_cast<ERSPizzaMemorySafePair>(FRSPizzaMemoryPatternDefinition::SafePairCount), FirstSliceIndex, SecondSliceIndex));

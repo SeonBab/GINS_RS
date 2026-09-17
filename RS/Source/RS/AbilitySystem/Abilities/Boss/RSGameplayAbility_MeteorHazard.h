@@ -1,12 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Actors/RSBossMeteorHazard.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_MeteorHazard.generated.h"
 
-class ARSBossMeteorHazard;
 class UAnimMontage;
-enum class ERSBossMeteorHazardPreparationResult : uint8;
 
 /** 포효 뒤 플레이어를 추적하는 운석 예고 하나를 생성하는 특수 패턴입니다 */
 UCLASS(Abstract, Blueprintable)
@@ -51,6 +50,10 @@ private:
 	void TryFinishAbility();
 
 private:
+	/** 생성하는 운석 Actor가 사용할 예고, 장판과 수명 설정입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
+	FRSBossMeteorHazardDefinition MeteorHazardDefinition;
+
 	/** 운석 예고 전에 재생할 선택적 포효 Montage입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAnimMontage> RoarMontage;

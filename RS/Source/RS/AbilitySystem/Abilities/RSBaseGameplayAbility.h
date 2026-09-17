@@ -36,6 +36,9 @@ public:
 	/** 이 어빌리티의 자동 활성화 정책을 반환합니다 */
 	ERSAbilityActivationPolicy GetActivationPolicy() const;
 
+	/** 입력을 유지하는 동안 이 어빌리티의 활성화를 다시 시도해도 되는지 반환합니다 */
+	bool ShouldRepeatWhileInputHeld() const;
+
 	/**
 	 * 사용자 인터페이스에 표시할 정적 데이터를 반환하며 표시할 필요가 없는 어빌리티는 nullptr을 반환합니다
 	 * 호출자가 저장 방식을 알지 않도록 멤버를 직접 노출하지 않습니다
@@ -92,6 +95,13 @@ protected:
 	/** RS 프레임워크가 사용할 자동 활성화 정책입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Activation")
 	ERSAbilityActivationPolicy ActivationPolicy = ERSAbilityActivationPolicy::None;
+
+	/**
+	 * 입력을 유지하는 동안 비활성 상태인 이 어빌리티의 활성화를 다시 시도할지 나타냅니다
+	 * 입력 1회당 한 번 활성화하는 OnInputTriggered에서만 의미가 있으며, 활성화 조건 자체는 바꾸지 않습니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Activation", meta = (EditCondition = "ActivationPolicy == ERSAbilityActivationPolicy::OnInputTriggered"))
+	bool bRepeatWhileInputHeld = false;
 
 	/**
 	 * 사용자 인터페이스에 표시할 이름과 아이콘을 제공하는 선택적 애셋입니다

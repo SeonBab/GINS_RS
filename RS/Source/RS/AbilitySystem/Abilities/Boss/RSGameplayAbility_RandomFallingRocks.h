@@ -47,14 +47,6 @@ struct FRSRandomFallingRocksDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Hit")
 	FRSCombatShape AttackShape;
 
-	/** 낙석 하나가 대상에게 가할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Hit")
-	FScalableFloat Damage = 10.0f;
-
-	/** 판정에 걸린 대상에게 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Reaction")
-	FRSHitReactionDefinition Reaction;
-
 	/** 런타임 계산에 사용할 수 있는 값인지 검사합니다 */
 	bool IsDataValid(FString* OutValidationError = nullptr) const;
 };
@@ -124,10 +116,6 @@ protected:
 	/** 이 패턴이 노릴 진영의 허트박스 Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Hit")
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Hit")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 	/** Impact 전에 재생할 선택적 낙하 Niagara입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Falling Rocks|Presentation")

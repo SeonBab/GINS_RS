@@ -42,7 +42,7 @@ void URSGameplayAbility_PizzaMemoryPattern::BeginPatternTimeline()
 	bIsCleaningUp = false;
 
 	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeFixedWorldYaw(WorldYawDegrees, FacingRotationSpeed, FacingYawTolerance, MaxFacingDuration);
-	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !DamageEffectClass || !FacingRequest.IsDataValid())
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !HitDefinition.DamageEffectClass || !FacingRequest.IsDataValid())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -385,7 +385,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::ExecuteCurrentExplosion()
 		return false;
 	}
 
-	const float DamageAmount = PizzaMemoryPatternDefinition.Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
+	const float DamageAmount = GetPatternDamageAmount();
 	if (!FMath::IsFinite(DamageAmount) || DamageAmount < 0.0f)
 	{
 		return false;
@@ -413,8 +413,7 @@ bool URSGameplayAbility_PizzaMemoryPattern::ExecuteCurrentExplosion()
 		}
 
 		HitActors.Add(TargetPointer);
-		ApplyDamageToTarget(CandidateTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(AvatarActor, CandidateTarget, PizzaMemoryPatternDefinition.Reaction);
+		ApplyPatternHitToTarget(CandidateTarget);
 	}
 
 	return true;
@@ -470,12 +469,6 @@ EDataValidationResult URSGameplayAbility_PizzaMemoryPattern::IsDataValid(FDataVa
 			Context.AddError(FText::FromString(FString::Printf(TEXT("PatternPresentation.Niagaras[%d] must use FillHitShape so the effect covers every dangerous slice."), EntryIndex)));
 			ValidationResult = EDataValidationResult::Invalid;
 		}
-	}
-
-	if (!DamageEffectClass)
-	{
-		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
-		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeFixedWorldYaw(WorldYawDegrees, FacingRotationSpeed, FacingYawTolerance, MaxFacingDuration);

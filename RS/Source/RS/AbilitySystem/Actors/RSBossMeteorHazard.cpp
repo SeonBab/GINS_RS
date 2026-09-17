@@ -6,6 +6,7 @@
 #include "Components/RSAttackTelegraphComponent.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/World.h"
+#include "GameplayEffect.h"
 #include "NiagaraComponent.h"
 #include "RSBossPersistentObjectLifetimeComponent.h"
 #include "RSGameplayTags.h"
@@ -165,7 +166,7 @@ void ARSBossMeteorHazard::BeginPlay()
 		PersistentObjectLifetimeComp->StartObserving(GetOwner(), MeteorHazardDefinition.SpecialPatternCleanupOffset);
 	}
 
-	if (!MeteorHazardDefinition.IsDataValid() || !TelegraphComp || !UpdateTargetLocation())
+	if (!MeteorHazardDefinition.IsDataValid() || !HitSpec.IsValid() || !TelegraphComp || !UpdateTargetLocation())
 	{
 		RequestCleanup();
 
@@ -221,13 +222,6 @@ EDataValidationResult ARSBossMeteorHazard::IsDataValid(FDataValidationContext& C
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
-	FString ValidationError;
-	if (!MeteorHazardDefinition.IsDataValid(&ValidationError))
-	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("MeteorHazardDefinition is invalid: %s"), *ValidationError)));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
 	if (!FallingNiagaraComp || !FallingNiagaraComp->GetAsset())
 	{
 		Context.AddError(FText::FromString(TEXT("FallingNiagaraComponent has no Niagara System asset.")));
@@ -250,9 +244,11 @@ EDataValidationResult ARSBossMeteorHazard::IsDataValid(FDataValidationContext& C
 }
 #endif
 
-void ARSBossMeteorHazard::Initialize(AActor* InTargetActor)
+void ARSBossMeteorHazard::Initialize(AActor* InTargetActor, const FRSBossMeteorHazardDefinition& InMeteorHazardDefinition, const FRSBossPatternHitSpec& InHitSpec)
 {
 	TargetActor = InTargetActor;
+	MeteorHazardDefinition = InMeteorHazardDefinition;
+	HitSpec = InHitSpec;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -422,7 +418,10 @@ void ARSBossMeteorHazard::ApplyHazardDamage()
 		DamagePayload.EventTag = RSGameplayTags::GameplayEvent_Combat_MeteorHazardDamage;
 		DamagePayload.Instigator = this;
 		DamagePayload.Target = HitTarget;
+		DamagePayload.EventMagnitude = HitSpec.DamageAmount;
+		DamagePayload.OptionalObject = HitSpec.DamageEffectClass->GetDefaultObject<UGameplayEffect>();
 		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(OwnerActor, DamagePayload.EventTag, DamagePayload);
+		URSCombatFunctionLibrary::SendHitReaction(this, HitTarget, HitSpec.Reaction);
 	}
 }
 

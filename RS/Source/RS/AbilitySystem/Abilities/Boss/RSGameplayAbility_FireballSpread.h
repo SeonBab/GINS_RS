@@ -1,10 +1,10 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
+#include "Actors/RSBossFireball.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSGameplayAbility_FireballSpread.generated.h"
 
-class ARSBossFireball;
 class UAnimMontage;
 
 /** 화염구 네 개를 플레이어 방향의 180도 절반에 분산 배치하는 공간 설정입니다 */
@@ -13,8 +13,9 @@ struct FRSFireballSpreadDefinition
 {
 	GENERATED_BODY()
 
-	/** 한 번의 패턴에서 생성할 화염구 수이며 180도를 네 개의 45도 구역으로 나눕니다 */
-	static constexpr int32 FireballCount = 4;
+	/** 한 번의 패턴에서 생성할 화염구 수이며 대상 180도를 이 개수만큼 균등 분할합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball Spread|Placement", meta = (ClampMin = "1", UIMin = "1"))
+	int32 FireballCount = 4;
 
 	/** 보스 바닥 중심에서 화염구 중심까지의 최소 수평 거리입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball Spread|Placement", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
@@ -94,6 +95,10 @@ private:
 	void TryFinishAbility();
 
 private:
+	/** 생성하는 모든 화염구가 사용할 낙하, 충전, 장판과 수명 설정입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball Spread|Fireball", meta = (AllowPrivateAccess = "true"))
+	FRSBossFireballDefinition FireballDefinition;
+
 	/** 네 화염구의 반경과 경계·간격 설정입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball Spread", meta = (AllowPrivateAccess = "true"))
 	FRSFireballSpreadDefinition SpreadDefinition;

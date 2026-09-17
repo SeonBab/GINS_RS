@@ -145,21 +145,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
 	FRSArmSwingSectorDefinition AttackSector;
 
-	/** 판정에 걸린 대상에게 적용할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
-	FScalableFloat Damage = 15.0f;
-
-	/** 판정에 걸린 대상에게 적용할 대미지 GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
 	/** Arm Swing이 노릴 PlayerHurtBox Trace Channel입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Hit", meta = (AllowPrivateAccess = "true"))
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
-
-	/** 적중 대상에게 팔 진행 방향 넉다운을 요청할 공통 수치입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Reaction", meta = (AllowPrivateAccess = "true"))
-	FRSHitReactionDefinition Reaction;
 
 	/** Pre-Aim 동안 임시로 적용할 Boss Yaw 회전 속도입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Arm Swing|Aim", meta = (AllowPrivateAccess = "true", ClampMin = "0.01", UIMin = "0.01", ForceUnits = "deg/s"))

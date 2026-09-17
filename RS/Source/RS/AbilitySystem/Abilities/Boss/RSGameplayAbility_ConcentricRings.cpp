@@ -44,7 +44,7 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	}
 
 	// 구조체 기본값은 반응 없음이라 이 패턴이 원하는 넉다운을 지정합니다
-	Reaction.Type = ERSHitReactionType::Knockdown;
+	HitDefinition.Reaction.Type = ERSHitReactionType::Knockdown;
 
 	// 공격 범위를 중심에서만 보여 주면 비어 있는 안전한 링을 구분할 수 없으므로 링 띠를 채웁니다
 	FRSBossPatternNiagaraEntry& FillNiagaraEntry = PatternPresentation.Niagaras.AddDefaulted_GetRef();
@@ -290,11 +290,9 @@ void URSGameplayAbility_ConcentricRings::StrikeDangerRings(const AActor& AvatarA
 		UE_LOG(LogTemp, Log, TEXT("%s strike %d/%d safe ring %d struck %d ring(s) and found %d target(s)"), *GetName(), SequenceIndex + 1, ActiveSequence.Num(), ActiveSequence[SequenceIndex], DangerRings.Num(), HitTargets.Num());
 	}
 
-	const float DamageAmount = Damage.GetValueAtLevel(GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo));
 	for (AActor* HitTarget : HitTargets)
 	{
-		ApplyDamageToTarget(HitTarget, DamageEffectClass, DamageAmount);
-		URSCombatFunctionLibrary::SendHitReaction(&AvatarActor, HitTarget, Reaction);
+		ApplyPatternHitToTarget(HitTarget);
 	}
 }
 
@@ -384,11 +382,6 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 				ValidationResult = EDataValidationResult::Invalid;
 			}
 		}
-	}
-
-	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(Damage, TEXT("Damage"), Context))
-	{
-		ValidationResult = EDataValidationResult::Invalid;
 	}
 
 	return ValidationResult;

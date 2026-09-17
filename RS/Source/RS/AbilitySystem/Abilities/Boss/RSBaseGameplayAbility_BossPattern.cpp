@@ -44,6 +44,36 @@ namespace
 #endif
 }
 
+#if WITH_EDITOR
+EDataValidationResult URSBaseGameplayAbility_BossPattern::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
+
+	if (!HitDefinition.DamageEffectClass)
+	{
+		Context.AddError(FText::FromString(TEXT("HitDefinition.DamageEffectClass is required.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!URSCombatFunctionLibrary::ValidateIntegerDamage(HitDefinition.Damage, TEXT("HitDefinition.Damage"), Context))
+	{
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	const FRSHitReactionDefinition& Reaction = HitDefinition.Reaction;
+	if (Reaction.Type == ERSHitReactionType::Knockdown
+		&& (!FMath::IsFinite(Reaction.KnockbackDistance) || Reaction.KnockbackDistance < 0.0f
+			|| !FMath::IsFinite(Reaction.KnockbackHeight) || Reaction.KnockbackHeight < 0.0f
+			|| !FMath::IsFinite(Reaction.KnockbackDuration) || Reaction.KnockbackDuration <= 0.0f))
+	{
+		Context.AddError(FText::FromString(TEXT("HitDefinition.Reaction Knockdown values are outside their supported ranges.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	return ValidationResult;
+}
+#endif
+
 void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	bAnyTargetHit = false;
@@ -130,6 +160,33 @@ void URSBaseGameplayAbility_BossPattern::ApplyDamageToTarget(AActor* TargetActor
 	}
 
 	Super::ApplyDamageToTarget(TargetActor, DamageEffectClass, DamageAmount);
+}
+
+void URSBaseGameplayAbility_BossPattern::ApplyPatternHitToTarget(AActor* TargetActor)
+{
+	ApplyDamageToTarget(TargetActor, HitDefinition.DamageEffectClass, GetPatternDamageAmount());
+	URSCombatFunctionLibrary::SendHitReaction(GetAvatarActorFromActorInfo(), TargetActor, HitDefinition.Reaction);
+}
+
+void URSBaseGameplayAbility_BossPattern::ApplyPatternHitToTarget(AActor* TargetActor, const FVector& KnockbackDirection)
+{
+	ApplyDamageToTarget(TargetActor, HitDefinition.DamageEffectClass, GetPatternDamageAmount());
+	URSCombatFunctionLibrary::SendHitReactionWithKnockbackDirection(GetAvatarActorFromActorInfo(), TargetActor, HitDefinition.Reaction, KnockbackDirection);
+}
+
+FRSBossPatternHitSpec URSBaseGameplayAbility_BossPattern::MakePatternHitSpec() const
+{
+	FRSBossPatternHitSpec HitSpec;
+	HitSpec.DamageAmount = GetPatternDamageAmount();
+	HitSpec.DamageEffectClass = HitDefinition.DamageEffectClass;
+	HitSpec.Reaction = HitDefinition.Reaction;
+
+	return HitSpec;
+}
+
+float URSBaseGameplayAbility_BossPattern::GetPatternDamageAmount() const
+{
+	return GetAbilityLevel() > 0 ? HitDefinition.Damage.GetValueAtLevel(GetAbilityLevel()) : HitDefinition.Damage.GetValueAtLevel(1.0f);
 }
 
 UAbilityTask_PlayMontageAndWait* URSBaseGameplayAbility_BossPattern::PlayPatternMontage(UAnimMontage* Montage, float PlayRate)

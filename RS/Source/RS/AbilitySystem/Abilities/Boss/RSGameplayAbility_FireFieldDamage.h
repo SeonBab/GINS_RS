@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBaseGameplayAbility.h"
 #include "RSGameplayAbility_FireFieldDamage.generated.h"
 
@@ -20,21 +19,4 @@ protected:
 	/** Event Payload의 플레이어에게 한 번의 장판 피해와 Reaction을 적용합니다 */
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
-#if WITH_EDITOR
-	/** Damage GameplayEffect와 정수 피해량 설정을 검사합니다 */
-	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
-#endif
-
-private:
-	/** 한 번의 장판 Tick이 적용할 피해량입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
-	FScalableFloat Damage = 10.0f;
-
-	/** 플레이어에게 적용할 공용 Damage GameplayEffect입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
-
-	/** 장판 피해와 함께 요청할 피격 반응입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (AllowPrivateAccess = "true"))
-	FRSHitReactionDefinition Reaction;
 };
