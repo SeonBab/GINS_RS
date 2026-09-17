@@ -295,6 +295,35 @@ void URSAbilitySystemComponent::ClearAbilityInput()
 	ClearBufferedAbilityInput();
 }
 
+void URSAbilitySystemComponent::TryActivateAbilitiesOnSpawn()
+{
+	TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
+
+	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	{
+		const URSBaseGameplayAbility* RSAbility = Cast<URSBaseGameplayAbility>(AbilitySpec.Ability);
+
+		if (!RSAbility || RSAbility->GetActivationPolicy() != ERSAbilityActivationPolicy::OnSpawn)
+		{
+			continue;
+		}
+
+		if (AbilitySpec.IsActive())
+		{
+			continue;
+		}
+
+		AbilitiesToActivate.AddUnique(AbilitySpec.Handle);
+	}
+
+	// 입력 경로와 달리 OnSpawn 어빌리티는 서로 대체 후보가 아니므로 첫 성공에서 멈추지 않고 모두 시도합니다
+	// Spec 순회 중 활성화가 목록을 바꿀 수 있어 수집을 마친 뒤 활성화합니다
+	for (const FGameplayAbilitySpecHandle& SpecHandle : AbilitiesToActivate)
+	{
+		TryActivateAbility(SpecHandle);
+	}
+}
+
 FGameplayTag URSAbilitySystemComponent::FindHeldRepeatInputTag() const
 {
 	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())

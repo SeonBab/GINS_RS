@@ -25,6 +25,8 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Downed, "Ability.CrowdControl.Downed", "누워 기상을 기다리는 Ability를 식별하며 기상과 넉다운이 이 Ability를 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_HitReact, "Ability.CrowdControl.HitReact", "피격 경직 Ability를 식별하며 넉다운이 진행 중인 경직을 취소합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_CrowdControl_Knockdown, "Ability.CrowdControl.Knockdown", "밀려나 넘어지고 Land까지 진행하는 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Interaction_Interact, "Ability.Interaction.Interact", "상호작용 실행 Ability를 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Interaction_Scan, "Ability.Interaction.Scan", "상호작용 대상을 주기적으로 탐색하는 패시브 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Movement_Dash, "Ability.Movement.Dash", "대시 이동 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Normal, "Ability.Recovery.GetUp.Normal", "자동 조건으로 실행되는 일반 기상 Ability를 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Recovery_GetUp_Quick, "Ability.Recovery.GetUp.Quick", "플레이어 입력으로 실행되는 빠른 기상 Ability를 식별합니다");
@@ -50,6 +52,7 @@ namespace RSGameplayTags
 	// Input
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_BasicAttack, "InputTag.Ability.BasicAttack", "기본 공격 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_Dash, "InputTag.Ability.Dash", "대시 Ability 입력을 식별합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_Interact, "InputTag.Ability.Interact", "상호작용 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot01, "InputTag.Ability.SkillSlot01", "1번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot02, "InputTag.Ability.SkillSlot02", "2번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ability_SkillSlot03, "InputTag.Ability.SkillSlot03", "3번 스킬 슬롯에 배치된 Ability 입력을 식별합니다");

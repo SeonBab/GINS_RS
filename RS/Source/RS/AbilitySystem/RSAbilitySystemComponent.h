@@ -112,6 +112,13 @@ public:
 	 */
 	void ClearAbilityInput();
 
+	/**
+	 * OnSpawn 정책을 가진 어빌리티의 활성화를 시도합니다
+	 * 입력 없이 상시 유지되어야 하는 어빌리티를 위한 경로이며, 부여가 끝나 Avatar가 준비된 뒤 한 번 호출합니다
+	 * 이미 실행 중인 어빌리티는 건너뛰므로 다시 호출해도 중복 활성화되지 않습니다
+	 */
+	void TryActivateAbilitiesOnSpawn();
+
 #pragma region Display
 
 public:

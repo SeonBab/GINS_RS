@@ -26,6 +26,8 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Downed);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_HitReact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_CrowdControl_Knockdown);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction_Interact);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Interaction_Scan);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Movement_Dash);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Normal);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Recovery_GetUp_Quick);
@@ -51,6 +53,7 @@ namespace RSGameplayTags
 	// Input
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_BasicAttack);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Dash);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_Interact);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot01);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot02);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_Ability_SkillSlot03);

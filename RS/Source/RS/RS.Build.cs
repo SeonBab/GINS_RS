@@ -38,6 +38,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "GameMode"),
 			Path.Combine(ModuleDirectory, "GameplayTags"),
 			Path.Combine(ModuleDirectory, "Input"),
+			Path.Combine(ModuleDirectory, "Interaction"),
 			Path.Combine(ModuleDirectory, "Loading"),
 			Path.Combine(ModuleDirectory, "PlayerState"),
 			Path.Combine(ModuleDirectory, "Scoreboard"),
