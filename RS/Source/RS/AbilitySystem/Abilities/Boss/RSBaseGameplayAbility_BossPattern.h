@@ -13,6 +13,8 @@ class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 class UNiagaraComponent;
 class USoundBase;
+class URSAbilityTask_BossFacing;
+struct FRSBossFacingRequest;
 
 /** 패턴 연출 Niagara를 공격 판정 범위에 어떻게 배치할지 정합니다 */
 UENUM(BlueprintType)
@@ -139,6 +141,12 @@ protected:
 	 */
 	void FinishPatternWhenMontageEnds();
 
+	/** 기존 Facing을 정리하고 이 패턴이 사용할 새 보스 Facing Task를 생성합니다 */
+	URSAbilityTask_BossFacing* CreateBossFacingTask(const FRSBossFacingRequest& Request);
+
+	/** 현재 패턴이 소유한 Facing Task와 회전 설정을 즉시 정리합니다 */
+	void EndActiveBossFacing();
+
 	/**
 	 * 이 패턴의 연출을 재생하며 적중 여부는 보지 않습니다
 	 * Niagara는 넘긴 위치마다 하나씩, Sound와 카메라 셰이크는 호출마다 한 번 재생합니다
@@ -244,4 +252,8 @@ private:
 	/** 종료할 때 상태 태그를 회수할 이번 실행의 Montage입니다 */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UAnimMontage>> PlayedPatternMontages;
+
+	/** 종료할 때 Focus와 회전 설정을 함께 복원할 현재 Facing Task입니다 */
+	UPROPERTY(Transient)
+	TObjectPtr<URSAbilityTask_BossFacing> ActiveBossFacingTask;
 };

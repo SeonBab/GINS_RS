@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "RSBossPhaseComponent.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -32,6 +33,7 @@ void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilityS
 	PendingPatternMontageCount = 0;
 	PatternMontageTasks.Reset();
 	PlayedPatternMontages.Reset();
+	EndActiveBossFacing();
 
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
@@ -57,6 +59,8 @@ void URSBaseGameplayAbility_BossPattern::ActivateAbility(const FGameplayAbilityS
 
 void URSBaseGameplayAbility_BossPattern::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+	EndActiveBossFacing();
+
 	// Task를 끝내면 Montage가 중단되어 완료 Callback이 되돌아올 수 있으므로 게이트를 먼저 닫고 목록을 비웁니다
 	TArray<TObjectPtr<UAbilityTask_PlayMontageAndWait>> TasksToEnd = MoveTemp(PatternMontageTasks);
 	PatternMontageTasks.Reset();
@@ -141,6 +145,26 @@ void URSBaseGameplayAbility_BossPattern::FinishPatternWhenMontageEnds()
 	bPatternTimelineFinished = true;
 
 	TryFinishPattern();
+}
+
+URSAbilityTask_BossFacing* URSBaseGameplayAbility_BossPattern::CreateBossFacingTask(const FRSBossFacingRequest& Request)
+{
+	EndActiveBossFacing();
+	ActiveBossFacingTask = URSAbilityTask_BossFacing::CreateBossFacingTask(this, Request);
+
+	return ActiveBossFacingTask;
+}
+
+void URSBaseGameplayAbility_BossPattern::EndActiveBossFacing()
+{
+	if (!ActiveBossFacingTask)
+	{
+		return;
+	}
+
+	URSAbilityTask_BossFacing* FacingTask = ActiveBossFacingTask;
+	ActiveBossFacingTask = nullptr;
+	FacingTask->EndTask();
 }
 
 void URSBaseGameplayAbility_BossPattern::PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const

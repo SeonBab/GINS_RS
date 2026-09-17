@@ -4,6 +4,7 @@
 #include "Engine/EngineTypes.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
 #include "RSPizzaMemoryPatternDefinition.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_PizzaMemoryPattern.generated.h"
 
 class UAnimMontage;
@@ -20,7 +21,7 @@ public:
 	URSGameplayAbility_PizzaMemoryPattern();
 
 protected:
-	/** Montage를 요청하고 독립 지연 뒤 패턴 Transform과 안전지대 후보 하나를 확정합니다 */
+	/** 월드 절대 Yaw Facing을 시작하고 완료 뒤 Montage와 패턴 준비를 이어갑니다 */
 	virtual void BeginPatternTimeline() override;
 
 	/** 종료 경로와 관계없이 공격 시작 대기와 이번 실행에 고정한 상태를 정리합니다 */
@@ -32,8 +33,15 @@ protected:
 #endif
 
 private:
+	/** 정확한 월드 Yaw 보정이 끝나면 Montage와 기존 공격 시작 지연을 순서대로 시작합니다 */
+	UFUNCTION()
+	void HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees);
+
 	/** 설정된 Montage를 한 번 요청하며 재생 실패와 중단은 패턴 준비를 취소하지 않습니다 */
 	void RequestAttackMontage();
+
+	/** 기존 AttackStartDelay를 시작하고 0이면 같은 프레임에 패턴 공간을 확정합니다 */
+	void BeginAttackStartDelay();
 
 	/** 공격 시작 지연이 끝나면 패턴 Transform과 안전지대 순서 후보를 한 번 확정합니다 */
 	UFUNCTION()
@@ -87,6 +95,22 @@ protected:
 	/** Ability 활성화 시 한 번만 재생을 요청할 선택적 Montage입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Animation")
 	TObjectPtr<UAnimMontage> AttackMontage;
+
+	/** 패턴 시작 전에 보스가 정확히 향할 월드 절대 Yaw입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Facing", meta = (ForceUnits = "deg"))
+	float WorldYawDegrees = 0.0f;
+
+	/** 월드 절대 Yaw를 향하는 동안 적용할 Boss 회전 속도입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Facing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "deg/s"))
+	float FacingRotationSpeed = 150.0f;
+
+	/** 정확한 Yaw 보정을 실행할 도착 판정 범위입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Facing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "deg"))
+	float FacingYawTolerance = 0.5f;
+
+	/** 초과하면 목표 월드 Yaw로 즉시 보정할 최대 Facing 시간입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Facing", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
+	float MaxFacingDuration = 1.5f;
 
 	/** 위험 조각 판정에 걸린 대상에게 적용할 필수 대미지 GameplayEffect입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Pizza Memory Pattern|Hit")

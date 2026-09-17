@@ -7,6 +7,7 @@
 #include "Combat/RSCircularSliceMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSGameplayTags.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -40,7 +41,8 @@ void URSGameplayAbility_PizzaMemoryPattern::BeginPatternTimeline()
 	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
 
-	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !DamageEffectClass)
+	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeFixedWorldYaw(WorldYawDegrees, FacingRotationSpeed, FacingYawTolerance, MaxFacingDuration);
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !DamageEffectClass || !FacingRequest.IsDataValid())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -54,18 +56,16 @@ void URSGameplayAbility_PizzaMemoryPattern::BeginPatternTimeline()
 		return;
 	}
 
-	RequestAttackMontage();
-
-	if (PizzaMemoryPatternDefinition.AttackStartDelay <= 0.0f)
+	URSAbilityTask_BossFacing* FacingTask = CreateBossFacingTask(FacingRequest);
+	if (!FacingTask)
 	{
-		HandleAttackStartDelayFinished();
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	AttackStartDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, PizzaMemoryPatternDefinition.AttackStartDelay);
-	AttackStartDelayTask->OnFinish.AddDynamic(this, &ThisClass::HandleAttackStartDelayFinished);
-	AttackStartDelayTask->ReadyForActivation();
+	FacingTask->OnFacingFinished.AddDynamic(this, &ThisClass::HandleBossFacingFinished);
+	FacingTask->ReadyForActivation();
 }
 
 void URSGameplayAbility_PizzaMemoryPattern::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
@@ -117,6 +117,38 @@ void URSGameplayAbility_PizzaMemoryPattern::EndAbility(const FGameplayAbilitySpe
 void URSGameplayAbility_PizzaMemoryPattern::RequestAttackMontage()
 {
 	PlayPatternMontage(AttackMontage);
+}
+
+void URSGameplayAbility_PizzaMemoryPattern::HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees)
+{
+	if (bIsCleaningUp || !IsActive())
+	{
+		return;
+	}
+
+	if (Result != ERSBossFacingResult::Aligned && Result != ERSBossFacingResult::TimedOut)
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+
+		return;
+	}
+
+	RequestAttackMontage();
+	BeginAttackStartDelay();
+}
+
+void URSGameplayAbility_PizzaMemoryPattern::BeginAttackStartDelay()
+{
+	if (PizzaMemoryPatternDefinition.AttackStartDelay <= 0.0f)
+	{
+		HandleAttackStartDelayFinished();
+
+		return;
+	}
+
+	AttackStartDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, PizzaMemoryPatternDefinition.AttackStartDelay);
+	AttackStartDelayTask->OnFinish.AddDynamic(this, &ThisClass::HandleAttackStartDelayFinished);
+	AttackStartDelayTask->ReadyForActivation();
 }
 
 void URSGameplayAbility_PizzaMemoryPattern::HandleAttackStartDelayFinished()
@@ -443,6 +475,13 @@ EDataValidationResult URSGameplayAbility_PizzaMemoryPattern::IsDataValid(FDataVa
 	if (!DamageEffectClass)
 	{
 		Context.AddError(FText::FromString(TEXT("DamageEffectClass is required.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeFixedWorldYaw(WorldYawDegrees, FacingRotationSpeed, FacingYawTolerance, MaxFacingDuration);
+	if (!FacingRequest.IsDataValid())
+	{
+		Context.AddError(FText::FromString(TEXT("FixedWorldYaw Facing values are outside their supported ranges.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 

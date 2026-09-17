@@ -5,6 +5,7 @@
 #include "Components/RSAttackTelegraphComponent.h"
 #include "Engine/EngineTypes.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_TargetedSlam.generated.h"
 
 class ARSBossCharacter;
@@ -13,7 +14,6 @@ class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitDelay;
 class UAnimMontage;
 class UGameplayEffect;
-class URSAbilityTask_ObserveFacing;
 
 /** 현재 Targeted Slam 활성화가 어느 실행 단계인지 나타냅니다 */
 enum class ERSTargetedSlamState : uint8
@@ -52,9 +52,9 @@ private:
 	/** 현재 Strike의 Target과 Pre-Aim 상태를 새로 만들고 Facing 관찰을 시작합니다 */
 	void BeginStrike();
 
-	/** Pre-Aim에서 현재 Facing 결과를 받아 timeout, 방향과 drift 순서로 공격 확정 여부를 판단합니다 */
+	/** 공통 Actor 추적 Facing 결과에 따라 공격을 확정하거나 취소합니다 */
 	UFUNCTION()
-	void HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees);
+	void HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees);
 
 	/** 공격 방향과 위치를 고정하고 현재 Strike의 Telegraph와 Montage를 시작합니다 */
 	void ConfirmAttack();
@@ -141,20 +141,11 @@ private:
 	FRSHitReactionDefinition Reaction;
 
 private:
-	/** 한 활성화에서 고정한 Controller Target이며 Pre-Aim 중 새 대상을 선택하지 않습니다 */
-	TWeakObjectPtr<AActor> AimTargetActor;
-
-	/** 현재 Pre-Aim이 향하는 고정 월드 위치입니다 */
-	FVector AimSnapshotLocation = FVector::ZeroVector;
-
 	/** Telegraph와 HitCheck가 함께 사용하는 공격 확정 시점의 월드 Transform입니다 */
 	FTransform LockedAttackTransform = FTransform::Identity;
 
 	/** 공격 확정 시점에 보스 캡슐 하한까지 밀어 올린 AttackShape 사본이며 예고, 판정과 연출이 함께 읽습니다 */
 	FRSCombatShape ActiveAttackShape;
-
-	/** 현재 Strike Pre-Aim이 시작된 World gameplay time입니다 */
-	float PreAimStartTime = 0.0f;
 
 	/** 현재 활성화에서 실행 중인 Strike 인덱스입니다 */
 	int32 CurrentStrikeIndex = 0;
@@ -165,30 +156,14 @@ private:
 	/** 현재 Strike의 Montage가 정상 완료됐는지 나타냅니다 */
 	bool bHasCompletedMontage = false;
 
-	/** Ability가 설정한 외부 상태를 되돌릴 수 있도록 원래 회전 설정을 저장했는지 나타냅니다 */
-	bool bHasSavedRotationSettings = false;
-
-	/** Gameplay 우선순위 Focus를 Ability가 설정했는지 나타냅니다 */
-	bool bHasAppliedGameplayFocus = false;
-
 	/** EndAbility 정리 중 Task Callback 재진입을 막습니다 */
 	bool bIsCleaningUp = false;
 
 	/** 이번 활성화가 Commit되어 외부 상태 정리 책임을 획득했는지 나타냅니다 */
 	bool bHasCommittedActivation = false;
 
-	/** Ability 시작 전 CharacterMovement의 회전 속도입니다 */
-	FRotator OriginalRotationRate = FRotator::ZeroRotator;
-
-	/** Ability 시작 전 Controller 목표 회전을 사용했는지 나타냅니다 */
-	bool bOriginalUseControllerDesiredRotation = false;
-
 	/** 현재 실행 단계입니다 */
 	ERSTargetedSlamState State = ERSTargetedSlamState::Inactive;
-
-	/** Pre-Aim 동안 Facing을 프레임 단위로 관찰하는 Task입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_ObserveFacing> ObserveFacingTask;
 
 	/** 현재 Strike 시작부터 Impact 판정까지 기다리는 Task입니다 */
 	UPROPERTY(Transient)

@@ -7,6 +7,7 @@
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/EngineTypes.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_ArmSwing.generated.h"
 
 class ARSBossCharacter;
@@ -14,7 +15,6 @@ class ARSBossController;
 class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 class UGameplayEffect;
-class URSAbilityTask_ObserveFacing;
 class URSAbilityTask_ObserveAttackWindow;
 
 /** Arm Swing의 한 Side가 사용할 필수 Montage와 회전 경로입니다 */
@@ -72,9 +72,9 @@ protected:
 #endif
 
 private:
-	/** Pre-Aim에서 현재 Facing 결과를 받아 방향과 Target drift를 확인합니다 */
+	/** 공통 Actor 추적 Facing 결과에 따라 공격을 확정하거나 취소합니다 */
 	UFUNCTION()
-	void HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees);
+	void HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees);
 
 	/** Capsule 발밑 기준 공격 Transform을 고정하고 선택한 Montage를 시작합니다 */
 	void ConfirmAttack();
@@ -181,35 +181,14 @@ private:
 	/** 한 활성화에서 50:50으로 선택하고 종료까지 유지할 Variant입니다 */
 	const FRSArmSwingVariantDefinition* SelectedVariant = nullptr;
 
-	/** 한 활성화에서 고정한 Controller Target이며 Pre-Aim 중 새 대상을 선택하지 않습니다 */
-	TWeakObjectPtr<AActor> AimTargetActor;
-
-	/** 현재 Pre-Aim이 향하는 고정 월드 위치입니다 */
-	FVector AimSnapshotLocation = FVector::ZeroVector;
-
 	/** 공격 확정 순간 Capsule 발밑과 Facing Yaw로 고정한 공격 Transform입니다 */
 	FTransform LockedAttackTransform = FTransform::Identity;
-
-	/** 현재 Pre-Aim이 시작된 World gameplay time입니다 */
-	float PreAimStartTime = 0.0f;
-
-	/** Ability가 설정한 외부 상태를 되돌릴 수 있도록 원래 회전 설정을 저장했는지 나타냅니다 */
-	bool bHasSavedRotationSettings = false;
-
-	/** Gameplay 우선순위 Focus를 Ability가 설정했는지 나타냅니다 */
-	bool bHasAppliedGameplayFocus = false;
 
 	/** EndAbility 정리 중 Task Callback 재진입을 막습니다 */
 	bool bIsCleaningUp = false;
 
 	/** Ability가 Commit되어 외부 상태 정리 책임을 획득했는지 나타냅니다 */
 	bool bHasCommittedActivation = false;
-
-	/** Ability 시작 전 CharacterMovement의 회전 속도입니다 */
-	FRotator OriginalRotationRate = FRotator::ZeroRotator;
-
-	/** Ability 시작 전 Controller 목표 회전을 사용했는지 나타냅니다 */
-	bool bOriginalUseControllerDesiredRotation = false;
 
 	/** 현재 실행 단계입니다 */
 	ERSArmSwingState State = ERSArmSwingState::Inactive;
@@ -234,10 +213,6 @@ private:
 
 	/** 현재 Window에서 이미 Damage와 Knockdown을 요청한 Actor 집합입니다 */
 	TSet<TWeakObjectPtr<AActor>> HitActors;
-
-	/** Pre-Aim 동안 Facing을 프레임 단위로 관찰하는 Task입니다 */
-	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_ObserveFacing> ObserveFacingTask;
 
 	/** 선택한 Montage의 완료와 중단 수명을 관찰하는 Task입니다 */
 	UPROPERTY(Transient)

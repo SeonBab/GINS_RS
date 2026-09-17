@@ -4,6 +4,7 @@
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Engine/EngineTypes.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_SequentialSweepExplosion.generated.h"
 
 class ARSBossCharacter;
@@ -11,7 +12,6 @@ class ARSBossController;
 class UAnimMontage;
 class UGameplayEffect;
 class URSAbilityTask_ObserveElapsedTime;
-class URSAbilityTask_ObserveFacing;
 
 /** 순차 스윕 폭발 패턴의 공간, 시간, 피해와 반응 설정입니다 */
 USTRUCT(BlueprintType)
@@ -99,9 +99,9 @@ private:
 	/** 현재 Target의 Snapshot을 향한 Facing 관찰을 시작합니다 */
 	void BeginAim();
 
-	/** Aim 결과와 timeout을 평가해 공격 확정 여부를 판단합니다 */
+	/** 공통 Actor 추적 Facing 결과에 따라 공격을 확정하거나 취소합니다 */
 	UFUNCTION()
-	void HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees);
+	void HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees);
 
 	/** 현재 Boss 바닥과 Facing을 고정하고 공격 타임라인을 시작합니다 */
 	void ConfirmAttack();
@@ -182,25 +182,15 @@ protected:
 	TEnumAsByte<ECollisionChannel> TargetChannel = ECollisionChannel::ECC_GameTraceChannel1;
 
 private:
-	TWeakObjectPtr<AActor> AimTargetActor;
-	FVector AimSnapshotLocation = FVector::ZeroVector;
 	FTransform LockedAttackTransform = FTransform::Identity;
 
-	float PreAimStartTime = 0.0f;
 	int32 NextWarningSectorIndex = 0;
 	int32 NextHideSectorIndex = 0;
 	int32 NextExplosionSectorIndex = 0;
 	TArray<int32> WarningSectorHandles;
 	TSet<TWeakObjectPtr<AActor>> HitActors;
-	bool bHasSavedRotationSettings = false;
-	bool bHasAppliedGameplayFocus = false;
 	bool bIsCleaningUp = false;
-	FRotator OriginalRotationRate = FRotator::ZeroRotator;
-	bool bOriginalUseControllerDesiredRotation = false;
 	ERSSequentialSweepExplosionState State = ERSSequentialSweepExplosionState::Inactive;
-
-	UPROPERTY(Transient)
-	TObjectPtr<URSAbilityTask_ObserveFacing> ObserveFacingTask;
 
 	UPROPERTY(Transient)
 	TObjectPtr<URSAbilityTask_ObserveElapsedTime> TimelineTask;

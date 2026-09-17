@@ -3,14 +3,13 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Animation/AnimMontage.h"
 #include "Components/CapsuleComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Combat/RSSequentialSweepExplosionMath.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
 #include "RSGameplayTags.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 #include "Tasks/RSAbilityTask_ObserveElapsedTime.h"
-#include "Tasks/RSAbilityTask_ObserveFacing.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -166,13 +165,6 @@ void URSGameplayAbility_SequentialSweepExplosion::BeginPatternTimeline()
 		return;
 	}
 
-	UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement();
-	OriginalRotationRate = CharacterMovementComp->RotationRate;
-	bOriginalUseControllerDesiredRotation = CharacterMovementComp->bUseControllerDesiredRotation;
-	bHasSavedRotationSettings = true;
-	CharacterMovementComp->RotationRate.Yaw = AimRotationSpeed;
-	CharacterMovementComp->bUseControllerDesiredRotation = true;
-
 	BeginAim();
 }
 
@@ -190,12 +182,6 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 	ARSBossController* BossController = nullptr;
 	GetBossContext(BossCharacter, BossController);
 
-	if (ObserveFacingTask)
-	{
-		ObserveFacingTask->EndTask();
-		ObserveFacingTask = nullptr;
-	}
-
 	if (TimelineTask)
 	{
 		TimelineTask->EndTask();
@@ -204,31 +190,11 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 
 	HideAllWarningSectors();
 
-	if (BossCharacter && bHasSavedRotationSettings)
-	{
-		if (UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement())
-		{
-			CharacterMovementComp->RotationRate = OriginalRotationRate;
-			CharacterMovementComp->bUseControllerDesiredRotation = bOriginalUseControllerDesiredRotation;
-		}
-	}
-
-	if (BossController && bHasAppliedGameplayFocus)
-	{
-		BossController->ClearFocus(EAIFocusPriority::Gameplay);
-	}
-
-	AimTargetActor.Reset();
-	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;
 	NextExplosionSectorIndex = 0;
 	HitActors.Reset();
-	bHasSavedRotationSettings = false;
-	bHasAppliedGameplayFocus = false;
-
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 	bIsCleaningUp = false;
 }
@@ -252,64 +218,35 @@ void URSGameplayAbility_SequentialSweepExplosion::BeginAim()
 		return;
 	}
 
-	AimTargetActor = TargetActor;
-	AimSnapshotLocation = TargetActor->GetActorLocation();
-	PreAimStartTime = BossCharacter->GetWorld()->GetTimeSeconds();
 	State = ERSSequentialSweepExplosionState::PreAiming;
 
-	BossController->SetFocalPoint(AimSnapshotLocation, EAIFocusPriority::Gameplay);
-	bHasAppliedGameplayFocus = true;
-
-	ObserveFacingTask = URSAbilityTask_ObserveFacing::ObserveFacing(this, AimSnapshotLocation, AimYawTolerance);
-	ObserveFacingTask->OnFacingUpdated.AddDynamic(this, &ThisClass::HandleFacingUpdated);
-	ObserveFacingTask->ReadyForActivation();
-}
-
-void URSGameplayAbility_SequentialSweepExplosion::HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees)
-{
-	if (bIsCleaningUp || State != ERSSequentialSweepExplosionState::PreAiming)
-	{
-		return;
-	}
-
-	ARSBossCharacter* BossCharacter = nullptr;
-	ARSBossController* BossController = nullptr;
-	AActor* TargetActor = AimTargetActor.Get();
-	if (!GetBossContext(BossCharacter, BossController) || !BossController->IsTargetActorValid(TargetActor))
+	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeTrackActor(TargetActor, AimRotationSpeed, AimYawTolerance, TargetDriftTolerance, MaxAimDuration);
+	URSAbilityTask_BossFacing* FacingTask = CreateBossFacingTask(FacingRequest);
+	if (!FacingTask)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	const float PreAimElapsedTime = BossCharacter->GetWorld()->GetTimeSeconds() - PreAimStartTime;
-	if (PreAimElapsedTime >= MaxAimDuration || !bHasFacingDirection)
+	FacingTask->OnFacingFinished.AddDynamic(this, &ThisClass::HandleBossFacingFinished);
+	FacingTask->ReadyForActivation();
+}
+
+void URSGameplayAbility_SequentialSweepExplosion::HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees)
+{
+	if (bIsCleaningUp || State != ERSSequentialSweepExplosionState::PreAiming)
+	{
+		return;
+	}
+
+	if (Result == ERSBossFacingResult::Aligned || Result == ERSBossFacingResult::TimedOut || Result == ERSBossFacingResult::NoDirection)
 	{
 		ConfirmAttack();
-
 		return;
 	}
 
-	if (!bIsWithinYawTolerance)
-	{
-		return;
-	}
-
-	const float DriftDistanceSquared = FVector::DistSquared2D(TargetActor->GetActorLocation(), AimSnapshotLocation);
-	if (DriftDistanceSquared > FMath::Square(TargetDriftTolerance))
-	{
-		AimSnapshotLocation = TargetActor->GetActorLocation();
-		BossController->SetFocalPoint(AimSnapshotLocation, EAIFocusPriority::Gameplay);
-
-		if (ObserveFacingTask)
-		{
-			ObserveFacingTask->SetFacingLocation(AimSnapshotLocation);
-		}
-
-		return;
-	}
-
-	ConfirmAttack();
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
 void URSGameplayAbility_SequentialSweepExplosion::ConfirmAttack()
@@ -332,23 +269,6 @@ void URSGameplayAbility_SequentialSweepExplosion::ConfirmAttack()
 	}
 
 	State = ERSSequentialSweepExplosionState::Attacking;
-	if (ObserveFacingTask)
-	{
-		ObserveFacingTask->EndTask();
-		ObserveFacingTask = nullptr;
-	}
-
-	if (bHasAppliedGameplayFocus)
-	{
-		BossController->ClearFocus(EAIFocusPriority::Gameplay);
-		bHasAppliedGameplayFocus = false;
-	}
-
-	if (UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement())
-	{
-		CharacterMovementComp->bUseControllerDesiredRotation = false;
-	}
-
 	StartAttackTimeline();
 }
 
@@ -596,21 +516,13 @@ bool URSGameplayAbility_SequentialSweepExplosion::GetBossContext(ARSBossCharacte
 
 void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()
 {
-	AimTargetActor.Reset();
-	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	PreAimStartTime = 0.0f;
 	NextWarningSectorIndex = 0;
 	NextHideSectorIndex = 0;
 	NextExplosionSectorIndex = 0;
 	WarningSectorHandles.Reset();
 	HitActors.Reset();
-	bHasSavedRotationSettings = false;
-	bHasAppliedGameplayFocus = false;
-	OriginalRotationRate = FRotator::ZeroRotator;
-	bOriginalUseControllerDesiredRotation = false;
 	State = ERSSequentialSweepExplosionState::Inactive;
-	ObserveFacingTask = nullptr;
 	TimelineTask = nullptr;
 }
 

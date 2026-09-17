@@ -3,13 +3,11 @@
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
-#include "Engine/World.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "Tasks/RSAbilityTask_ObserveFacing.h"
 #include "RSAttackTelegraphComponent.h"
 #include "RSBossCharacter.h"
 #include "RSBossController.h"
 #include "RSGameplayTags.h"
+#include "Tasks/RSAbilityTask_BossFacing.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -35,20 +33,14 @@ URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 
 void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 {
-	AimTargetActor.Reset();
-	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
 	ActiveAttackShape = AttackShape;
-	PreAimStartTime = 0.0f;
 	CurrentStrikeIndex = 0;
 	bHasExecutedImpact = false;
 	bHasCompletedMontage = false;
-	bHasSavedRotationSettings = false;
-	bHasAppliedGameplayFocus = false;
 	bIsCleaningUp = false;
 	bHasCommittedActivation = false;
 	State = ERSTargetedSlamState::Inactive;
-	ObserveFacingTask = nullptr;
 	ImpactDelayTask = nullptr;
 	MontageTask = nullptr;
 
@@ -65,10 +57,10 @@ void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 		|| StrikeCount > 2
 		|| AttackShape.Type != ERSCombatShapeType::AnnularSector
 		|| !AttackShape.IsDataValid()
-		|| AimRotationSpeed <= 0.0f
-		|| AimYawTolerance < 0.0f
-		|| TargetDriftTolerance < 0.0f
-		|| MaxAimDuration <= 0.0f
+		|| !FMath::IsFinite(AimRotationSpeed) || AimRotationSpeed <= 0.0f
+		|| !FMath::IsFinite(AimYawTolerance) || AimYawTolerance < 0.0f
+		|| !FMath::IsFinite(TargetDriftTolerance) || TargetDriftTolerance < 0.0f
+		|| !FMath::IsFinite(MaxAimDuration) || MaxAimDuration <= 0.0f
 		|| !FMath::IsFinite(MontagePlayRate)
 		|| MontagePlayRate <= 0.0f
 		|| !FMath::IsFinite(ImpactDelay)
@@ -98,13 +90,6 @@ void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 	}
 	bHasCommittedActivation = true;
 
-	UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement();
-	OriginalRotationRate = CharacterMovementComp->RotationRate;
-	bOriginalUseControllerDesiredRotation = CharacterMovementComp->bUseControllerDesiredRotation;
-	bHasSavedRotationSettings = true;
-	CharacterMovementComp->RotationRate.Yaw = AimRotationSpeed;
-	CharacterMovementComp->bUseControllerDesiredRotation = true;
-
 	BeginStrike();
 }
 
@@ -129,24 +114,6 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 			TelegraphComp->HideAllShapes();
 		}
 
-		if (bHasSavedRotationSettings)
-		{
-			if (UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement())
-			{
-				CharacterMovementComp->RotationRate = OriginalRotationRate;
-				CharacterMovementComp->bUseControllerDesiredRotation = bOriginalUseControllerDesiredRotation;
-			}
-		}
-	}
-
-	if (BossController && bHasAppliedGameplayFocus)
-	{
-		BossController->ClearFocus(EAIFocusPriority::Gameplay);
-	}
-
-	if (ObserveFacingTask)
-	{
-		ObserveFacingTask->EndTask();
 	}
 
 	if (bHasCommittedActivation)
@@ -156,8 +123,6 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 
 	ResetStrikeTransientState();
 	CurrentStrikeIndex = 0;
-	bHasSavedRotationSettings = false;
-	bHasAppliedGameplayFocus = false;
 	bHasCommittedActivation = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
@@ -190,77 +155,35 @@ void URSGameplayAbility_TargetedSlam::BeginStrike()
 	}
 
 	ResetStrikeTransientState();
-	AimTargetActor = TargetActor;
-	AimSnapshotLocation = TargetActor->GetActorLocation();
-	PreAimStartTime = BossCharacter->GetWorld()->GetTimeSeconds();
 	State = ERSTargetedSlamState::PreAiming;
 
-	if (UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement())
-	{
-		CharacterMovementComp->bUseControllerDesiredRotation = true;
-	}
-
-	BossController->SetFocalPoint(AimSnapshotLocation, EAIFocusPriority::Gameplay);
-	bHasAppliedGameplayFocus = true;
-
-	ObserveFacingTask = URSAbilityTask_ObserveFacing::ObserveFacing(this, AimSnapshotLocation, AimYawTolerance);
-	ObserveFacingTask->OnFacingUpdated.AddDynamic(this, &ThisClass::HandleFacingUpdated);
-	ObserveFacingTask->ReadyForActivation();
-}
-
-void URSGameplayAbility_TargetedSlam::HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees)
-{
-	if (bIsCleaningUp || State != ERSTargetedSlamState::PreAiming)
-	{
-		return;
-	}
-
-	ARSBossCharacter* BossCharacter = nullptr;
-	ARSBossController* BossController = nullptr;
-	AActor* TargetActor = AimTargetActor.Get();
-	if (!GetBossContext(BossCharacter, BossController) || !BossController->IsTargetActorValid(TargetActor))
+	const FRSBossFacingRequest FacingRequest = FRSBossFacingRequest::MakeTrackActor(TargetActor, AimRotationSpeed, AimYawTolerance, TargetDriftTolerance, MaxAimDuration);
+	URSAbilityTask_BossFacing* FacingTask = CreateBossFacingTask(FacingRequest);
+	if (!FacingTask)
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	const float PreAimElapsedTime = BossCharacter->GetWorld()->GetTimeSeconds() - PreAimStartTime;
-	if (PreAimElapsedTime >= MaxAimDuration)
+	FacingTask->OnFacingFinished.AddDynamic(this, &ThisClass::HandleBossFacingFinished);
+	FacingTask->ReadyForActivation();
+}
+
+void URSGameplayAbility_TargetedSlam::HandleBossFacingFinished(ERSBossFacingResult Result, float FinalYawDegrees)
+{
+	if (bIsCleaningUp || State != ERSTargetedSlamState::PreAiming)
+	{
+		return;
+	}
+
+	if (Result == ERSBossFacingResult::Aligned || Result == ERSBossFacingResult::TimedOut || Result == ERSBossFacingResult::NoDirection)
 	{
 		ConfirmAttack();
-
 		return;
 	}
 
-	// 같은 XY 위치에는 정해야 할 방향이 없으므로 현재 Facing으로 바로 공격합니다
-	if (!bHasFacingDirection)
-	{
-		ConfirmAttack();
-
-		return;
-	}
-
-	if (!bIsWithinYawTolerance)
-	{
-		return;
-	}
-
-	const float DriftDistanceSquared = FVector::DistSquared2D(TargetActor->GetActorLocation(), AimSnapshotLocation);
-	if (DriftDistanceSquared > FMath::Square(TargetDriftTolerance))
-	{
-		AimSnapshotLocation = TargetActor->GetActorLocation();
-		BossController->SetFocalPoint(AimSnapshotLocation, EAIFocusPriority::Gameplay);
-
-		if (ObserveFacingTask)
-		{
-			ObserveFacingTask->SetFacingLocation(AimSnapshotLocation);
-		}
-
-		return;
-	}
-
-	ConfirmAttack();
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
 void URSGameplayAbility_TargetedSlam::ConfirmAttack()
@@ -295,19 +218,6 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 	ActiveAttackShape = AttackShape;
 
 	State = ERSTargetedSlamState::Attacking;
-
-	if (ObserveFacingTask)
-	{
-		ObserveFacingTask->EndTask();
-		ObserveFacingTask = nullptr;
-	}
-
-	// 공격 공간은 이미 고정되었으므로 Controller가 움직이는 Target을 따라 Boss Yaw를 다시 바꾸지 않게 합니다
-	// Montage가 소유한 Root Motion과 애니메이션 회전은 이 설정과 별개로 허용됩니다
-	if (UCharacterMovementComponent* CharacterMovementComp = BossCharacter->GetCharacterMovement())
-	{
-		CharacterMovementComp->bUseControllerDesiredRotation = false;
-	}
 
 	StartStrike();
 }
@@ -451,14 +361,10 @@ void URSGameplayAbility_TargetedSlam::HandleAttackMontageInterrupted()
 
 void URSGameplayAbility_TargetedSlam::ResetStrikeTransientState()
 {
-	AimTargetActor.Reset();
-	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
 	ActiveAttackShape = AttackShape;
-	PreAimStartTime = 0.0f;
 	bHasExecutedImpact = false;
 	bHasCompletedMontage = false;
-	ObserveFacingTask = nullptr;
 	ImpactDelayTask = nullptr;
 	MontageTask = nullptr;
 }
