@@ -78,10 +78,13 @@ bool FRSFireballSpreadDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
-	const float MaximumLateralInset = EffectiveMinRadius * FMath::Sin(FMath::DegreesToRadians(FireballSectorAngle * 0.5f));
-	if (LateralInset >= MaximumLateralInset)
+	const float SectorAngle = GetSectorAngle(*this);
+	const float HalfSectorSine = FMath::Sin(FMath::DegreesToRadians(SectorAngle * 0.5f));
+	if (LateralInset >= EffectiveMinRadius * HalfSectorSine)
 	{
-		SetValidationError(TEXT("Placement radius, gap, and boundary margin leave no angular sampling range in a 45 degree sector."));
+		// 개수를 늘렸을 때 어느 값을 얼마나 키워야 하는지 알 수 있도록 이 개수에 필요한 최소 반경을 함께 알립니다
+		const float RequiredMinSpawnRadius = LateralInset / HalfSectorSine - (PlacementRadius + BoundaryMargin);
+		SetValidationError(FString::Printf(TEXT("%d Fireballs leave no angular sampling range in a %.1f degree sector. Raise MinSpawnRadius above %.1f or lower the count."), FireballCount, SectorAngle, RequiredMinSpawnRadius));
 
 		return false;
 	}
@@ -113,6 +116,8 @@ bool FRSFireballSpreadDefinition::TryGenerateLandingLocations(const FVector& Cen
 		return false;
 	}
 
+	const float SectorAngle = GetSectorAngle(*this);
+
 	OutLocations.Reserve(FireballCount);
 	for (int32 SectorIndex = 0; SectorIndex < FireballCount; ++SectorIndex)
 	{
@@ -125,8 +130,8 @@ bool FRSFireballSpreadDefinition::TryGenerateLandingLocations(const FVector& Cen
 		}
 
 		const float AngularInset = FMath::RadiansToDegrees(FMath::Asin(LateralInset / Radius));
-		const float SectorMinimumAngle = -90.0f + SectorIndex * FireballSectorAngle + AngularInset;
-		const float SectorMaximumAngle = -90.0f + (SectorIndex + 1) * FireballSectorAngle - AngularInset;
+		const float SectorMinimumAngle = -90.0f + SectorIndex * SectorAngle + AngularInset;
+		const float SectorMaximumAngle = -90.0f + (SectorIndex + 1) * SectorAngle - AngularInset;
 		if (SectorMaximumAngle <= SectorMinimumAngle)
 		{
 			OutLocations.Reset();
