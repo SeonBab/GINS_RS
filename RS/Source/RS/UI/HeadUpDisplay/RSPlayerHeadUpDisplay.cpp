@@ -289,6 +289,25 @@ URSInGameMenuWidget* ARSPlayerHeadUpDisplay::FindInGameMenuWidget() const
 	return nullptr;
 }
 
+URSDialogueWidget* ARSPlayerHeadUpDisplay::FindDialogueWidget() const
+{
+	UPanelWidget* ModalLayer = PrimaryLayout ? PrimaryLayout->GetLayer(ERSWidgetLayer::Modal) : nullptr;
+	if (!ModalLayer)
+	{
+		return nullptr;
+	}
+
+	for (int32 ChildIndex = 0; ChildIndex < ModalLayer->GetChildrenCount(); ++ChildIndex)
+	{
+		if (URSDialogueWidget* FoundDialogueWidget = Cast<URSDialogueWidget>(ModalLayer->GetChildAt(ChildIndex)))
+		{
+			return FoundDialogueWidget;
+		}
+	}
+
+	return nullptr;
+}
+
 void ARSPlayerHeadUpDisplay::InitializeInGameMenu()
 {
 	if (URSInGameMenuWidget* InGameMenuWidget = FindInGameMenuWidget())
@@ -305,12 +324,7 @@ void ARSPlayerHeadUpDisplay::InitializeInGameMenu()
 
 void ARSPlayerHeadUpDisplay::InitializeDialogue()
 {
-	if (!PrimaryLayout || !DialogueWidgetClass)
-	{
-		return;
-	}
-
-	DialogueWidget = Cast<URSDialogueWidget>(PrimaryLayout->CreateWidgetInLayer(ERSWidgetLayer::Modal, DialogueWidgetClass));
+	DialogueWidget = FindDialogueWidget();
 	if (!DialogueWidget)
 	{
 		return;

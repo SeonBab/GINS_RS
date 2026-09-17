@@ -48,7 +48,7 @@ public:
 	/** 인게임 메뉴의 세 Action Button 상태를 함께 변경합니다 */
 	void SetInGameMenuActionsEnabled(bool bEnabled);
 
-	/** Modal Layer에 생성한 대화 Widget에 본문을 설정하고 표시합니다 */
+	/** Modal Layer에 정적으로 배치된 대화 Widget에 본문을 설정하고 표시합니다 */
 	URSDialogueWidget* ShowDialogue(const FText& DialogueText);
 
 	/** 표시 중인 대화 Widget을 숨깁니다 */
@@ -73,10 +73,13 @@ private:
 	/** Menu Layer에 정적으로 배치된 인게임 메뉴를 반환합니다 */
 	URSInGameMenuWidget* FindInGameMenuWidget() const;
 
+	/** Modal Layer에 정적으로 배치된 대화 Widget을 반환합니다 */
+	URSDialogueWidget* FindDialogueWidget() const;
+
 	/** 인게임 메뉴의 Action 이벤트를 연결하고 초기 표시 상태를 구성합니다 */
 	void InitializeInGameMenu();
 
-	/** 설정된 대화 Widget을 Modal Layer에 한 번 생성하고 닫기 이벤트를 연결합니다 */
+	/** Modal Layer에 정적으로 배치된 대화 Widget의 닫기 이벤트를 연결합니다 */
 	void InitializeDialogue();
 
 	/** Boss Result Widget의 Action 의도를 Local PlayerController에 전달합니다 */
@@ -100,11 +103,7 @@ private:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSPrimaryLayout> PrimaryLayout;
 
-	/** Modal Layer에 생성할 튜토리얼 대화 Widget 클래스입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<URSDialogueWidget> DialogueWidgetClass;
-
-	/** HUD가 Modal Layer에 한 번 생성해 재사용하는 대화 Widget입니다 */
+	/** HUD가 Modal Layer의 정적 배치에서 찾아 재사용하는 대화 Widget입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSDialogueWidget> DialogueWidget;
 };
