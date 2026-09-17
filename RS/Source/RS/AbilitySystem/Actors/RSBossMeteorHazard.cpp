@@ -1,4 +1,4 @@
-﻿#include "RSBossMeteorHazard.h"
+#include "RSBossMeteorHazard.h"
 
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
@@ -18,6 +18,7 @@
 namespace
 {
 	constexpr float MeteorTargetLockProgress = 0.75f;
+	constexpr float MeteorImpactEffectHoldDuration = 0.3f;
 }
 
 bool FRSBossMeteorHazardDefinition::IsDataValid(FString* OutValidationError) const
@@ -104,6 +105,13 @@ void ARSBossMeteorHazard::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	if (MeteorHazardState == ERSBossMeteorHazardState::Hazard)
+	{
+		KeepFallingEffectActive();
+
+		return;
+	}
+
 	if (MeteorHazardState != ERSBossMeteorHazardState::Tracking && MeteorHazardState != ERSBossMeteorHazardState::Locked)
 	{
 		SetActorTickEnabled(false);
@@ -147,6 +155,7 @@ void ARSBossMeteorHazard::Tick(float DeltaSeconds)
 	if (bFallingEffectStarted)
 	{
 		UpdateFallingEffectLocation(DisplayLocation);
+		KeepFallingEffectActive();
 	}
 
 	if (Fill >= 1.0f)
@@ -263,6 +272,20 @@ bool ARSBossMeteorHazard::IsDamageTimerActiveForTest() const
 	return World && World->GetTimerManager().IsTimerActive(HazardDamageTimerHandle);
 }
 
+bool ARSBossMeteorHazard::IsFallingEffectFinishTimerActiveForTest() const
+{
+	UWorld* World = GetWorld();
+
+	return World && World->GetTimerManager().IsTimerActive(FallingEffectFinishTimerHandle);
+}
+
+float ARSBossMeteorHazard::GetFallingEffectFinishTimerRemainingForTest() const
+{
+	UWorld* World = GetWorld();
+
+	return World ? World->GetTimerManager().GetTimerRemaining(FallingEffectFinishTimerHandle) : -1.0f;
+}
+
 float ARSBossMeteorHazard::GetDamageTimerRemainingForTest() const
 {
 	UWorld* World = GetWorld();
@@ -340,7 +363,29 @@ void ARSBossMeteorHazard::UpdateFallingEffectLocation(const FVector& TargetLocat
 {
 	if (FallingNiagaraComp)
 	{
-		FallingNiagaraComp->SetWorldLocation(TargetLocation);
+		const float FallingProgress = MeteorHazardDefinition.FallEffectLeadTime > UE_SMALL_NUMBER
+			? FMath::Clamp((TelegraphElapsedTime - MeteorHazardDefinition.GetFallEffectStartTime()) / MeteorHazardDefinition.FallEffectLeadTime, 0.0f, 1.0f)
+			: 1.0f;
+		const FVector StartOffset = FVector::UpVector * MeteorHazardDefinition.FallEffectHeight;
+		FallingNiagaraComp->SetWorldLocation(TargetLocation + StartOffset * (1.0f - FallingProgress));
+	}
+}
+
+void ARSBossMeteorHazard::FinishFallingEffect()
+{
+	if (FallingNiagaraComp)
+	{
+		FallingNiagaraComp->DeactivateImmediate();
+	}
+
+	SetActorTickEnabled(false);
+}
+
+void ARSBossMeteorHazard::KeepFallingEffectActive()
+{
+	if (FallingNiagaraComp && !FallingNiagaraComp->IsActive())
+	{
+		FallingNiagaraComp->Activate(true);
 	}
 }
 
@@ -368,14 +413,8 @@ void ARSBossMeteorHazard::BeginHazard()
 	}
 
 	MeteorHazardState = ERSBossMeteorHazardState::Hazard;
-	SetActorTickEnabled(false);
 	SetActorLocation(LockedImpactLocation);
 	SwitchTelegraphToHazard();
-
-	if (FallingNiagaraComp)
-	{
-		FallingNiagaraComp->DeactivateImmediate();
-	}
 
 	if (HazardNiagaraComp)
 	{
@@ -383,9 +422,19 @@ void ARSBossMeteorHazard::BeginHazard()
 		HazardNiagaraComp->Activate(true);
 	}
 
+	if (FallingNiagaraComp)
+	{
+		FallingNiagaraComp->Activate(true);
+	}
+
 	if (UWorld* World = GetWorld())
 	{
+		World->GetTimerManager().SetTimer(FallingEffectFinishTimerHandle, this, &ThisClass::FinishFallingEffect, MeteorImpactEffectHoldDuration, false);
 		World->GetTimerManager().SetTimer(HazardDamageTimerHandle, this, &ThisClass::ApplyHazardDamage, MeteorHazardDefinition.DamageInterval, true, MeteorHazardDefinition.DamageInterval);
+	}
+	else
+	{
+		FinishFallingEffect();
 	}
 
 	BroadcastPreparationFinished(ERSBossMeteorHazardPreparationResult::HazardActivated);
@@ -454,9 +503,11 @@ void ARSBossMeteorHazard::ClearTimers()
 {
 	if (UWorld* World = GetWorld())
 	{
+		World->GetTimerManager().ClearTimer(FallingEffectFinishTimerHandle);
 		World->GetTimerManager().ClearTimer(HazardDamageTimerHandle);
 	}
 
+	FallingEffectFinishTimerHandle.Invalidate();
 	HazardDamageTimerHandle.Invalidate();
 }
 
