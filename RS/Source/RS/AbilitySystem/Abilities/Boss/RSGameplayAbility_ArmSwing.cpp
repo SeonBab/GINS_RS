@@ -46,14 +46,14 @@ URSGameplayAbility_ArmSwing::URSGameplayAbility_ArmSwing()
 	Reaction.Type = ERSHitReactionType::Knockdown;
 }
 
-void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_ArmSwing::BeginPatternTimeline()
 {
 	ResetTransientState();
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!ActorInfo
-		|| !ActorInfo->AbilitySystemComponent.IsValid()
+	if (!CurrentActorInfo
+		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !GetBossContext(BossCharacter, BossController)
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
@@ -81,7 +81,7 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 		|| MaxAimDuration <= 0.0f)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Arm Swing because its runtime context or configuration is invalid"), *GetName());
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -89,7 +89,7 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 	AActor* TargetActor = BossController->GetTargetActor();
 	if (!BossController->IsTargetActorValid(TargetActor))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -99,9 +99,9 @@ void URSGameplayAbility_ArmSwing::ActivateAbility(const FGameplayAbilitySpecHand
 	AimSnapshotLocation = TargetActor->GetActorLocation();
 
 	// 검증과 선택이 끝나기 전에 Focus나 회전 설정을 바꾸면 실패한 활성화가 외부 상태를 남깁니다
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -178,6 +178,8 @@ void URSGameplayAbility_ArmSwing::EndAbility(const FGameplayAbilitySpecHandle Ha
 	bIsCleaningUp = true;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// 정리가 끝났으므로 플래그를 되돌립니다. 남겨 두면 다음 활성화의 선딜 구간에서 취소가 이 가드에 막혀 어빌리티가 끝나지 않습니다
+	bIsCleaningUp = false;
 }
 
 void URSGameplayAbility_ArmSwing::HandleFacingUpdated(bool bHasFacingDirection, bool bIsWithinYawTolerance, float YawErrorDegrees)
@@ -253,15 +255,6 @@ void URSGameplayAbility_ArmSwing::ConfirmAttack()
 		return;
 	}
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 Pivot부터 덮을 뿐 판정이 빠지지는 않습니다
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, CapturedMinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its sector starts at the attack pivot"), *GetName());
-
-		CapturedMinimumInnerRadius = 0.0f;
-	}
-
 	State = ERSArmSwingState::Attacking;
 	if (ObserveFacingTask)
 	{
@@ -312,7 +305,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
 		|| !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(SelectedVariant->AttackMontage, AttackWindowStartPosition, AttackWindowEndPosition)
-		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), CapturedMinimumInnerRadius, TelegraphBounds))
+		|| !FRSArmSwingMath::TryCalculateTelegraphBounds(AttackSector, SelectedVariant->GetPathDefinition(), TelegraphBounds))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -497,7 +490,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 
 	const FRSArmSwingPathDefinition PathDefinition = SelectedVariant->GetPathDefinition();
 	FRSAnnularSectorBounds SectorBounds;
-	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, CapturedMinimumInnerRadius, SectorBounds))
+	if (!FRSArmSwingMath::TryCalculateSectorBounds(AttackSector, PathDefinition, PreviousSweepProgress, CurrentSweepProgress, SectorBounds))
 	{
 		return false;
 	}
@@ -568,7 +561,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackMontageCompleted()
 	}
 
 	MontageTask = nullptr;
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	FinishPatternWhenMontageEnds();
 }
 
 void URSGameplayAbility_ArmSwing::HandleAttackMontageInterrupted()
@@ -655,7 +648,6 @@ void URSGameplayAbility_ArmSwing::ResetTransientState()
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
 	LockedAttackTransform = FTransform::Identity;
-	CapturedMinimumInnerRadius = 0.0f;
 	PreAimStartTime = 0.0f;
 	bHasSavedRotationSettings = false;
 	bHasAppliedGameplayFocus = false;

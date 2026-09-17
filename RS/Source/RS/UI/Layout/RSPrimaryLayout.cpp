@@ -49,7 +49,7 @@ bool URSPrimaryLayout::RemoveWidgetFromLayer(UWidget* Widget)
 	}
 
 	UPanelWidget* ParentLayer = Cast<UPanelWidget>(Widget->GetParent());
-	if (ParentLayer != GameplayLayer && ParentLayer != MenuLayer && ParentLayer != ModalLayer && ParentLayer != NotificationLayer)
+	if (ParentLayer != GameplayLayer && ParentLayer != MenuLayer && ParentLayer != ModalLayer && ParentLayer != NotificationLayer && ParentLayer != TransitionLayer)
 	{
 		return false;
 	}
@@ -69,6 +69,8 @@ UPanelWidget* URSPrimaryLayout::GetLayer(ERSWidgetLayer Layer) const
 		return ModalLayer;
 	case ERSWidgetLayer::Notification:
 		return NotificationLayer;
+	case ERSWidgetLayer::Transition:
+		return TransitionLayer;
 	default:
 		return nullptr;
 	}

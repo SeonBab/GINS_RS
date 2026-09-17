@@ -31,6 +31,9 @@ public:
 	const TSoftObjectPtr<UWorld>& GetStartLevel() const { return StartLevel; }
 
 private:
+	/** 승인된 게임 시작 요청의 Stage Level을 엽니다 */
+	void OpenStartLevel();
+
 	/** 현재 World의 초기 음악을 재생 관리자에 요청합니다 */
 	void PlayInitialMusic();
 

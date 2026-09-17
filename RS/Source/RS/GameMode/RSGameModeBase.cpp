@@ -136,7 +136,7 @@ bool ARSGameModeBase::RequestBossResultAction(ARSPlayerController* RequestingPla
 
 	// Local Presentation의 재입력을 먼저 막은 뒤 World 전환을 실행합니다
 	RequestingPlayerController->HandleBossResultActionAccepted();
-	ExecuteBossResultAction(Action);
+	ExecuteBossResultAction(Action, RequestingPlayerController);
 	return true;
 }
 
@@ -154,10 +154,10 @@ bool ARSGameModeBase::TryCommitBossResultAction(ERSBossResultAction Action)
 	return true;
 }
 
-void ARSGameModeBase::ExecuteBossResultAction(ERSBossResultAction Action)
+void ARSGameModeBase::ExecuteBossResultAction(ERSBossResultAction Action, ARSPlayerController* RequestingPlayerController)
 {
 	const bool bIsValidAction = Action == ERSBossResultAction::RestartLevel || Action == ERSBossResultAction::ReturnToMainMenu;
-	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSBossResultAction::RestartLevel))
+	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSBossResultAction::RestartLevel, RequestingPlayerController))
 	{
 		BossResultAction.Reset();
 	}
@@ -176,7 +176,7 @@ bool ARSGameModeBase::RequestInGameMenuAction(ARSPlayerController* RequestingPla
 	}
 
 	RequestingPlayerController->HandleInGameMenuActionAccepted();
-	ExecuteInGameMenuAction(Action);
+	ExecuteInGameMenuAction(Action, RequestingPlayerController);
 	return true;
 }
 
@@ -192,16 +192,16 @@ bool ARSGameModeBase::TryCommitInGameMenuAction(ERSInGameMenuAction Action)
 	return true;
 }
 
-void ARSGameModeBase::ExecuteInGameMenuAction(ERSInGameMenuAction Action)
+void ARSGameModeBase::ExecuteInGameMenuAction(ERSInGameMenuAction Action, ARSPlayerController* RequestingPlayerController)
 {
 	const bool bIsValidAction = Action == ERSInGameMenuAction::RestartLevel || Action == ERSInGameMenuAction::ReturnToMainMenu;
-	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSInGameMenuAction::RestartLevel))
+	if (!bIsValidAction || !ExecuteLevelTransition(Action == ERSInGameMenuAction::RestartLevel, RequestingPlayerController))
 	{
 		InGameMenuAction.Reset();
 	}
 }
 
-bool ARSGameModeBase::ExecuteLevelTransition(bool bRestartCurrentLevel)
+bool ARSGameModeBase::ExecuteLevelTransition(bool bRestartCurrentLevel, ARSPlayerController* RequestingPlayerController)
 {
 	const FName TargetLevelName = bRestartCurrentLevel
 		? FName(*UGameplayStatics::GetCurrentLevelName(this, true))
@@ -211,6 +211,17 @@ bool ARSGameModeBase::ExecuteLevelTransition(bool bRestartCurrentLevel)
 		return false;
 	}
 
-	UGameplayStatics::OpenLevel(this, TargetLevelName, true);
+	// 연출을 사용할 수 없으면 기존 동작대로 즉시 전환합니다
+	const FSimpleDelegate OnFadedOut = FSimpleDelegate::CreateUObject(this, &ThisClass::OpenTransitionLevel, TargetLevelName);
+	if (!RequestingPlayerController || !RequestingPlayerController->PlayScreenTransition(OnFadedOut))
+	{
+		OpenTransitionLevel(TargetLevelName);
+	}
+
 	return true;
+}
+
+void ARSGameModeBase::OpenTransitionLevel(FName TargetLevelName)
+{
+	UGameplayStatics::OpenLevel(this, TargetLevelName, true);
 }

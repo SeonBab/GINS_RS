@@ -86,6 +86,9 @@ public:
 	/** GameMode가 Level 전환을 승인하면 인게임 메뉴의 추가 입력을 비활성화합니다 */
 	void HandleInGameMenuActionAccepted();
 
+	/** 화면 전환 연출을 요청하고 연출이 끝난 뒤 실행할 동작을 HUD에 전달합니다 */
+	bool PlayScreenTransition(const FSimpleDelegate& OnFadedOut);
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();

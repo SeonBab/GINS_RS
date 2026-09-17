@@ -30,8 +30,7 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	constexpr float DefaultRingThickness = 200.0f;
 	constexpr int32 DefaultOuterRingCount = 2;
 
-	// 가장 안쪽은 InnerRadius를 두지 않아 꽉 찬 원이 됩니다. 중심에 구멍이 남으면 거기 서서 패턴 전체를 무시할 수 있습니다
-	// 실제 안쪽 경계는 런타임에 보스 캡슐 반지름까지 올라가며, 캡슐 안쪽은 대상 중심점이 들어올 수 없어 안전지대가 되지 않습니다
+	// 가장 안쪽은 InnerRadius를 두지 않아 꽉 찬 원이 됩니다. 중심을 얼마나 비울지는 기획이 정할 값입니다
 	FRSCombatShape& InnermostRing = Rings.AddDefaulted_GetRef();
 	InnermostRing.Type = ERSCombatShapeType::AnnularSector;
 	InnermostRing.OuterRadius = DefaultInnermostRadius;
@@ -56,24 +55,24 @@ URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 	DefaultSequence.SafeRingIndices = { 2, 0, 1 };
 }
 
-void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_ConcentricRings::BeginPatternTimeline()
 {
 	// InstancedPerActor라 인스턴스가 재사용되므로 이전 실행의 상태를 먼저 전부 되돌립니다
 	ActiveSequence.Reset();
 	RingCenterTransform = FTransform::Identity;
 	StepIndex = 0;
 
-	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	const AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	if (!AvatarActor || Rings.IsEmpty() || SequencePool.IsEmpty())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -88,7 +87,7 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 		// 설정이 어긋난 상태이므로 판정 디버그 여부와 상관없이 항상 알립니다
 		UE_LOG(LogTemp, Warning, TEXT("%s picked an empty ring sequence at pool index %d"), *GetName(), PoolIndex);
 
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -97,7 +96,7 @@ void URSGameplayAbility_ConcentricRings::ActivateAbility(const FGameplayAbilityS
 	FVector RingCenterLocation = FVector::ZeroVector;
 	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, RingCenterLocation))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -198,7 +197,7 @@ void URSGameplayAbility_ConcentricRings::HandleStepDelayFinished()
 	RunCurrentStep();
 }
 
-bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(const AActor& AvatarActor, int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const
+bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(int32 SequenceIndex, TArray<FRSCombatShape>& OutDangerRings) const
 {
 	OutDangerRings.Reset();
 
@@ -213,16 +212,6 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(const AActor& Av
 		return false;
 	}
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	float MinimumInnerRadius = 0.0f;
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(&AvatarActor, MinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its rings start at the pattern origin"), *GetName());
-
-		MinimumInnerRadius = 0.0f;
-	}
-
 	// 안전한 링 하나만 빼고 전부 위험합니다. 링은 겹치지 않으므로 이 목록이 판정 영역을 빠짐없이 한 번씩 덮습니다
 	OutDangerRings.Reserve(Rings.Num() - 1);
 	for (int32 RingIndex = 0; RingIndex < Rings.Num(); ++RingIndex)
@@ -232,14 +221,7 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(const AActor& Av
 			continue;
 		}
 
-		// 링 전체가 보스 캡슐 안에 들어가면 판정할 면적이 남지 않으므로 그 링은 이번 스텝에서 빠집니다
-		FRSCombatShape DangerRing = Rings[RingIndex];
-		if (!URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(DangerRing, MinimumInnerRadius))
-		{
-			continue;
-		}
-
-		OutDangerRings.Add(DangerRing);
+		OutDangerRings.Add(Rings[RingIndex]);
 	}
 
 	return true;
@@ -248,7 +230,7 @@ bool URSGameplayAbility_ConcentricRings::TryGetDangerRingShapes(const AActor& Av
 void URSGameplayAbility_ConcentricRings::PreviewDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
 	TArray<FRSCombatShape> DangerRings;
-	if (!TryGetDangerRingShapes(AvatarActor, SequenceIndex, DangerRings))
+	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s previewed step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
@@ -282,7 +264,7 @@ void URSGameplayAbility_ConcentricRings::PreviewDangerRings(const AActor& Avatar
 void URSGameplayAbility_ConcentricRings::StrikeDangerRings(const AActor& AvatarActor, int32 SequenceIndex)
 {
 	TArray<FRSCombatShape> DangerRings;
-	if (!TryGetDangerRingShapes(AvatarActor, SequenceIndex, DangerRings))
+	if (!TryGetDangerRingShapes(SequenceIndex, DangerRings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s struck step %d but its safe ring index is out of range"), *GetName(), SequenceIndex);
 
@@ -328,14 +310,8 @@ EDataValidationResult URSGameplayAbility_ConcentricRings::IsDataValid(FDataValid
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
-	// 중심에 구멍이 남으면 어느 링이 안전하든 거기 서서 시퀀스 전체를 무시할 수 있습니다
-	// 링 바깥의 여유는 아레나 크기를 알아야 판단할 수 있어 여기서 검사하지 않습니다
-	if (!Rings.IsEmpty() && !FMath::IsNearlyZero(Rings[0].InnerRadius))
-	{
-		Context.AddError(FText::FromString(FString::Printf(TEXT("Rings[0].InnerRadius must be 0 but is %.0f. A hole at the center would be permanently safe and would make the whole sequence avoidable by standing still."), Rings[0].InnerRadius)));
-		ValidationResult = EDataValidationResult::Invalid;
-	}
-
+	// 가장 안쪽 링의 InnerRadius는 검사하지 않습니다. 보스가 가리는 범위인지는 어느 보스에 붙을지 모르는 편집 시점에 알 수 없고
+	// 링 바깥의 여유도 아레나 크기를 알아야 판단할 수 있습니다
 	for (int32 RingIndex = 0; RingIndex < Rings.Num(); ++RingIndex)
 	{
 		const FRSCombatShape& Ring = Rings[RingIndex];

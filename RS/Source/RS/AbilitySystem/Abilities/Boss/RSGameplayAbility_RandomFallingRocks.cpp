@@ -92,11 +92,11 @@ URSGameplayAbility_RandomFallingRocks::URSGameplayAbility_RandomFallingRocks()
 	FallingRocksDefinition.AttackShape.InnerRadius = 0.0f;
 }
 
-void URSGameplayAbility_RandomFallingRocks::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_RandomFallingRocks::BeginPatternTimeline()
 {
-	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !FallingRocksDefinition.IsDataValid())
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !FallingRocksDefinition.IsDataValid())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}

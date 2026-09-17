@@ -106,10 +106,9 @@ FTransform URSGameplayAbility_Barrier_Memory_Gimmick::CalculateBeamTransform(con
 	return FTransform(PatternTransform.GetRotation(), PatternTransform.TransformPosition(LocalOffset));
 }
 
-void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_Barrier_Memory_Gimmick::BeginPatternTimeline()
 {
 	bIsEndingAbility = false;
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
 	EndGameplayEventTasks();
 	DestroyBarrierZones();
@@ -119,22 +118,22 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 	bReceivedAttackPresentation = false;
 	bReceivedHitCheck = false;
 
-	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	const AActor* AvatarActor = CurrentActorInfo ? CurrentActorInfo->AvatarActor.Get() : nullptr;
 	FString RuntimeValidationError;
 	const bool bHasValidAttackShape = AttackShape.Type == ERSCombatShapeType::AnnularSector && AttackShape.InnerRadius == 0.0f && AttackShape.IsDataValid(&RuntimeValidationError)
 		&& AttackShape.OuterRadius >= BarrierField.DistanceFromCenter + BarrierField.SafeRadius;
-	if (!AvatarActor || !ActorInfo->AbilitySystemComponent.IsValid() || !RoarMontage || !AttackMontage
+	if (!AvatarActor || !CurrentActorInfo->AbilitySystemComponent.IsValid() || !RoarMontage || !AttackMontage
 		|| !FMath::IsFinite(RoarMontagePlayRate) || RoarMontagePlayRate <= 0.0f || !FMath::IsFinite(AttackMontagePlayRate) || AttackMontagePlayRate <= 0.0f
 		|| !BarrierField.IsDataValid(&RuntimeValidationError) || !bHasValidAttackShape)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -143,7 +142,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 	FVector PatternCenterLocation = FVector::ZeroVector;
 	if (!URSCombatFunctionLibrary::TryGetActorGroundLocation(AvatarActor, PatternCenterLocation))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -153,7 +152,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::ActivateAbility(const FGameplayA
 	HorizontalForward.Z = 0.0f;
 	if (!HorizontalForward.Normalize())
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}

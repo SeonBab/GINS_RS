@@ -7,6 +7,7 @@
 #include "RSBossCharacter.generated.h"
 
 class ARSBossEncounter;
+class UMaterialInterface;
 class URSAbilitySystemComponent;
 class URSAttackTelegraphComponent;
 class URSBossPhaseComponent;
@@ -14,6 +15,25 @@ class URSHealthComponent;
 class URSHealthSet;
 class URSHitFlashComponent;
 class USoundBase;
+
+/** 특정 페이즈에 진입할 때 교체할 Mesh 머티리얼 슬롯 하나의 구성입니다 */
+USTRUCT(BlueprintType)
+struct FRSBossPhaseMaterialOverride
+{
+	GENERATED_BODY()
+
+	/** 이 구성을 적용할 페이즈의 순서 번호이며 0부터 시작합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Material", meta = (ClampMin = "0", UIMin = "0"))
+	int32 PhaseIndex = 0;
+
+	/** 교체할 Mesh 머티리얼 슬롯의 인덱스입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Material", meta = (ClampMin = "0", UIMin = "0"))
+	int32 MaterialSlotIndex = 0;
+
+	/** 해당 슬롯에 적용할 Material입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Material")
+	TObjectPtr<UMaterialInterface> Material;
+};
 
 /** 보스 전용 설정과 Controller 연결의 기반이 되는 캐릭터입니다 */
 UCLASS()
@@ -64,7 +84,7 @@ private:
 	UFUNCTION()
 	void HandleDeathStarted(URSHealthComponent* InHealthComponent);
 
-	/** 새 페이즈의 음악 요청을 현재 World의 공용 음악 재생 관리자에 전달합니다 */
+	/** 새 페이즈의 외형과 음악 요청을 각각 Mesh와 공용 음악 재생 관리자에 전달합니다 */
 	void HandleBossPhaseEntered(int32 PhaseIndex, USoundBase* PhaseMusic, float CrossfadeDuration);
 
 protected:
@@ -126,6 +146,17 @@ public:
 	ARSBossEncounter* GetBossEncounter() const { return BossEncounter; }
 
 private:
+	/** 진입한 페이즈에 설정된 Material로 Mesh의 슬롯을 교체합니다 */
+	void ApplyPhaseMaterials(int32 PhaseIndex);
+
+private:
+	/**
+	 * 페이즈 진입 시 교체할 Mesh 머티리얼 구성입니다
+	 * 해당 페이즈의 구성이 없으면 직전까지 사용하던 Material을 그대로 유지합니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss|Material", meta = (AllowPrivateAccess = "true"))
+	TArray<FRSBossPhaseMaterialOverride> PhaseMaterialOverrides;
+
 	/** 보스의 이름을 클래스 기본값으로 설정합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss", meta = (AllowPrivateAccess = "true"))
 	FText BossName;

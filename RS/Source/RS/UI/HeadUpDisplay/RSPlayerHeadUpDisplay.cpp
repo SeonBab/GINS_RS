@@ -11,8 +11,10 @@
 #include "RSInGameMenuAction.h"
 #include "RSInGameMenuWidget.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
+#include "RSMusicPlaybackSubsystem.h"
 #include "RSPlayerController.h"
 #include "RSPrimaryLayout.h"
+#include "RSScreenFadeWidget.h"
 #include "View/MVVMView.h"
 #include "View/MVVMViewClass.h"
 
@@ -105,6 +107,26 @@ void ARSPlayerHeadUpDisplay::SetInGameMenuActionsEnabled(bool bEnabled)
 	}
 }
 
+bool ARSPlayerHeadUpDisplay::PlayScreenTransition(const FSimpleDelegate& OnFadedOut)
+{
+	URSScreenFadeWidget* ScreenFadeWidget = FindScreenFadeWidget();
+	if (!ScreenFadeWidget || !ScreenFadeWidget->PlayFadeOutThen(OnFadedOut))
+	{
+		return false;
+	}
+
+	// 화면과 음악이 같은 길이로 사라지게 합니다
+	if (UWorld* World = GetWorld())
+	{
+		if (URSMusicPlaybackSubsystem* MusicPlaybackSubsystem = World->GetSubsystem<URSMusicPlaybackSubsystem>())
+		{
+			MusicPlaybackSubsystem->StopMusic(ScreenFadeWidget->GetFadeOutDuration());
+		}
+	}
+
+	return true;
+}
+
 void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 {
 	APlayerController* OwningPlayerController = GetOwningPlayerController();
@@ -122,6 +144,12 @@ void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 	SetSharedViewModels();
 	InitializeInGameMenu();
 	PrimaryLayout->AddToViewport();
+
+	// Level에 진입할 때마다 검정 화면에서 시작합니다
+	if (URSScreenFadeWidget* ScreenFadeWidget = FindScreenFadeWidget())
+	{
+		ScreenFadeWidget->PlayFadeIn();
+	}
 
 	// HUD보다 Result Flow가 먼저 시작된 경우에도 현재 Local Presentation을 복원합니다
 	const ARSPlayerController* PlayerController = Cast<ARSPlayerController>(OwningPlayerController);
@@ -186,6 +214,25 @@ URSBossResultWidget* ARSPlayerHeadUpDisplay::FindBossResultWidget() const
 		if (URSBossResultWidget* BossResultWidget = Cast<URSBossResultWidget>(MenuLayer->GetChildAt(ChildIndex)))
 		{
 			return BossResultWidget;
+		}
+	}
+
+	return nullptr;
+}
+
+URSScreenFadeWidget* ARSPlayerHeadUpDisplay::FindScreenFadeWidget() const
+{
+	UPanelWidget* TransitionLayer = PrimaryLayout ? PrimaryLayout->GetLayer(ERSWidgetLayer::Transition) : nullptr;
+	if (!TransitionLayer)
+	{
+		return nullptr;
+	}
+
+	for (int32 ChildIndex = 0; ChildIndex < TransitionLayer->GetChildrenCount(); ++ChildIndex)
+	{
+		if (URSScreenFadeWidget* ScreenFadeWidget = Cast<URSScreenFadeWidget>(TransitionLayer->GetChildAt(ChildIndex)))
+		{
+			return ScreenFadeWidget;
 		}
 	}
 

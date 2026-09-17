@@ -72,7 +72,7 @@ struct FRSCombatShape
 
 	/**
 	 * 판정에서 제외할 안쪽 반지름이며 0보다 크면 가운데가 비어 있는 도넛이 됩니다
-	 * 보스 원점 기준 패턴에서는 런타임에 보스 캡슐 반지름까지 올라가므로 여기 적는 값은 하한입니다
+	 * 런타임이 이 값을 바꾸지 않으므로 에셋에 적은 값이 곧 실제 안쪽 경계이며 0은 형상 원점부터 판정한다는 뜻입니다
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Shape", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "Type == ERSCombatShapeType::AnnularSector"))
 	float InnerRadius = 0.0f;
@@ -346,29 +346,6 @@ public:
 	 * 캡슐이 없는 액터는 Simple Collision의 반높이로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
 	 */
 	static bool TryGetActorGroundLocation(const AActor* Actor, FVector& OutGroundLocation);
-
-	/**
-	 * 패턴 공간의 기준이 될 액터의 수평 반지름을 얻습니다
-	 * 판정이 대상의 중심점을 쓰므로 이 반지름 안쪽에는 아무도 들어올 수 없고, 패턴은 여기서부터 판정과 표시를 시작합니다
-	 * 캡슐이 없는 액터는 Simple Collision의 반지름으로 대신하며, 액터가 없거나 결과가 유효하지 않으면 실패합니다
-	 */
-	static bool TryGetActorHorizontalRadius(const AActor* Actor, float& OutHorizontalRadius);
-
-	/**
-	 * 환형 부채꼴 경계의 안쪽 반지름을 지정한 하한까지 밀어 올리고 판정할 면적이 남았는지 알립니다
-	 * 하한 규칙을 경계 층이 소유하므로 형상을 에셋으로 적는 패턴과 경계를 계산해 내는 ArmSwing이 같은 규칙을 씁니다
-	 * 이미 들어 있는 값이 하한보다 크면 그 값이 이깁니다. 하한은 바닥이지 덮어쓰기가 아닙니다
-	 * 하한이 바깥 경계 이상이면 경계 전체가 기준 액터 안에 있다는 뜻이므로 호출자가 그 형상을 건너뛸 수 있도록 실패를 알립니다
-	 */
-	static bool TryApplyMinimumInnerRadius(FRSAnnularSectorBounds& InOutBounds, float MinimumInnerRadius);
-
-	/**
-	 * 형상의 안쪽 경계를 지정한 하한까지 밀어 올리고 판정할 면적이 남았는지 알립니다
-	 * 에셋에 적힌 값이 하한보다 크면 그 값이 이깁니다. 하한은 바닥이지 덮어쓰기가 아닙니다
-	 * 하한이 바깥 경계 이상이면 형상 전체가 기준 액터 안에 있다는 뜻이므로 호출자가 그 형상을 건너뛸 수 있도록 실패를 알립니다
-	 * 보스 원점을 전제하지 않는 형상까지 자르지 않도록, 패턴이 보스 Transform을 캡처하는 지점에서만 호출합니다
-	 */
-	static bool TryApplyMinimumInnerRadius(FRSCombatShape& InOutShape, float MinimumInnerRadius);
 
 	/**
 	 * 판정 형상 내부를 균일 격자로 채우는 월드 Transform 목록을 만듭니다

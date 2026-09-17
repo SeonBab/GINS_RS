@@ -21,7 +21,7 @@ public:
 
 protected:
 	/** Montage를 요청하고 독립 지연 뒤 패턴 Transform과 안전지대 후보 하나를 확정합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 종료 경로와 관계없이 공격 시작 대기와 이번 실행에 고정한 상태를 정리합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

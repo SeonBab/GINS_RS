@@ -33,7 +33,7 @@ URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 {
 	AimTargetActor.Reset();
 	AimSnapshotLocation = FVector::ZeroVector;
@@ -55,8 +55,8 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	if (!GetBossContext(BossCharacter, BossController)
-		|| !ActorInfo
-		|| !ActorInfo->AbilitySystemComponent.IsValid()
+		|| !CurrentActorInfo
+		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !AttackMontage
@@ -76,7 +76,7 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 		|| ImpactDelay > AttackMontage->GetPlayLength() / MontagePlayRate)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s cannot activate Targeted Slam because its runtime context or configuration is invalid"), *GetName());
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -84,15 +84,15 @@ void URSGameplayAbility_TargetedSlam::ActivateAbility(const FGameplayAbilitySpec
 	AActor* InitialTargetActor = BossController->GetTargetActor();
 	if (!BossController->IsTargetActorValid(InitialTargetActor))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
 	// 검증이 끝나기 전에 Focus, 회전 설정이나 Telegraph를 바꾸면 실패한 활성화가 외부 상태를 남깁니다
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -161,6 +161,8 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 	bHasCommittedActivation = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+	// 정리가 끝났으므로 플래그를 되돌립니다. 남겨 두면 다음 활성화의 선딜 구간에서 취소가 이 가드에 막혀 어빌리티가 끝나지 않습니다
+	bIsCleaningUp = false;
 }
 
 void URSGameplayAbility_TargetedSlam::BeginStrike()
@@ -289,25 +291,8 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 
 	LockedAttackTransform = FTransform(HorizontalForward.Rotation(), AttackOrigin);
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	float MinimumInnerRadius = 0.0f;
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(BossCharacter, MinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its attack shape starts at the pattern origin"), *GetName());
-
-		MinimumInnerRadius = 0.0f;
-	}
-
-	// 예고, 판정과 연출이 이 한 번의 사본을 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
+	// 예고, 판정과 연출이 이 한 번의 사본을 함께 읽으므로 세 경로의 형상이 갈라질 수 없습니다
 	ActiveAttackShape = AttackShape;
-	if (!URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(ActiveAttackShape, MinimumInnerRadius))
-	{
-		// 형상 전체가 보스 안에 들어가는 구성이라 하한을 걸면 판정이 사라지므로, 기획이 적은 값을 그대로 쓰고 사실만 알립니다
-		UE_LOG(LogTemp, Warning, TEXT("%s has an attack shape smaller than the boss capsule, so the start radius floor is skipped"), *GetName());
-
-		ActiveAttackShape = AttackShape;
-	}
 
 	State = ERSTargetedSlamState::Attacking;
 
@@ -448,7 +433,7 @@ void URSGameplayAbility_TargetedSlam::TryFinishStrike()
 
 	if (CurrentStrikeIndex >= StrikeCount)
 	{
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+		FinishPatternWhenMontageEnds();
 
 		return;
 	}

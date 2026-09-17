@@ -8,7 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "GameplayEffectExtension.h"
 #include "RSAbilitySystemComponent.h"
-#include "RSCombatFunctionLibrary.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSGameplayTags.h"
 
 URSHealthSet::URSHealthSet()

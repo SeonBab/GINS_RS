@@ -53,6 +53,13 @@ bool FRSPizzaPatternDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
+	if (!FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || InnerRadius >= OuterRadius)
+	{
+		SetValidationError(TEXT("InnerRadius must be finite and satisfy 0 <= InnerRadius < OuterRadius."));
+
+		return false;
+	}
+
 	if (!FMath::IsFinite(AttackStartDelay) || AttackStartDelay < 0.0f)
 	{
 		SetValidationError(TEXT("AttackStartDelay must be finite and non-negative."));
@@ -114,19 +121,19 @@ float FRSPizzaPatternDefinition::CalculateSliceAngleDegrees() const
 	return RSCircularSliceMath::CalculateSliceAngleDegrees(CalculateVirtualSliceCount());
 }
 
-bool FRSPizzaPatternDefinition::TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const
+bool FRSPizzaPatternDefinition::TryMakeSliceShape(FRSCombatShape& OutSliceShape) const
 {
 	OutSliceShape = FRSCombatShape();
 
 	// 조각 Transform이 조각 중심을 향하므로 첫 경계를 조각 각도의 절반만큼 뒤로 물립니다
 	const float SliceAngleDegrees = CalculateSliceAngleDegrees();
 	OutSliceShape.Type = ERSCombatShapeType::AnnularSector;
+	OutSliceShape.InnerRadius = InnerRadius;
 	OutSliceShape.OuterRadius = OuterRadius;
 	OutSliceShape.StartYawOffset = -SliceAngleDegrees * 0.5f;
 	OutSliceShape.SweepAngleDegrees = SliceAngleDegrees;
 
-	// 잘못된 설정과 보스가 삼킨 조각을 같은 실패로 돌려주므로 호출자가 두 경우를 나누지 않습니다
-	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSliceShape, MinimumInnerRadius);
+	return OutSliceShape.IsDataValid();
 }
 
 FRSPizzaCueTimings FRSPizzaPatternDefinition::MakeCueTimings() const
@@ -193,7 +200,7 @@ URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_PizzaPattern::BeginPatternTimeline()
 {
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceShape = FRSCombatShape();
@@ -208,16 +215,16 @@ void URSGameplayAbility_PizzaPattern::ActivateAbility(const FGameplayAbilitySpec
 	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
 
-	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaPatternDefinition.IsDataValid() || !DamageEffectClass)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -317,18 +324,8 @@ bool URSGameplayAbility_PizzaPattern::TryCaptureLockedPatternState()
 		return false;
 	}
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	float MinimumInnerRadius = 0.0f;
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(Character, MinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its slices start at the pattern origin"), *GetName());
-
-		MinimumInnerRadius = 0.0f;
-	}
-
-	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
-	return PizzaPatternDefinition.TryMakeSliceShape(MinimumInnerRadius, ActiveSliceShape);
+	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 형상이 갈라질 수 없습니다
+	return PizzaPatternDefinition.TryMakeSliceShape(ActiveSliceShape);
 }
 
 bool URSGameplayAbility_PizzaPattern::BeginCurrentTelegraphCue()
@@ -581,9 +578,9 @@ EDataValidationResult URSGameplayAbility_PizzaPattern::IsDataValid(FDataValidati
 	else
 	{
 		// 조각은 전부 같은 반지름과 각도를 쓰므로 조각 하나로 연출 채우기 설정을 대표해 검사합니다
-		// 에디터에는 보스가 없으므로 하한을 걸지 않고 기획이 적은 값 자체가 성립하는지만 봅니다
+		// 안쪽 경계를 에셋이 소유하므로 런타임과 같은 형상으로 검사합니다
 		FRSCombatShape SliceShape;
-		if (PizzaPatternDefinition.TryMakeSliceShape(0.0f, SliceShape))
+		if (PizzaPatternDefinition.TryMakeSliceShape(SliceShape))
 		{
 			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 		}

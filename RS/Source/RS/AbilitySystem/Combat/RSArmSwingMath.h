@@ -59,13 +59,13 @@ struct RS_API FRSArmSwingMath
 	static bool TryCalculateLockedAttackTransform(const FTransform& CapsuleTransform, float ScaledCapsuleHalfHeight, const FVector& ActorForward, FTransform& OutLockedAttackTransform);
 
 	/**
-	 * 지정한 진행률 구간의 이동각과 순간 각도 폭을 합친 환형 부채꼴 경계를 계산하고 안쪽 반지름을 하한까지 밀어 올립니다
-	 * 예고와 판정이 모두 이 계산을 지나므로 하한을 인자로 받아야 두 경로가 같은 안쪽 경계를 봅니다
+	 * 지정한 진행률 구간의 이동각과 순간 각도 폭을 합친 환형 부채꼴 경계를 계산합니다
+	 * 예고와 판정이 모두 이 계산을 지나므로 두 경로가 같은 경계를 봅니다
 	 */
-	static bool TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds);
+	static bool TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSAnnularSectorBounds& OutBounds);
 
 	/** 전체 회전 경로와 실제 판정이 공유할 Telegraph 경계를 계산합니다 */
-	static bool TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds);
+	static bool TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSAnnularSectorBounds& OutBounds);
 
 	/** 대상 위치의 반지름 방향에서 Sector 이동 방향의 수평 접선을 계산합니다 */
 	static bool TryCalculateTargetTangentDirection(const FTransform& LockedAttackTransform, const FRSArmSwingPathDefinition& PathDefinition, float SweepProgress, const FVector& TargetLocation, FVector& OutTangentDirection);

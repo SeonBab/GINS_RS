@@ -69,16 +69,19 @@ private:
 	bool TryCommitBossResultAction(ERSBossResultAction Action);
 
 	/** 승인된 Action에 맞는 Level 전환을 실행합니다 */
-	void ExecuteBossResultAction(ERSBossResultAction Action);
+	void ExecuteBossResultAction(ERSBossResultAction Action, ARSPlayerController* RequestingPlayerController);
 
 	/** 현재 In-game Menu 상태에 유효한 최초 Level 전환 Action을 커밋합니다 */
 	bool TryCommitInGameMenuAction(ERSInGameMenuAction Action);
 
 	/** 승인된 인게임 메뉴 Action에 맞는 Level 전환을 실행합니다 */
-	void ExecuteInGameMenuAction(ERSInGameMenuAction Action);
+	void ExecuteInGameMenuAction(ERSInGameMenuAction Action, ARSPlayerController* RequestingPlayerController);
 
-	/** 현재 Level 재시작 또는 Main Menu 이동을 실행합니다 */
-	bool ExecuteLevelTransition(bool bRestartCurrentLevel);
+	/** 화면 전환 연출이 끝난 뒤 현재 Level 재시작 또는 Main Menu 이동을 실행합니다 */
+	bool ExecuteLevelTransition(bool bRestartCurrentLevel, ARSPlayerController* RequestingPlayerController);
+
+	/** 승인된 전환 대상 Level을 엽니다 */
+	void OpenTransitionLevel(FName TargetLevelName);
 
 private:
 	friend class FRSBossEncounterStateTest;

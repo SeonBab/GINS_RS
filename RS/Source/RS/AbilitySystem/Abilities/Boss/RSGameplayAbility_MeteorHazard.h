@@ -22,7 +22,7 @@ public:
 
 protected:
 	/** 현재 보스 TargetActor를 캡처하고 시작 지연 뒤 운석 Actor 하나를 생성합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 취소에서는 진행도가 100%를 지났더라도 이번 실행이 만든 장판을 함께 제거합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;

@@ -61,7 +61,7 @@ public:
 
 protected:
 	/** 필수 Variant와 Boss Target을 검증하고 Left 또는 Right를 선택해 Pre-Aim을 시작합니다 */
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void BeginPatternTimeline() override;
 
 	/** 종료 경로와 관계없이 Focus, 회전 설정과 선택한 Montage의 애니메이션 상태를 정리합니다 */
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
@@ -189,9 +189,6 @@ private:
 
 	/** 공격 확정 순간 Capsule 발밑과 Facing Yaw로 고정한 공격 Transform입니다 */
 	FTransform LockedAttackTransform = FTransform::Identity;
-
-	/** 공격 확정 순간 읽은 보스 캡슐 반지름이며 예고와 판정이 이 값을 안쪽 경계 하한으로 씁니다 */
-	float CapturedMinimumInnerRadius = 0.0f;
 
 	/** 현재 Pre-Aim이 시작된 World gameplay time입니다 */
 	float PreAimStartTime = 0.0f;

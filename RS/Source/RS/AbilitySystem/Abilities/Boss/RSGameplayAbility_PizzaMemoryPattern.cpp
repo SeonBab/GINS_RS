@@ -24,7 +24,7 @@ URSGameplayAbility_PizzaMemoryPattern::URSGameplayAbility_PizzaMemoryPattern()
 	FillNiagaraEntry.Placement = ERSBossPatternNiagaraPlacement::FillHitShape;
 }
 
-void URSGameplayAbility_PizzaMemoryPattern::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSGameplayAbility_PizzaMemoryPattern::BeginPatternTimeline()
 {
 	LockedPatternTransform = FTransform::Identity;
 	ActiveSliceShape = FRSCombatShape();
@@ -39,18 +39,17 @@ void URSGameplayAbility_PizzaMemoryPattern::ActivateAbility(const FGameplayAbili
 	RecallDelayTask = nullptr;
 	ExplosionIntervalTask = nullptr;
 	bIsCleaningUp = false;
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	if (!ActorInfo || !ActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !DamageEffectClass)
+	if (!CurrentActorInfo || !CurrentActorInfo->AvatarActor.IsValid() || !PizzaMemoryPatternDefinition.IsDataValid() || !DamageEffectClass)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
 
-	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
+	if (!CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
 		return;
 	}
@@ -155,18 +154,8 @@ bool URSGameplayAbility_PizzaMemoryPattern::TryCaptureLockedPatternState()
 		return false;
 	}
 
-	// 보스 캡슐 안쪽에는 대상 중심점이 들어올 수 없으므로 판정과 표시를 캡슐 표면에서 시작합니다
-	// 반지름을 읽지 못해도 패턴을 포기하지 않습니다. 하한이 없으면 예전처럼 원점부터 덮을 뿐 판정이 빠지지는 않습니다
-	float MinimumInnerRadius = 0.0f;
-	if (!URSCombatFunctionLibrary::TryGetActorHorizontalRadius(Character, MinimumInnerRadius))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s could not read the boss horizontal radius, so its slices start at the pattern origin"), *GetName());
-
-		MinimumInnerRadius = 0.0f;
-	}
-
-	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 안쪽 경계가 갈라질 수 없습니다
-	return PizzaMemoryPatternDefinition.TryMakeSliceShape(MinimumInnerRadius, ActiveSliceShape);
+	// 예고, 판정과 연출이 이 한 번의 결과를 함께 읽으므로 세 경로의 형상이 갈라질 수 없습니다
+	return PizzaMemoryPatternDefinition.TryMakeSliceShape(ActiveSliceShape);
 }
 
 bool URSGameplayAbility_PizzaMemoryPattern::TrySelectSafeZoneSequence()
@@ -433,9 +422,9 @@ EDataValidationResult URSGameplayAbility_PizzaMemoryPattern::IsDataValid(FDataVa
 	else
 	{
 		// 여섯 조각은 같은 반지름과 각도를 쓰므로 조각 하나로 격자 배치 설정을 대표해 검사합니다
-		// 에디터에는 보스가 없으므로 하한을 걸지 않고 기획이 적은 값 자체가 성립하는지만 봅니다
+		// 안쪽 경계를 에셋이 소유하므로 런타임과 같은 형상으로 검사합니다
 		FRSCombatShape SliceShape;
-		if (PizzaMemoryPatternDefinition.TryMakeSliceShape(0.0f, SliceShape))
+		if (PizzaMemoryPatternDefinition.TryMakeSliceShape(SliceShape))
 		{
 			ValidationResult = CombineDataValidationResults(ValidationResult, ValidatePatternPresentation(SliceShape, Context));
 		}

@@ -10,6 +10,7 @@
 class URSBossResultWidget;
 class URSInGameMenuWidget;
 class URSPrimaryLayout;
+class URSScreenFadeWidget;
 enum class ERSBossEncounterResult : uint8;
 enum class ERSInGameMenuAction : uint8;
 
@@ -46,6 +47,9 @@ public:
 	/** 인게임 메뉴의 세 Action Button 상태를 함께 변경합니다 */
 	void SetInGameMenuActionsEnabled(bool bEnabled);
 
+	/** 화면을 어둡게 만들고 연출이 끝난 뒤 전달받은 동작을 실행합니다 */
+	bool PlayScreenTransition(const FSimpleDelegate& OnFadedOut);
+
 private:
 	/** 설정된 클래스에서 루트 레이아웃을 생성하고 공유 ViewModel을 연결합니다 */
 	void CreatePrimaryLayout();
@@ -55,6 +59,9 @@ private:
 
 	/** Menu Layer에 정적으로 배치된 Boss Result Widget을 반환합니다 */
 	URSBossResultWidget* FindBossResultWidget() const;
+
+	/** Transition Layer에 정적으로 배치된 화면 전환 Widget을 반환합니다 */
+	URSScreenFadeWidget* FindScreenFadeWidget() const;
 
 	/** Menu Layer에 정적으로 배치된 인게임 메뉴를 반환합니다 */
 	URSInGameMenuWidget* FindInGameMenuWidget() const;

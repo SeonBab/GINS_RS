@@ -66,6 +66,11 @@ bool FRSPizzaMemoryPatternDefinition::IsDataValid(FString* OutValidationError) c
 		return FailValidation(TEXT("OuterRadius must be finite and greater than zero."));
 	}
 
+	if (!FMath::IsFinite(InnerRadius) || InnerRadius < 0.0f || InnerRadius >= OuterRadius)
+	{
+		return FailValidation(TEXT("InnerRadius must be finite and satisfy 0 <= InnerRadius < OuterRadius."));
+	}
+
 	if (!FMath::IsFinite(AttackStartDelay) || AttackStartDelay < 0.0f)
 	{
 		return FailValidation(TEXT("AttackStartDelay must be finite and non-negative."));
@@ -141,19 +146,19 @@ float FRSPizzaMemoryPatternDefinition::CalculateSliceAngleDegrees() const
 	return RSCircularSliceMath::CalculateSliceAngleDegrees(SliceCount);
 }
 
-bool FRSPizzaMemoryPatternDefinition::TryMakeSliceShape(float MinimumInnerRadius, FRSCombatShape& OutSliceShape) const
+bool FRSPizzaMemoryPatternDefinition::TryMakeSliceShape(FRSCombatShape& OutSliceShape) const
 {
 	OutSliceShape = FRSCombatShape();
 
 	// 조각 Transform이 조각 중심을 향하므로 첫 경계를 조각 각도의 절반만큼 뒤로 물립니다
 	const float SliceAngleDegrees = CalculateSliceAngleDegrees();
 	OutSliceShape.Type = ERSCombatShapeType::AnnularSector;
+	OutSliceShape.InnerRadius = InnerRadius;
 	OutSliceShape.OuterRadius = OuterRadius;
 	OutSliceShape.StartYawOffset = -SliceAngleDegrees * 0.5f;
 	OutSliceShape.SweepAngleDegrees = SliceAngleDegrees;
 
-	// 잘못된 설정과 보스가 삼킨 조각을 같은 실패로 돌려주므로 호출자가 두 경우를 나누지 않습니다
-	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutSliceShape, MinimumInnerRadius);
+	return OutSliceShape.IsDataValid();
 }
 
 bool FRSPizzaMemoryPatternDefinition::TryGetSafeSliceIndices(ERSPizzaMemorySafePair SafePair, int32& OutFirstSliceIndex, int32& OutSecondSliceIndex)

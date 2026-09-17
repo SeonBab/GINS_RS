@@ -106,7 +106,7 @@ bool FRSArmSwingMath::TryCalculateLockedAttackTransform(const FTransform& Capsul
 	return true;
 }
 
-bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds)
+bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float PreviousProgress, float CurrentProgress, FRSAnnularSectorBounds& OutBounds)
 {
 	OutBounds = FRSAnnularSectorBounds();
 	if (!SectorDefinition.IsDataValid() || !PathDefinition.IsDataValid() || !IsFinite(PreviousProgress) || !IsFinite(CurrentProgress))
@@ -130,14 +130,12 @@ bool FRSArmSwingMath::TryCalculateSectorBounds(const FRSArmSwingSectorDefinition
 	const float SliceSweepAngleDegrees = FMath::Abs(IntervalTravelAngleDegrees) + SectorDefinition.AngularWidthDegrees;
 	OutBounds.SweepAngleDegrees = TravelSign * FMath::Min(SliceSweepAngleDegrees, 360.0f);
 
-	// 예고와 판정이 모두 이 계산을 지나므로 하한도 여기서 한 번만 걸립니다
-	// 부채꼴 전체가 보스 안에 들어가 판정할 면적이 남지 않으면 호출자가 그 구간을 건너뜁니다
-	return URSCombatFunctionLibrary::TryApplyMinimumInnerRadius(OutBounds, MinimumInnerRadius);
+	return OutBounds.IsDataValid();
 }
 
-bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, float MinimumInnerRadius, FRSAnnularSectorBounds& OutBounds)
+bool FRSArmSwingMath::TryCalculateTelegraphBounds(const FRSArmSwingSectorDefinition& SectorDefinition, const FRSArmSwingPathDefinition& PathDefinition, FRSAnnularSectorBounds& OutBounds)
 {
-	return TryCalculateSectorBounds(SectorDefinition, PathDefinition, 0.0f, 1.0f, MinimumInnerRadius, OutBounds);
+	return TryCalculateSectorBounds(SectorDefinition, PathDefinition, 0.0f, 1.0f, OutBounds);
 }
 
 bool FRSArmSwingMath::TryCalculateTargetTangentDirection(const FTransform& LockedAttackTransform, const FRSArmSwingPathDefinition& PathDefinition, float SweepProgress, const FVector& TargetLocation, FVector& OutTangentDirection)
