@@ -20,16 +20,16 @@
 
 namespace
 {
-	constexpr int32 PatternAttackCount = 3;
-	constexpr int32 BarrierZoneCount = 4;
-	constexpr float FirstBarrierAngleDegrees = 45.0f;
-	constexpr float BarrierAngleStepDegrees = 90.0f;
+	constexpr int32 MemoryPatternAttackCount = 3;
+	constexpr int32 MemoryBarrierZoneCount = 4;
+	constexpr float MemoryFirstBarrierAngleDegrees = 45.0f;
+	constexpr float MemoryBarrierAngleStepDegrees = 90.0f;
 
 	/** 방어막을 만들 때 그린 원은 표시 크기와 판정 반지름을 비교할 수 있도록 예고와 세 공격 동안 남깁니다 */
-	constexpr float BarrierFieldDebugLifeTime = 30.0f;
+	constexpr float MemoryBarrierFieldDebugLifeTime = 30.0f;
 
 	/** 판정 프레임의 안전지대는 다음 공격의 원과 섞이지 않게 짧게만 남깁니다 */
-	constexpr float BarrierHitCheckDebugLifeTime = 1.0f;
+	constexpr float MemoryBarrierHitCheckDebugLifeTime = 1.0f;
 }
 
 bool FRSBarrierFieldDefinition::IsDataValid(FString* OutValidationError) const
@@ -168,7 +168,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::BeginPatternTimeline()
 		return;
 	}
 
-	DrawDebugBarrierZones(BarrierFieldDebugLifeTime, false);
+	DrawDebugBarrierZones(MemoryBarrierFieldDebugLifeTime, false);
 	StartPreviewMontage();
 }
 
@@ -192,11 +192,11 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::EndAbility(const FGameplayAbilit
 void URSGameplayAbility_Barrier_Memory_Gimmick::CreateBarrierField()
 {
 	BarrierZones.Reset();
-	BarrierZones.Reserve(BarrierZoneCount);
+	BarrierZones.Reserve(MemoryBarrierZoneCount);
 
-	for (int32 ZoneIndex = 0; ZoneIndex < BarrierZoneCount; ++ZoneIndex)
+	for (int32 ZoneIndex = 0; ZoneIndex < MemoryBarrierZoneCount; ++ZoneIndex)
 	{
-		const float AngleRadians = FMath::DegreesToRadians(FirstBarrierAngleDegrees + BarrierAngleStepDegrees * ZoneIndex);
+		const float AngleRadians = FMath::DegreesToRadians(MemoryFirstBarrierAngleDegrees + MemoryBarrierAngleStepDegrees * ZoneIndex);
 		FRSBarrierZoneRuntimeState& Zone = BarrierZones.AddDefaulted_GetRef();
 		Zone.Center = PatternCenterTransform.GetLocation() + FVector(FMath::Cos(AngleRadians), FMath::Sin(AngleRadians), 0.0f) * BarrierField.DistanceFromCenter;
 		Zone.Color = ZoneIndex % 2 == 0 ? ERSBarrierColor::Red : ERSBarrierColor::Yellow;
@@ -353,7 +353,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::EndGameplayEventTasks()
 
 void URSGameplayAbility_Barrier_Memory_Gimmick::HandleEyeNiagaraEvent(FGameplayEventData Payload)
 {
-	if (PreviewEventCount >= PatternAttackCount)
+	if (PreviewEventCount >= MemoryPatternAttackCount)
 	{
 		CancelForInvalidRuntime(TEXT("received too many preview presentation events"));
 
@@ -403,7 +403,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::HandleHitCheckEvent(FGameplayEve
 	}
 
 	bReceivedHitCheck = true;
-	DrawDebugBarrierZones(BarrierHitCheckDebugLifeTime, true);
+	DrawDebugBarrierZones(MemoryBarrierHitCheckDebugLifeTime, true);
 	PlayBeamPresentation();
 	ExecuteCurrentHitCheck();
 }
@@ -427,7 +427,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::HandlePreviewMontageCompleted()
 		return;
 	}
 
-	if (PreviewEventCount != PatternAttackCount)
+	if (PreviewEventCount != MemoryPatternAttackCount)
 	{
 		CancelForInvalidRuntime(TEXT("RoarMontage did not emit exactly three presentation events"));
 
@@ -452,7 +452,7 @@ void URSGameplayAbility_Barrier_Memory_Gimmick::HandleAttackMontageCompleted()
 	}
 
 	++AttackIndex;
-	if (AttackIndex >= PatternAttackCount)
+	if (AttackIndex >= MemoryPatternAttackCount)
 	{
 		EndGameplayEventTasks();
 		DestroyBarrierZones();
@@ -598,7 +598,7 @@ EDataValidationResult URSGameplayAbility_Barrier_Memory_Gimmick::IsDataValid(FDa
 		return Count;
 	};
 
-	if (!RoarMontage || CountNotify(RoarMontage, RSGameplayTags::GameplayEvent_Presentation_Niagara) != PatternAttackCount)
+	if (!RoarMontage || CountNotify(RoarMontage, RSGameplayTags::GameplayEvent_Presentation_Niagara) != MemoryPatternAttackCount)
 	{
 		AddError(TEXT("RoarMontage must contain exactly three GameplayEvent.Presentation.Niagara notifies."));
 	}
