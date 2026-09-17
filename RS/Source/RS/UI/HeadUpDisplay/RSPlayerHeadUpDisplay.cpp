@@ -8,6 +8,7 @@
 #include "Components/PanelWidget.h"
 #include "RSBossEncounter.h"
 #include "RSBossResultWidget.h"
+#include "RSDialogueWidget.h"
 #include "RSInGameMenuAction.h"
 #include "RSInGameMenuWidget.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
@@ -39,11 +40,18 @@ void ARSPlayerHeadUpDisplay::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		BossResultWidget->GetBossResultActionRequested().RemoveAll(this);
 	}
 
+	if (DialogueWidget)
+	{
+		DialogueWidget->GetCloseRequested().RemoveAll(this);
+	}
+
 	if (PrimaryLayout)
 	{
 		PrimaryLayout->RemoveFromParent();
 		PrimaryLayout = nullptr;
 	}
+
+	DialogueWidget = nullptr;
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -108,6 +116,24 @@ void ARSPlayerHeadUpDisplay::SetInGameMenuActionsEnabled(bool bEnabled)
 	}
 }
 
+URSDialogueWidget* ARSPlayerHeadUpDisplay::ShowDialogue(const FText& DialogueText)
+{
+	if (!DialogueWidget || !DialogueWidget->ShowDialogue(DialogueText))
+	{
+		return nullptr;
+	}
+
+	return DialogueWidget;
+}
+
+void ARSPlayerHeadUpDisplay::HideDialogue()
+{
+	if (DialogueWidget)
+	{
+		DialogueWidget->HideDialogue();
+	}
+}
+
 bool ARSPlayerHeadUpDisplay::PlayScreenTransition(const FSimpleDelegate& OnFadedOut)
 {
 	URSScreenFadeWidget* ScreenFadeWidget = FindScreenFadeWidget();
@@ -144,6 +170,7 @@ void ARSPlayerHeadUpDisplay::CreatePrimaryLayout()
 
 	SetSharedViewModels();
 	InitializeInGameMenu();
+	InitializeDialogue();
 	PrimaryLayout->AddToViewport();
 
 	// Level에 진입할 때마다 검정 화면에서 시작합니다
@@ -276,6 +303,24 @@ void ARSPlayerHeadUpDisplay::InitializeInGameMenu()
 	}
 }
 
+void ARSPlayerHeadUpDisplay::InitializeDialogue()
+{
+	if (!PrimaryLayout || !DialogueWidgetClass)
+	{
+		return;
+	}
+
+	DialogueWidget = Cast<URSDialogueWidget>(PrimaryLayout->CreateWidgetInLayer(ERSWidgetLayer::Modal, DialogueWidgetClass));
+	if (!DialogueWidget)
+	{
+		return;
+	}
+
+	DialogueWidget->GetCloseRequested().RemoveAll(this);
+	DialogueWidget->GetCloseRequested().AddUObject(this, &ThisClass::HandleDialogueCloseRequested);
+	DialogueWidget->HideDialogue();
+}
+
 void ARSPlayerHeadUpDisplay::HandleBossResultActionRequested(ERSBossResultAction Action)
 {
 	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
@@ -297,5 +342,13 @@ void ARSPlayerHeadUpDisplay::HandleInGameMenuActionRequested(ERSInGameMenuAction
 	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
 	{
 		PlayerController->RequestInGameMenuAction(Action);
+	}
+}
+
+void ARSPlayerHeadUpDisplay::HandleDialogueCloseRequested()
+{
+	if (ARSPlayerController* PlayerController = Cast<ARSPlayerController>(GetOwningPlayerController()))
+	{
+		PlayerController->CloseDialogue();
 	}
 }

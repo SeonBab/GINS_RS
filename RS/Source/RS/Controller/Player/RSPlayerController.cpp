@@ -11,10 +11,13 @@
 #include "RSBossEncounter.h"
 #include "RSCheatManager.h"
 #include "RSGameModeBase.h"
+#include "RSGameplayAbility_InteractionScan.h"
+#include "RSGameplayTags.h"
 #include "RSInGameMenuAction.h"
 #include "RSLocalPlayerViewModelSubsystem.h"
 #include "RSPlayerCameraComponent.h"
 #include "RSPlayerHeadUpDisplay.h"
+#include "RSDialogueWidget.h"
 #include "RSInGameMenuWidget.h"
 #include "RSPlayerState.h"
 
@@ -37,6 +40,7 @@ void ARSPlayerController::BeginPlay()
 
 void ARSPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	CloseDialogue();
 	bIsInGameMenuOpen = false;
 	bWasGamePausedBeforeInGameMenu = false;
 
@@ -145,6 +149,11 @@ void ARSPlayerController::BeginBossResultPresentation(ERSBossEncounterResult Res
 		return;
 	}
 
+	if (bIsDialogueOpen && !CloseDialogue())
+	{
+		return;
+	}
+
 	// 기존 입력 정책은 유지하고 HUD에 정적으로 배치된 Result Widget만 표시합니다
 	BossResultPresentation.Emplace(Result);
 	BossResultRemainingTimeSeconds = FMath::Max(RemainingTimeSeconds, 0.0f);
@@ -199,7 +208,7 @@ bool ARSPlayerController::PlayScreenTransition(const FSimpleDelegate& OnFadedOut
 
 bool ARSPlayerController::OpenInGameMenu()
 {
-	if (!IsLocalController() || bIsInGameMenuOpen || BossResultPresentation.IsSet())
+	if (!IsLocalController() || bIsInGameMenuOpen || bIsDialogueOpen || BossResultPresentation.IsSet())
 	{
 		return false;
 	}
@@ -274,6 +283,87 @@ void ARSPlayerController::HandleInGameMenuActionAccepted()
 	}
 }
 
+bool ARSPlayerController::ToggleDialogue(AActor* SourceActor, const FText& DialogueText)
+{
+	if (!IsLocalController() || !IsValid(SourceActor) || bIsInGameMenuOpen || BossResultPresentation.IsSet())
+	{
+		return false;
+	}
+
+	if (bIsDialogueOpen)
+	{
+		if (DialogueSourceActor.Get() == SourceActor)
+		{
+			return CloseDialogue();
+		}
+
+		if (!CloseDialogue())
+		{
+			return false;
+		}
+	}
+
+	URSAbilitySystemComponent* AbilitySystemComp = GetRSAbilitySystemComponent();
+	ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>();
+	URSDialogueWidget* DialogueWidget = PlayerHeadUpDisplay ? PlayerHeadUpDisplay->ShowDialogue(DialogueText) : nullptr;
+	if (!AbilitySystemComp || !DialogueWidget)
+	{
+		if (PlayerHeadUpDisplay)
+		{
+			PlayerHeadUpDisplay->HideDialogue();
+		}
+
+		return false;
+	}
+
+	DialogueSourceActor = SourceActor;
+	bIsDialogueOpen = true;
+	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Action_Locked);
+	bOwnsDialogueActionLock = true;
+	SetInteractionPromptSuppressed(true);
+	ConfigureDialogueInput(DialogueWidget);
+	DialogueWidget->RequestInitialFocus(this);
+	return true;
+}
+
+bool ARSPlayerController::CloseDialogue()
+{
+	if (!IsLocalController() || !bIsDialogueOpen)
+	{
+		return false;
+	}
+
+	if (ARSPlayerHeadUpDisplay* PlayerHeadUpDisplay = GetHUD<ARSPlayerHeadUpDisplay>())
+	{
+		PlayerHeadUpDisplay->HideDialogue();
+	}
+
+	bIsDialogueOpen = false;
+	DialogueSourceActor.Reset();
+
+	if (bOwnsDialogueActionLock)
+	{
+		if (URSAbilitySystemComponent* AbilitySystemComp = GetRSAbilitySystemComponent())
+		{
+			AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Action_Locked);
+		}
+
+		bOwnsDialogueActionLock = false;
+	}
+
+	SetInteractionPromptSuppressed(false);
+	ConfigureMouseInput();
+	return true;
+}
+
+void ARSPlayerController::HandleInteractionFocusChanged(AActor* FocusedActor)
+{
+	if (bIsDialogueOpen && (!DialogueSourceActor.IsValid() || DialogueSourceActor.Get() != FocusedActor))
+	{
+		CloseDialogue();
+	}
+}
+
 void ARSPlayerController::ConfigureMouseInput()
 {
 	if (!IsLocalController())
@@ -307,8 +397,45 @@ void ARSPlayerController::ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMe
 	SetInputMode(InputMode);
 }
 
+void ARSPlayerController::ConfigureDialogueInput(URSDialogueWidget* DialogueWidget)
+{
+	if (!IsLocalController() || !DialogueWidget)
+	{
+		return;
+	}
+
+	bShowMouseCursor = true;
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetHideCursorDuringCapture(false);
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	InputMode.SetWidgetToFocus(DialogueWidget->TakeWidget());
+	SetInputMode(InputMode);
+}
+
+void ARSPlayerController::SetInteractionPromptSuppressed(bool bSuppressed)
+{
+	URSAbilitySystemComponent* AbilitySystemComp = GetRSAbilitySystemComponent();
+	if (URSGameplayAbility_InteractionScan* ScanAbility = URSGameplayAbility_InteractionScan::FindInstance(AbilitySystemComp))
+	{
+		ScanAbility->SetPromptSuppressed(bSuppressed);
+	}
+}
+
+URSAbilitySystemComponent* ARSPlayerController::GetRSAbilitySystemComponent() const
+{
+	const ARSPlayerState* RSPlayerState = GetPlayerState<ARSPlayerState>();
+	return RSPlayerState ? RSPlayerState->GetRSAbilitySystemComponent() : nullptr;
+}
+
 void ARSPlayerController::Input_ToggleInGameMenu()
 {
+	if (bIsDialogueOpen)
+	{
+		CloseDialogue();
+		return;
+	}
+
 	if (bIsInGameMenuOpen)
 	{
 		CloseInGameMenu();

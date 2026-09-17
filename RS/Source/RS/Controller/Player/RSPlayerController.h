@@ -8,8 +8,10 @@
 #include "RSPlayerController.generated.h"
 
 class URSLocalPlayerViewModelSubsystem;
+class URSDialogueWidget;
 class URSInGameMenuWidget;
 class URSPlayerCameraComponent;
+class URSAbilitySystemComponent;
 class UInputAction;
 enum class ERSBossEncounterResult : uint8;
 enum class ERSInGameMenuAction : uint8;
@@ -95,12 +97,36 @@ public:
 	/** 화면 전환 연출을 요청하고 연출이 끝난 뒤 실행할 동작을 HUD에 전달합니다 */
 	bool PlayScreenTransition(const FSimpleDelegate& OnFadedOut);
 
+	/** 같은 대상이면 대화를 닫고, 아니면 전달받은 본문으로 대화를 엽니다 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Dialogue")
+	bool ToggleDialogue(AActor* SourceActor, const FText& DialogueText);
+
+	/** 열린 대화를 닫고 대화가 소유한 입력과 행동 잠금을 복원합니다 */
+	UFUNCTION(BlueprintCallable, Category = "RS|Dialogue")
+	bool CloseDialogue();
+
+	/** 대화가 현재 열려 있는지 반환합니다 */
+	UFUNCTION(BlueprintPure, Category = "RS|Dialogue")
+	bool IsDialogueOpen() const { return bIsDialogueOpen; }
+
+	/** Interaction Scan의 Focus 변경에 따라 원본 대화의 범위 이탈을 처리합니다 */
+	void HandleInteractionFocusChanged(AActor* FocusedActor);
+
 private:
 	/** 로컬 플레이어가 월드와 UI를 마우스로 조작할 수 있도록 커서와 입력 모드를 설정합니다 */
 	void ConfigureMouseInput();
 
 	/** Pause 상태에서 인게임 메뉴만 입력과 Focus를 받도록 설정합니다 */
 	void ConfigureInGameMenuInput(URSInGameMenuWidget* InGameMenuWidget);
+
+	/** 대화가 G와 Escape를 먼저 받을 수 있도록 입력 Focus를 설정합니다 */
+	void ConfigureDialogueInput(URSDialogueWidget* DialogueWidget);
+
+	/** 대화 표시 중 Interaction Prompt를 숨기거나 현재 Focus에 맞춰 복원합니다 */
+	void SetInteractionPromptSuppressed(bool bSuppressed);
+
+	/** 현재 PlayerState가 소유한 프로젝트 Ability System Component를 반환합니다 */
+	URSAbilitySystemComponent* GetRSAbilitySystemComponent() const;
 
 	/** 인게임 메뉴가 열려 있으면 닫고 닫혀 있으면 엽니다 */
 	void Input_ToggleInGameMenu();
@@ -133,4 +159,13 @@ private:
 
 	/** 메뉴가 닫힐 때 외부 시스템이 만들었던 기존 Pause를 유지하기 위한 Snapshot입니다 */
 	bool bWasGamePausedBeforeInGameMenu = false;
+
+	/** 열린 대화를 제공한 원본 대상이며 Focus가 달라지면 대화를 닫습니다 */
+	TWeakObjectPtr<AActor> DialogueSourceActor;
+
+	/** Controller가 대화 Widget과 입력 Focus 수명을 소유 중인지 나타냅니다 */
+	bool bIsDialogueOpen = false;
+
+	/** 대화가 State.Action.Locked 카운트 하나를 추가했는지 나타냅니다 */
+	bool bOwnsDialogueActionLock = false;
 };
