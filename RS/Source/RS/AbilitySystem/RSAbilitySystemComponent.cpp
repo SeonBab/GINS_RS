@@ -473,16 +473,28 @@ FRSAbilityDisplayResolveResult URSAbilitySystemComponent::ResolveDisplayAbilityF
 			continue;
 		}
 
-		// 배열 순서를 조용한 우선순위로 쓰지 않도록, 동시에 유효한 후보가 생기면 어느 쪽도 고르지 않습니다
+		const URSAbilityDefinition* CandidateDefinition = RSAbility->GetAbilityDefinition();
+
+		// 같은 입력의 콤보 단계처럼 표시 정보가 같은 후보들은 하나의 슬롯 의미를 공유합니다
+		// 특정 Spec을 배열 순서로 고르면 쿨다운의 주체가 불명확하므로 그룹에서는 Handle을 비웁니다
 		if (Result.Status == ERSAbilityDisplayResolveStatus::Resolved)
 		{
+			if (Result.AbilityDefinition && Result.AbilityDefinition == CandidateDefinition)
+			{
+				Result.AbilityHandle = FGameplayAbilitySpecHandle();
+
+				continue;
+			}
+
 			Result.Status = ERSAbilityDisplayResolveStatus::Ambiguous;
+			Result.AbilityDefinition = nullptr;
 			Result.AbilityHandle = FGameplayAbilitySpecHandle();
 
 			return Result;
 		}
 
 		Result.Status = ERSAbilityDisplayResolveStatus::Resolved;
+		Result.AbilityDefinition = CandidateDefinition;
 		Result.AbilityHandle = AbilitySpec.Handle;
 	}
 

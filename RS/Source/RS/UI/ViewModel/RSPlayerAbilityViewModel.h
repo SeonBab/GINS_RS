@@ -15,6 +15,16 @@ class URSAbilitySlotViewModel;
 class URSAbilitySystemComponent;
 class URSInputConfig;
 
+/** 어빌리티 슬롯에 표시할 주 입력과 선택적 보조 입력의 키 텍스트입니다 */
+struct FRSAbilityInputKeyDisplay
+{
+	FText PrimaryInputKeyText;
+	FText SecondaryInputKeyText;
+
+	/** 기존 단일 키 TextBlock에 두 입력을 함께 표시할 문자열을 반환합니다 */
+	FText GetCombinedInputKeyText() const;
+};
+
 /** 슬롯 하나에 대한 ViewModel과 현재 구독 상태를 함께 보관합니다 */
 USTRUCT()
 struct FRSAbilitySlotBinding
@@ -65,6 +75,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RS|Ability Slot")
 	void RefreshSlots();
 
+	/** 입력 매핑의 키들을 장치 우선순위에 따라 슬롯에 표시할 최대 두 개의 텍스트로 변환합니다 */
+	static FRSAbilityInputKeyDisplay BuildInputKeyDisplay(const TArray<FKey>& MappedKeys);
+
 private:
 	/** 데이터 원본과 ASC를 연결하고 어빌리티, 표시 문맥 상태 변경을 구독합니다 */
 	void BindToSource(ARSPlayerCharacter* InPlayerCharacter);
@@ -88,8 +101,8 @@ private:
 	/** 슬롯이 구독 중인 쿨다운 태그를 모두 해제합니다 */
 	void ClearCooldownSubscription(FRSAbilitySlotBinding& SlotBinding);
 
-	/** 현재 입력 매핑에서 해당 입력 자리에 연결된 키의 표시 문자열을 반환합니다 */
-	FText GetInputKeyTextForInputTag(const FGameplayTag& InputTag) const;
+	/** 현재 입력 매핑에서 해당 입력 자리에 연결된 주 입력과 보조 입력의 키 텍스트를 반환합니다 */
+	FRSAbilityInputKeyDisplay GetInputKeyDisplayForInputTag(const FGameplayTag& InputTag) const;
 
 	/**
 	 * 키의 표시 문자열을 번역 전 원문으로 반환합니다

@@ -7,6 +7,8 @@
 #include "GameplayTagContainer.h"
 #include "RSAbilitySystemComponent.generated.h"
 
+class URSAbilityDefinition;
+
 /** 동시에 실행되는 애니메이션과 Notify State를 구분하는 게임플레이 상태 Lease 키입니다 */
 struct FRSAnimationGameplayStateKey
 {
@@ -50,20 +52,21 @@ enum class ERSAbilityDisplayResolveStatus : uint8
 	/** 해당 입력 태그를 가진 어빌리티가 아직 부여되지 않았으며 초기화 중에는 정상입니다 */
 	NoCandidates,
 
-	/** 표시 문맥 조건을 만족하는 후보가 정확히 하나입니다 */
+	/** 표시 문맥 조건을 만족하는 후보가 하나이거나 여러 후보가 같은 표시 정보를 공유합니다 */
 	Resolved,
 
 	/** 후보는 있으나 현재 문맥에서 표시 조건을 만족하는 어빌리티가 없습니다 */
 	NoMatch,
 
-	/** 표시 조건을 동시에 만족하는 후보가 둘 이상이라 슬롯이 무엇을 뜻하는지 정할 수 없습니다 */
+	/** 표시 조건을 동시에 만족하는 후보들이 서로 다른 표시 정보를 사용해 슬롯의 의미를 정할 수 없습니다 */
 	Ambiguous
 };
 
-/** 슬롯을 대표하는 어빌리티 조회 결과와 그 어빌리티의 Spec Handle입니다 */
+/** 슬롯 표시 조회 결과와 표시 정보, 쿨다운 조회에 사용할 단일 Spec Handle입니다 */
 struct FRSAbilityDisplayResolveResult
 {
 	ERSAbilityDisplayResolveStatus Status = ERSAbilityDisplayResolveStatus::NoCandidates;
+	const URSAbilityDefinition* AbilityDefinition = nullptr;
 	FGameplayAbilitySpecHandle AbilityHandle;
 };
 

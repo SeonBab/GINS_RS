@@ -64,9 +64,11 @@ void URSAbilitySlotViewModel::SetPresentationConfig(const FRSAbilitySlotPresenta
 	PresentationConfig = InPresentationConfig;
 }
 
-void URSAbilitySlotViewModel::SetInputKeyText(const FText& InInputKeyText)
+void URSAbilitySlotViewModel::SetInputKeyTexts(const FText& InDisplayInputKeyText, const FText& InSecondaryInputKeyText)
 {
-	UE_MVVM_SET_PROPERTY_VALUE(InputKeyText, InInputKeyText);
+	UE_MVVM_SET_PROPERTY_VALUE(InputKeyText, InDisplayInputKeyText);
+	UE_MVVM_SET_PROPERTY_VALUE(SecondaryInputKeyText, InSecondaryInputKeyText);
+	UE_MVVM_SET_PROPERTY_VALUE(bHasSecondaryInputKey, !InSecondaryInputKeyText.IsEmpty());
 }
 
 void URSAbilitySlotViewModel::SetPresentation(const URSAbilityDefinition* Definition, UTexture2D* InIconTexture)

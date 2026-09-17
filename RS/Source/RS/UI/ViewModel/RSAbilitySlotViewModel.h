@@ -71,8 +71,8 @@ public:
 	/** 슬롯 위젯이 지정한 표시 설정을 반영합니다 */
 	void SetPresentationConfig(const FRSAbilitySlotPresentationConfig& InPresentationConfig);
 
-	/** 슬롯에 표시할 키 텍스트를 설정합니다 */
-	void SetInputKeyText(const FText& InInputKeyText);
+	/** 기존 키 영역에 표시할 입력 문자열과 선택적 보조 입력 원문을 설정합니다 */
+	void SetInputKeyTexts(const FText& InDisplayInputKeyText, const FText& InSecondaryInputKeyText);
 
 	/** 현재 슬롯을 대표하는 어빌리티의 표시 정보를 반영하며 nullptr이면 빈 슬롯으로 만듭니다 */
 	void SetPresentation(const URSAbilityDefinition* Definition, UTexture2D* InIconTexture);
@@ -134,6 +134,14 @@ private:
 	/** 이 슬롯에 현재 연결된 입력 키의 표시 문자열입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Ability Slot", meta = (AllowPrivateAccess = "true"))
 	FText InputKeyText;
+
+	/** 같은 입력 자리에 추가로 연결된 두 번째 키의 표시 문자열입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Ability Slot", meta = (AllowPrivateAccess = "true"))
+	FText SecondaryInputKeyText;
+
+	/** 보조 입력 키가 있어 두 번째 키 배지를 표시해야 하는지 나타냅니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Ability Slot", meta = (AllowPrivateAccess = "true"))
+	bool bHasSecondaryInputKey = false;
 
 	/** 표시할 어빌리티가 있는지 나타내며 슬롯을 비활성 표현으로 전환할 때 사용합니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, FieldNotify, Category = "RS|Ability Slot", meta = (AllowPrivateAccess = "true"))

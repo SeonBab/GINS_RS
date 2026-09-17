@@ -12,6 +12,19 @@
 #include "RSInputConfig.h"
 #include "RSPlayerCharacter.h"
 
+FText FRSAbilityInputKeyDisplay::GetCombinedInputKeyText() const
+{
+	if (SecondaryInputKeyText.IsEmpty())
+	{
+		return PrimaryInputKeyText;
+	}
+
+	return FText::Format(
+		NSLOCTEXT("RSAbilityInputKeyDisplay", "CombinedInputKeyFormat", "{0} / {1}"),
+		PrimaryInputKeyText,
+		SecondaryInputKeyText);
+}
+
 void URSPlayerAbilityViewModel::BeginDestroy()
 {
 	UnbindFromSource();
@@ -186,7 +199,8 @@ void URSPlayerAbilityViewModel::RefreshSlot(const FGameplayTag& InputTag, FRSAbi
 		return;
 	}
 
-	SlotViewModel->SetInputKeyText(GetInputKeyTextForInputTag(InputTag));
+	const FRSAbilityInputKeyDisplay InputKeyDisplay = GetInputKeyDisplayForInputTag(InputTag);
+	SlotViewModel->SetInputKeyTexts(InputKeyDisplay.GetCombinedInputKeyText(), InputKeyDisplay.SecondaryInputKeyText);
 
 	const URSAbilitySystemComponent* CurrentAbilitySystemComp = AbilitySystemComp.Get();
 	if (!CurrentAbilitySystemComp)
@@ -211,20 +225,30 @@ void URSPlayerAbilityViewModel::RefreshSlot(const FGameplayTag& InputTag, FRSAbi
 		}
 	}
 
-	SlotBinding.ResolvedAbilityHandle = ResolvedAbility ? ResolveResult.AbilityHandle : FGameplayAbilitySpecHandle();
-
-	if (!ResolvedAbility)
+	if (ResolveResult.Status != ERSAbilityDisplayResolveStatus::Resolved)
 	{
 		ClearCooldownSubscription(SlotBinding);
+		SlotBinding.ResolvedAbilityHandle = FGameplayAbilitySpecHandle();
 		SlotViewModel->SetPresentation(nullptr, nullptr);
 		SlotViewModel->ClearCooldown();
 
 		return;
 	}
 
-	const URSAbilityDefinition* AbilityDefinition = ResolvedAbility->GetAbilityDefinition();
+	SlotBinding.ResolvedAbilityHandle = ResolveResult.AbilityHandle;
+
+	const URSAbilityDefinition* AbilityDefinition = ResolveResult.AbilityDefinition;
 	UTexture2D* IconTexture = AbilityDefinition ? LoadAbilityIcon(AbilityDefinition->Icon) : nullptr;
 	SlotViewModel->SetPresentation(AbilityDefinition, IconTexture);
+
+	// 같은 표시 정보를 공유하는 복수 후보는 특정 Spec을 대표로 정하지 않으므로 쿨다운도 표시하지 않습니다
+	if (!ResolvedAbility)
+	{
+		ClearCooldownSubscription(SlotBinding);
+		SlotViewModel->ClearCooldown();
+
+		return;
+	}
 
 	const FGameplayTagContainer* CooldownTags = ResolvedAbility->GetCooldownTags();
 	UpdateCooldownSubscription(SlotBinding, CooldownTags ? *CooldownTags : FGameplayTagContainer());
@@ -319,43 +343,97 @@ void URSPlayerAbilityViewModel::ClearCooldownSubscription(FRSAbilitySlotBinding&
 	SlotBinding.CooldownTagDelegateHandles.Reset();
 }
 
-FText URSPlayerAbilityViewModel::GetInputKeyTextForInputTag(const FGameplayTag& InputTag) const
+FRSAbilityInputKeyDisplay URSPlayerAbilityViewModel::GetInputKeyDisplayForInputTag(const FGameplayTag& InputTag) const
 {
 	const ARSPlayerCharacter* CurrentPlayerCharacter = PlayerCharacter.Get();
 	if (!CurrentPlayerCharacter)
 	{
-		return FText::GetEmpty();
+		return FRSAbilityInputKeyDisplay();
 	}
 
 	const URSInputConfig* InputConfig = CurrentPlayerCharacter->GetInputConfig();
 	const UEnhancedInputLocalPlayerSubsystem* CurrentInputSubsystem = EnhancedInputSubsystem.Get();
 	if (!InputConfig || !CurrentInputSubsystem)
 	{
-		return FText::GetEmpty();
+		return FRSAbilityInputKeyDisplay();
 	}
 
 	const UInputAction* InputAction = InputConfig->FindAbilityInputAction(InputTag, false);
 	if (!InputAction)
 	{
-		return FText::GetEmpty();
+		return FRSAbilityInputKeyDisplay();
 	}
 
-	// 하나의 InputAction에 여러 장치의 키가 매핑될 수 있으므로 표시할 키를 결정적으로 고릅니다
-	// 장치별 아이콘 전환은 아직 다루지 않으므로 키보드와 마우스 키를 우선합니다
-	const TArray<FKey> MappedKeys = CurrentInputSubsystem->QueryKeysMappedToAction(InputAction);
+	return BuildInputKeyDisplay(CurrentInputSubsystem->QueryKeysMappedToAction(InputAction));
+}
+
+FRSAbilityInputKeyDisplay URSPlayerAbilityViewModel::BuildInputKeyDisplay(const TArray<FKey>& MappedKeys)
+{
+	TArray<FKey> PreferredKeys;
 	for (const FKey& MappedKey : MappedKeys)
 	{
-		if (!MappedKey.IsGamepadKey())
+		if (MappedKey.IsValid() && !MappedKey.IsGamepadKey())
 		{
-			return GetCultureInvariantKeyText(MappedKey);
+			PreferredKeys.AddUnique(MappedKey);
 		}
 	}
 
-	return MappedKeys.IsEmpty() ? FText::GetEmpty() : GetCultureInvariantKeyText(MappedKeys[0]);
+	// 키보드·마우스 매핑이 없을 때만 게임패드를 대체 입력으로 사용합니다
+	if (PreferredKeys.IsEmpty())
+	{
+		for (const FKey& MappedKey : MappedKeys)
+		{
+			if (MappedKey.IsValid())
+			{
+				PreferredKeys.AddUnique(MappedKey);
+			}
+		}
+	}
+
+	// Query 순서에 의존하지 않도록 마우스를 먼저 두고 같은 장치 안에서는 키 이름으로 정렬합니다
+	PreferredKeys.Sort([](const FKey& Left, const FKey& Right)
+	{
+		const int32 LeftPriority = Left.IsMouseButton() ? 0 : 1;
+		const int32 RightPriority = Right.IsMouseButton() ? 0 : 1;
+		if (LeftPriority != RightPriority)
+		{
+			return LeftPriority < RightPriority;
+		}
+
+		return Left.GetFName().ToString() < Right.GetFName().ToString();
+	});
+
+	FRSAbilityInputKeyDisplay Result;
+	if (!PreferredKeys.IsEmpty())
+	{
+		Result.PrimaryInputKeyText = GetCultureInvariantKeyText(PreferredKeys[0]);
+	}
+
+	if (PreferredKeys.Num() >= 2)
+	{
+		Result.SecondaryInputKeyText = GetCultureInvariantKeyText(PreferredKeys[1]);
+	}
+
+	return Result;
 }
 
 FText URSPlayerAbilityViewModel::GetCultureInvariantKeyText(const FKey& Key)
 {
+	if (Key == EKeys::LeftMouseButton)
+	{
+		return FText::AsCultureInvariant(TEXT("LMB"));
+	}
+
+	if (Key == EKeys::RightMouseButton)
+	{
+		return FText::AsCultureInvariant(TEXT("RMB"));
+	}
+
+	if (Key == EKeys::MiddleMouseButton)
+	{
+		return FText::AsCultureInvariant(TEXT("MMB"));
+	}
+
 	const FText DisplayName = Key.GetDisplayName();
 
 	// 엔진이 키 이름을 번역하므로 게임 언어에 따라 표기가 달라집니다
@@ -419,7 +497,8 @@ void URSPlayerAbilityViewModel::HandleControlMappingsRebuilt()
 	{
 		if (URSAbilitySlotViewModel* SlotViewModel = SlotPair.Value.ViewModel)
 		{
-			SlotViewModel->SetInputKeyText(GetInputKeyTextForInputTag(SlotPair.Key));
+			const FRSAbilityInputKeyDisplay InputKeyDisplay = GetInputKeyDisplayForInputTag(SlotPair.Key);
+			SlotViewModel->SetInputKeyTexts(InputKeyDisplay.GetCombinedInputKeyText(), InputKeyDisplay.SecondaryInputKeyText);
 		}
 	}
 }
