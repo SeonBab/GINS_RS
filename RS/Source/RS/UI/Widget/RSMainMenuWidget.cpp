@@ -18,6 +18,11 @@ void URSMainMenuWidget::NativeOnInitialized()
 		Button_AudioSettings->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleAudioSettingsButtonClicked);
 	}
 
+	if (Button_Scoreboard)
+	{
+		Button_Scoreboard->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleScoreboardButtonClicked);
+	}
+
 	if (Button_QuitGame)
 	{
 		Button_QuitGame->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleQuitGameButtonClicked);
@@ -34,6 +39,11 @@ void URSMainMenuWidget::SetActionsEnabled(bool bEnabled)
 	if (Button_AudioSettings)
 	{
 		Button_AudioSettings->SetIsEnabled(bEnabled);
+	}
+
+	if (Button_Scoreboard)
+	{
+		Button_Scoreboard->SetIsEnabled(bEnabled);
 	}
 
 	if (Button_QuitGame)
@@ -58,6 +68,11 @@ void URSMainMenuWidget::HandleStartGameButtonClicked()
 void URSMainMenuWidget::HandleAudioSettingsButtonClicked()
 {
 	OnAudioSettingsRequested.Broadcast();
+}
+
+void URSMainMenuWidget::HandleScoreboardButtonClicked()
+{
+	OnScoreboardRequested.Broadcast();
 }
 
 void URSMainMenuWidget::HandleQuitGameButtonClicked()

@@ -23,7 +23,7 @@ public:
 	UPROPERTY(SaveGame)
 	int64 Generation = 0;
 
-	/** 점수 순서로 정렬된 최대 100개의 클리어 기록입니다 */
+	/** 점수 순서로 정렬된 최대 50개의 클리어 기록입니다 */
 	UPROPERTY(SaveGame)
 	TArray<FRSBossClearRecord> Records;
 };

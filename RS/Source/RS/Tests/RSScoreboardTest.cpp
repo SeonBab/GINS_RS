@@ -150,7 +150,7 @@ bool FRSScoreboardRankingTest::RunTest(const FString& Parameters)
 
 	const FRSBossClearRecord BoundaryTieRecord = MakeRecord(TEXT("Boundary"), FullRecords.Last().RemainingTimeMilliseconds, 0);
 	const FRSScoreboardSaveOutcome BoundaryOutcome = URSScoreboardSubsystem::BuildSaveCandidateForAutomationTest(FullRecords, BoundaryTieRecord, CandidateRecords);
-	TestEqual(TEXT("New tie after the hundredth stable row is not ranked"), BoundaryOutcome.Result, ERSScoreboardSaveResult::NotRanked);
+	TestEqual(TEXT("New tie after the final stable row is not ranked"), BoundaryOutcome.Result, ERSScoreboardSaveResult::NotRanked);
 	TestTrue(TEXT("Not ranked result does not expose a write candidate"), CandidateRecords.IsEmpty());
 
 	const FRSBossClearRecord BetterRecord = MakeRecord(TEXT("Better"), FullRecords.Last().RemainingTimeMilliseconds + 10, 0);

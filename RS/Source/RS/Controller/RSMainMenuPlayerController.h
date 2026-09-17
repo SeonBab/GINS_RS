@@ -8,6 +8,7 @@
 
 class URSMainMenuWidget;
 class URSMainMenuSettingsWidget;
+class URSMainMenuScoreboardWidget;
 class URSQuitConfirmationWidget;
 class URSScreenFadeWidget;
 class UUserWidget;
@@ -48,11 +49,17 @@ private:
 	/** 오디오 설정 화면을 생성하거나 다시 표시합니다 */
 	void HandleAudioSettingsRequested();
 
+	/** 스코어보드 화면을 생성하거나 다시 표시합니다 */
+	void HandleScoreboardRequested();
+
 	/** 종료 확인 화면을 생성하거나 다시 표시합니다 */
 	void HandleQuitConfirmationRequested();
 
 	/** Main Menu Settings 화면이 닫히면 Main Menu로 돌아갑니다 */
 	void HandleMainMenuSettingsClosed();
+
+	/** 스코어보드 화면이 닫히면 Main Menu로 돌아갑니다 */
+	void HandleMainMenuScoreboardClosed();
 
 	/** 종료 확인을 취소하고 Main Menu로 돌아갑니다 */
 	void HandleQuitCancelled();
@@ -64,13 +71,17 @@ private:
 	void QuitApplication();
 
 private:
-	/** Main Menu의 세 Action Button을 포함하는 Widget 클래스입니다 */
+	/** Main Menu의 네 Action Button을 포함하는 Widget 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<URSMainMenuWidget> MainMenuWidgetClass;
 
 	/** 공용 오디오 설정 Panel과 Main Menu 닫기 Action을 포함하는 Widget 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<URSMainMenuSettingsWidget> MainMenuSettingsWidgetClass;
+
+	/** 공용 스코어보드 Panel과 Main Menu 닫기 Action을 포함하는 Widget 클래스입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<URSMainMenuScoreboardWidget> MainMenuScoreboardWidgetClass;
 
 	/** Application 종료 확인 Widget 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
@@ -87,6 +98,10 @@ private:
 	/** 필요할 때 생성해 재사용하는 Main Menu Settings Widget입니다 */
 	UPROPERTY(Transient)
 	TObjectPtr<URSMainMenuSettingsWidget> MainMenuSettingsWidget;
+
+	/** 필요할 때 생성해 재사용하는 Main Menu 스코어보드 Widget입니다 */
+	UPROPERTY(Transient)
+	TObjectPtr<URSMainMenuScoreboardWidget> MainMenuScoreboardWidget;
 
 	/** 필요할 때 생성해 재사용하는 종료 확인 Widget입니다 */
 	UPROPERTY(Transient)

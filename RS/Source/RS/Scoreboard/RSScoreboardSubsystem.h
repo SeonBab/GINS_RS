@@ -88,7 +88,7 @@ private:
 	/** 지정한 SaveGame이 현재 버전의 모든 불변식을 만족하는지 확인합니다 */
 	bool IsSaveGameValid(const URSScoreboardSaveGame* SaveGame, int32 SlotIndex) const;
 
-	/** 저장 후보를 정렬하고 중복·상위 100개·표시 순위를 판정합니다 */
+	/** 저장 후보를 정렬하고 중복·상위 50개·표시 순위를 판정합니다 */
 	static FRSScoreboardSaveOutcome BuildSaveCandidate(const TArray<FRSBossClearRecord>& CurrentRecords, const FRSBossClearRecord& NewRecord, TArray<FRSBossClearRecord>& OutCandidateRecords);
 
 	/** 동일 Generation의 두 유효 파일이 같은 기록을 담는지 확인합니다 */

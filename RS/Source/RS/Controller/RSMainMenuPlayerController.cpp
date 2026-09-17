@@ -6,6 +6,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "RSMainMenuGameMode.h"
 #include "RSMainMenuSettingsWidget.h"
+#include "RSMainMenuScoreboardWidget.h"
 #include "RSMainMenuWidget.h"
 #include "RSMusicPlaybackSubsystem.h"
 #include "RSQuitConfirmationWidget.h"
@@ -37,6 +38,11 @@ void ARSMainMenuPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReas
 	if (MainMenuSettingsWidget)
 	{
 		MainMenuSettingsWidget->RemoveFromParent();
+	}
+
+	if (MainMenuScoreboardWidget)
+	{
+		MainMenuScoreboardWidget->RemoveFromParent();
 	}
 
 	if (QuitConfirmationWidget)
@@ -71,6 +77,7 @@ bool ARSMainMenuPlayerController::CreateMainMenuWidget()
 	}
 
 	MainMenuWidget->GetStartGameRequested().AddUObject(this, &ThisClass::HandleStartGameRequested);
+	MainMenuWidget->GetScoreboardRequested().AddUObject(this, &ThisClass::HandleScoreboardRequested);
 	MainMenuWidget->GetAudioSettingsRequested().AddUObject(this, &ThisClass::HandleAudioSettingsRequested);
 	MainMenuWidget->GetQuitConfirmationRequested().AddUObject(this, &ThisClass::HandleQuitConfirmationRequested);
 
@@ -139,6 +146,11 @@ void ARSMainMenuPlayerController::RestoreMainMenu()
 		MainMenuSettingsWidget->RemoveFromParent();
 	}
 
+	if (MainMenuScoreboardWidget)
+	{
+		MainMenuScoreboardWidget->RemoveFromParent();
+	}
+
 	if (QuitConfirmationWidget)
 	{
 		QuitConfirmationWidget->RemoveFromParent();
@@ -196,6 +208,35 @@ void ARSMainMenuPlayerController::HandleAudioSettingsRequested()
 	MainMenuSettingsWidget->RequestInitialFocus(this);
 }
 
+void ARSMainMenuPlayerController::HandleScoreboardRequested()
+{
+	if (!MainMenuWidget || !MainMenuScoreboardWidgetClass)
+	{
+		return;
+	}
+
+	if (!MainMenuScoreboardWidget)
+	{
+		MainMenuScoreboardWidget = CreateWidget<URSMainMenuScoreboardWidget>(this, MainMenuScoreboardWidgetClass);
+		if (!MainMenuScoreboardWidget)
+		{
+			return;
+		}
+
+		MainMenuScoreboardWidget->GetMainMenuScoreboardClosed().AddUObject(this, &ThisClass::HandleMainMenuScoreboardClosed);
+	}
+
+	if (!MainMenuScoreboardWidget->OpenScoreboard())
+	{
+		return;
+	}
+
+	MainMenuWidget->SetVisibility(ESlateVisibility::Collapsed);
+	MainMenuScoreboardWidget->AddToViewport(10);
+	ConfigureUserInterfaceInput(MainMenuScoreboardWidget);
+	MainMenuScoreboardWidget->RequestInitialFocus(this);
+}
+
 void ARSMainMenuPlayerController::HandleQuitConfirmationRequested()
 {
 	if (!MainMenuWidget || !QuitConfirmationWidgetClass)
@@ -222,6 +263,11 @@ void ARSMainMenuPlayerController::HandleQuitConfirmationRequested()
 }
 
 void ARSMainMenuPlayerController::HandleMainMenuSettingsClosed()
+{
+	RestoreMainMenu();
+}
+
+void ARSMainMenuPlayerController::HandleMainMenuScoreboardClosed()
 {
 	RestoreMainMenu();
 }

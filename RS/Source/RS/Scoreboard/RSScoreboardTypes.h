@@ -78,7 +78,7 @@ struct RS_API FRSScoreboardSaveOutcome
 
 namespace RSScoreboard
 {
-	constexpr int32 MaximumRecordCount = 100;
+	constexpr int32 MaximumRecordCount = 50;
 	constexpr int32 MaximumPlayerNameLength = 12;
 
 	/** 일반 공백을 정리한 이름과 유효성 결과를 반환합니다 */

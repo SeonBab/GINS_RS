@@ -11,7 +11,7 @@ class UButton;
 
 DECLARE_MULTICAST_DELEGATE(FRSMainMenuActionRequested)
 
-/** Main Menu의 세 Action 의도를 PlayerController에 전달합니다 */
+/** Main Menu의 네 Action 의도를 PlayerController에 전달합니다 */
 UCLASS()
 class RS_API URSMainMenuWidget : public UUserWidget
 {
@@ -25,13 +25,16 @@ public:
 	/** 게임 시작 요청 이벤트를 반환합니다 */
 	FRSMainMenuActionRequested& GetStartGameRequested() { return OnStartGameRequested; }
 
+	/** 스코어보드 화면 요청 이벤트를 반환합니다 */
+	FRSMainMenuActionRequested& GetScoreboardRequested() { return OnScoreboardRequested; }
+
 	/** 설정 화면 요청 이벤트를 반환합니다 */
 	FRSMainMenuActionRequested& GetAudioSettingsRequested() { return OnAudioSettingsRequested; }
 
 	/** 종료 확인 요청 이벤트를 반환합니다 */
 	FRSMainMenuActionRequested& GetQuitConfirmationRequested() { return OnQuitConfirmationRequested; }
 
-	/** 세 Action Button의 입력 가능 상태를 함께 변경합니다 */
+	/** 네 Action Button의 입력 가능 상태를 함께 변경합니다 */
 	void SetActionsEnabled(bool bEnabled);
 
 	/** 게임 시작 Button에 Keyboard Focus를 요청합니다 */
@@ -40,6 +43,9 @@ public:
 private:
 	UFUNCTION()
 	void HandleStartGameButtonClicked();
+
+	UFUNCTION()
+	void HandleScoreboardButtonClicked();
 
 	UFUNCTION()
 	void HandleAudioSettingsButtonClicked();
@@ -52,6 +58,10 @@ private:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Main Menu", meta = (BindWidget, AllowPrivateAccess = "true"))
 	TObjectPtr<UButton> Button_StartGame;
 
+	/** 누적 클리어 기록 화면 표시를 요청하는 Button입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Main Menu", meta = (BindWidget, AllowPrivateAccess = "true"))
+	TObjectPtr<UButton> Button_Scoreboard;
+
 	/** 오디오 설정 화면 표시를 요청하는 Button입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|Main Menu", meta = (BindWidget, AllowPrivateAccess = "true"))
 	TObjectPtr<UButton> Button_AudioSettings;
@@ -62,6 +72,9 @@ private:
 
 	/** 게임 시작 의도를 PlayerController에 전달합니다 */
 	FRSMainMenuActionRequested OnStartGameRequested;
+
+	/** 스코어보드 화면 표시 의도를 PlayerController에 전달합니다 */
+	FRSMainMenuActionRequested OnScoreboardRequested;
 
 	/** 설정 화면 표시 의도를 PlayerController에 전달합니다 */
 	FRSMainMenuActionRequested OnAudioSettingsRequested;
