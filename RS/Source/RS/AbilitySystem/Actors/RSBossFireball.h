@@ -56,10 +56,6 @@ struct FRSBossFireballDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Charging", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float ChargeDuration = 3.0f;
 
-	/** 화염구를 파괴하는 데 필요한 개별 타격 수입니다 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Charging", meta = (ClampMin = "1", UIMin = "1"))
-	int32 RequiredHitCount = 3;
-
 	/** 활성 장판의 수평 HitCheck 반경입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float FireFieldRadius = 250.0f;

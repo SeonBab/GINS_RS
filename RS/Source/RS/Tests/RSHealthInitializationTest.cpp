@@ -13,7 +13,6 @@
 #include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSHealthInitializationTest, "RS.Combat.Health.Initialization", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSHealthRuntimeInitializationTest, "RS.Combat.Health.RuntimeInitialization", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRSHealthInitializationTest::RunTest(const FString& Parameters)
 {
@@ -59,47 +58,6 @@ bool FRSHealthInitializationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Initial max health broadcast carries the configured value"), Listener->MaxHealthValues.Num() > 0 ? Listener->MaxHealthValues[0] : 0.0f, ConfiguredMaxHealth);
 	TestEqual(TEXT("Initial health broadcast carries the configured value"), Listener->HealthValues.Num() > 0 ? Listener->HealthValues[0] : 0.0f, ConfiguredMaxHealth);
 	TestFalse(TEXT("Configured max health does not start death"), HealthComp->IsDead());
-
-	TestWorld->RemoveFromRoot();
-	GEngine->DestroyWorldContext(TestWorld);
-	TestWorld->DestroyWorld(false);
-
-	return true;
-}
-
-bool FRSHealthRuntimeInitializationTest::RunTest(const FString& Parameters)
-{
-	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("RSHealthRuntimeInitializationTestWorld"), EUniqueObjectNameOptions::GloballyUnique);
-	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
-	UWorld* TestWorld = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
-	TestWorld->AddToRoot();
-	WorldContext.SetCurrentWorld(TestWorld);
-	TestWorld->InitializeActorsForPlay(FURL());
-
-	AActor* Owner = TestWorld->SpawnActor<AActor>();
-	URSAbilitySystemComponent* AbilitySystemComp = NewObject<URSAbilitySystemComponent>(Owner);
-	URSHealthComponent* HealthComp = NewObject<URSHealthComponent>(Owner);
-	if (!Owner || !AbilitySystemComp || !HealthComp)
-	{
-		TestWorld->RemoveFromRoot();
-		GEngine->DestroyWorldContext(TestWorld);
-		TestWorld->DestroyWorld(false);
-
-		return false;
-	}
-
-	AbilitySystemComp->RegisterComponent();
-	AbilitySystemComp->InitAbilityActorInfo(Owner, Owner);
-	AbilitySystemComp->AddAttributeSetSubobject(NewObject<URSHealthSet>(Owner));
-	HealthComp->RegisterComponent();
-
-	// 화염구처럼 필요한 타격 수가 생성 시점에 정해지는 대상은 Blueprint 기본값 대신 런타임 값을 사용합니다
-	constexpr float RuntimeMaxHealth = 3.0f;
-	HealthComp->SetInitialMaxHealth(RuntimeMaxHealth);
-	HealthComp->InitializeWithAbilitySystem(AbilitySystemComp);
-
-	TestEqual(TEXT("Runtime max health replaces the configured default"), HealthComp->GetMaxHealth(), RuntimeMaxHealth);
-	TestEqual(TEXT("Runtime health starts full"), HealthComp->GetHealth(), RuntimeMaxHealth);
 
 	TestWorld->RemoveFromRoot();
 	GEngine->DestroyWorldContext(TestWorld);

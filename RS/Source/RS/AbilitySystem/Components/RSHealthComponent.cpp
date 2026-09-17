@@ -93,12 +93,6 @@ void URSHealthComponent::UninitializeFromAbilitySystem()
 	AbilitySystemComp = nullptr;
 }
 
-void URSHealthComponent::SetInitialMaxHealth(float InInitialMaxHealth)
-{
-	// HealthSet이 MaxHealth에 요구하는 하한을 여기서 먼저 적용해 잘못된 설정이 조용히 보정되지 않게 합니다
-	InitialMaxHealth = FMath::Max(InInitialMaxHealth, 1.0f);
-}
-
 float URSHealthComponent::GetHealth() const
 {
 	return HealthSet ? HealthSet->GetHealth() : 0.0f;

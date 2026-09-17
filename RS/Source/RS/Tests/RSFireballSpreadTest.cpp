@@ -14,6 +14,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "RSGameplayTags.h"
+#include "RSHealthComponent.h"
 #include "RSHealthSet.h"
 #include "UObject/UnrealType.h"
 
@@ -158,8 +159,23 @@ namespace
 		Test.TestTrue(FString::Printf(TEXT("Count %d is deterministic for the same seed"), Definition.FireballCount), FirstLocations == SecondLocations);
 	}
 
-	/** BeginPlay 전에 Ability 소유 설정을 주입해 실제 화염구 생성 경로를 재현합니다 */
-	ARSBossFireball* SpawnFireball(UWorld* TestWorld, const FRSBossFireballDefinition& Definition, bool bApplyTelegraphMaterial)
+	/** 기획자가 Blueprint에서 설정하는 것과 같은 경로로 화염구 체력을 정합니다 */
+	bool ApplyFireballInitialMaxHealth(AActor* FireballActor, float InitialMaxHealth)
+	{
+		URSHealthComponent* HealthComp = FireballActor ? FireballActor->FindComponentByClass<URSHealthComponent>() : nullptr;
+		FFloatProperty* InitialMaxHealthProperty = FindFProperty<FFloatProperty>(URSHealthComponent::StaticClass(), TEXT("InitialMaxHealth"));
+		if (!HealthComp || !InitialMaxHealthProperty)
+		{
+			return false;
+		}
+
+		InitialMaxHealthProperty->SetPropertyValue_InContainer(HealthComp, InitialMaxHealth);
+
+		return true;
+	}
+
+	/** BeginPlay 전에 Ability 소유 설정과 Blueprint 기본값을 주입해 실제 화염구 생성 경로를 재현합니다 */
+	ARSBossFireball* SpawnFireball(UWorld* TestWorld, const FRSBossFireballDefinition& Definition, bool bApplyTelegraphMaterial, float InitialMaxHealth)
 	{
 		if (!TestWorld)
 		{
@@ -174,12 +190,23 @@ namespace
 		}
 
 		Fireball->Initialize(Definition, MakeFireballHitSpec());
+		if (!ApplyFireballInitialMaxHealth(Fireball, InitialMaxHealth))
+		{
+			return nullptr;
+		}
+
 		if (bApplyTelegraphMaterial && !ApplyFireballTelegraphMaterial(Fireball))
 		{
 			return nullptr;
 		}
 
 		Fireball->FinishSpawning(SpawnTransform);
+
+		// 테스트 월드에는 GameMode가 없어 FinishSpawning이 BeginPlay까지 이어 주지 않으므로 직접 시작합니다
+		if (!Fireball->HasActorBegunPlay())
+		{
+			Fireball->DispatchBeginPlay();
+		}
 
 		return Fireball;
 	}
@@ -240,9 +267,10 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
+	// 화염구 체력도 플레이어·보스와 같이 HealthComponent의 Blueprint 값으로 정합니다
+	constexpr float ConfiguredHitPoints = 5.0f;
 	FRSBossFireballDefinition FireballDefinition;
-	FireballDefinition.RequiredHitCount = 4;
-	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, false);
+	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, false, ConfiguredHitPoints);
 	TestNotNull(TEXT("Fireball actor"), Fireball);
 	if (!Fireball)
 	{
@@ -250,8 +278,6 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 
 		return false;
 	}
-
-	const float ConfiguredHitPoints = static_cast<float>(FireballDefinition.RequiredHitCount);
 
 	Fireball->Tick(1.1f);
 	TestEqual(TEXT("Finishing the fall starts charging"), Fireball->GetFireballState(), ERSBossFireballState::Charging);
@@ -277,9 +303,10 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 	Fireball->Tick(3.1f);
 	TestEqual(TEXT("Charge completion waits for a later frame before becoming a field"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
-	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
-	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
-	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
+	for (int32 DamageIndex = 0; DamageIndex < static_cast<int32>(ConfiguredHitPoints) - 1; ++DamageIndex)
+	{
+		ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
+	}
 	TestEqual(TEXT("Each damage effect removes exactly one health"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 1.0f);
 	TestEqual(TEXT("Pending charge completion still accepts same-frame hits"), Fireball->GetFireballState(), ERSBossFireballState::ChargeCompletedPending);
 
@@ -305,7 +332,7 @@ bool FRSBossFireballChargeTelegraphTest::RunTest(const FString& Parameters)
 	}
 
 	FRSBossFireballDefinition FireballDefinition;
-	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, true);
+	ARSBossFireball* Fireball = SpawnFireball(TestWorld, FireballDefinition, true, 3.0f);
 	TestNotNull(TEXT("Fireball actor"), Fireball);
 	if (!Fireball)
 	{

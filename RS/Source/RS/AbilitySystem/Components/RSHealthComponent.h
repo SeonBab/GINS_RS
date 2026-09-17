@@ -37,12 +37,6 @@ public:
 	/** 기존 Attribute 변경 이벤트를 해제하고 참조를 초기화합니다 */
 	void UninitializeFromAbilitySystem();
 
-	/**
-	 * 초기 체력을 Blueprint 기본값 대신 런타임 값으로 바꿉니다
-	 * 초기 통지에도 반영되도록 InitializeWithAbilitySystem보다 먼저 호출합니다
-	 */
-	void SetInitialMaxHealth(float InInitialMaxHealth);
-
 	/** 현재 체력을 반환합니다 */
 	UFUNCTION(BlueprintPure, Category = "RS|Health")
 	float GetHealth() const;

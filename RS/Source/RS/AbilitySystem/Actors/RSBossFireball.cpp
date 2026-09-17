@@ -46,9 +46,9 @@ bool FRSBossFireballDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
-	if (!FMath::IsFinite(ChargeDuration) || ChargeDuration <= 0.0f || RequiredHitCount <= 0)
+	if (!FMath::IsFinite(ChargeDuration) || ChargeDuration <= 0.0f)
 	{
-		SetValidationError(TEXT("ChargeDuration and RequiredHitCount must be greater than zero."));
+		SetValidationError(TEXT("ChargeDuration must be greater than zero."));
 
 		return false;
 	}
@@ -238,9 +238,6 @@ void ARSBossFireball::InitializeAbilitySystem()
 	{
 		DefaultAbilitySet->GiveToAbilitySystem(AbilitySystemComp, &GrantedAbilityHandles, this);
 	}
-
-	// 필요한 타격 수는 생성 시점에 정해지므로 HealthComponent의 Blueprint 기본값 대신 이 값으로 체력을 초기화합니다
-	HealthComp->SetInitialMaxHealth(FireballDefinition.RequiredHitCount);
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 	HealthComp->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
@@ -432,7 +429,7 @@ void ARSBossFireball::UpdateHitPointWidget()
 {
 	if (URSFireballChargeWidget* ChargeWidget = Cast<URSFireballChargeWidget>(ChargeWidgetComp->GetUserWidgetObject()))
 	{
-		// 필요 타격 수를 최대 체력으로 두고 피해를 1로 정규화하므로 남은 체력이 곧 남은 타격 수입니다
+		// 화염구가 받는 피해는 1로 정규화되므로 남은 체력이 곧 남은 타격 수입니다
 		ChargeWidget->SetHitPoints(FMath::RoundToInt(HealthComp->GetHealth()), FMath::RoundToInt(HealthComp->GetMaxHealth()));
 	}
 }
