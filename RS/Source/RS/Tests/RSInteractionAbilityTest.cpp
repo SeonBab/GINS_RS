@@ -7,7 +7,9 @@
 #include "GameFramework/Actor.h"
 #include "RSAbilitySystemComponent.h"
 #include "RSGameplayAbility_Interact.h"
+#include "RSGameplayAbility_InteractionScan.h"
 #include "RSGameplayTags.h"
+#include "RSInteractionAbilityTestTypes.h"
 
 namespace
 {
@@ -81,6 +83,32 @@ bool FRSInteractionAbilityBlockingTest::RunTest(const FString& Parameters)
 	AbilitySystemComponent->RemoveLooseGameplayTag(RSGameplayTags::State_Dead);
 
 	TestTrue(TEXT("The interact ability activates again once the locks are gone"), AbilitySystemComponent->TryActivateAbility(InteractHandle));
+
+	DestroyInteractionAbilityTestWorld(TestWorld);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSInteractionDerivedScanLookupTest, "RS.Interaction.Ability.DerivedScanLookup", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSInteractionDerivedScanLookupTest::RunTest(const FString& Parameters)
+{
+	UWorld* TestWorld = CreateInteractionAbilityTestWorld();
+	TestNotNull(TEXT("Interaction ability test world"), TestWorld);
+	if (!TestWorld)
+	{
+		return false;
+	}
+
+	AActor* Owner = TestWorld->SpawnActor<AActor>();
+	URSAbilitySystemComponent* AbilitySystemComponent = NewObject<URSAbilitySystemComponent>(Owner);
+	AbilitySystemComponent->RegisterComponent();
+	AbilitySystemComponent->InitAbilityActorInfo(Owner, Owner);
+	AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(URSInteractionScanChildTestAbility::StaticClass(), 1));
+
+	URSGameplayAbility_InteractionScan* ScanAbility = URSGameplayAbility_InteractionScan::FindInstance(AbilitySystemComponent);
+	TestNotNull(TEXT("A scan ability granted as a derived class is found"), ScanAbility);
+	TestTrue(TEXT("The returned instance keeps the granted derived class"), ScanAbility && ScanAbility->IsA<URSInteractionScanChildTestAbility>());
 
 	DestroyInteractionAbilityTestWorld(TestWorld);
 

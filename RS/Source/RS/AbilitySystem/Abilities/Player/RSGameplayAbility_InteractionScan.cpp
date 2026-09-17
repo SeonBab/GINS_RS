@@ -29,13 +29,21 @@ URSGameplayAbility_InteractionScan* URSGameplayAbility_InteractionScan::FindInst
 		return nullptr;
 	}
 
-	const FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromClass(StaticClass());
-	if (!AbilitySpec)
+	for (const FGameplayAbilitySpec& AbilitySpec : AbilitySystemComponent->GetActivatableAbilities())
 	{
-		return nullptr;
+		if (!AbilitySpec.Ability || !AbilitySpec.Ability->IsA<URSGameplayAbility_InteractionScan>())
+		{
+			continue;
+		}
+
+		// 실제 부여 클래스가 Blueprint 자식이어도 C++ 기반 타입으로 인스턴스를 찾습니다
+		if (URSGameplayAbility_InteractionScan* ScanAbility = Cast<URSGameplayAbility_InteractionScan>(AbilitySpec.GetPrimaryInstance()))
+		{
+			return ScanAbility;
+		}
 	}
 
-	return Cast<URSGameplayAbility_InteractionScan>(AbilitySpec->GetPrimaryInstance());
+	return nullptr;
 }
 
 void URSGameplayAbility_InteractionScan::SetPromptSuppressed(bool bSuppressed)

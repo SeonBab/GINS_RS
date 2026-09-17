@@ -22,7 +22,7 @@ public:
 	URSGameplayAbility_InteractionScan();
 
 	/**
-	 * 해당 ASC에서 실행 중인 이 어빌리티의 인스턴스를 반환하며 없으면 nullptr을 반환합니다
+	 * 해당 ASC에서 이 타입 또는 Blueprint 자식으로 부여된 어빌리티의 인스턴스를 반환하며 없으면 nullptr을 반환합니다
 	 * 선택 상태가 인스턴스에 있으므로 실행 어빌리티가 이 경로로 상태를 조회합니다
 	 */
 	static URSGameplayAbility_InteractionScan* FindInstance(const UAbilitySystemComponent* AbilitySystemComponent);
