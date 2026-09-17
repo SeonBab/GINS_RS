@@ -8,6 +8,7 @@
 #include "RSPlayerHeadUpDisplay.generated.h"
 
 class URSBossResultWidget;
+class URSDialogueWidget;
 class URSInGameMenuWidget;
 class URSPrimaryLayout;
 class URSScreenFadeWidget;
@@ -47,6 +48,12 @@ public:
 	/** 인게임 메뉴의 세 Action Button 상태를 함께 변경합니다 */
 	void SetInGameMenuActionsEnabled(bool bEnabled);
 
+	/** Modal Layer에 생성한 대화 Widget에 본문을 설정하고 표시합니다 */
+	URSDialogueWidget* ShowDialogue(const FText& DialogueText);
+
+	/** 표시 중인 대화 Widget을 숨깁니다 */
+	void HideDialogue();
+
 	/** 화면을 어둡게 만들고 연출이 끝난 뒤 전달받은 동작을 실행합니다 */
 	bool PlayScreenTransition(const FSimpleDelegate& OnFadedOut);
 
@@ -69,6 +76,9 @@ private:
 	/** 인게임 메뉴의 Action 이벤트를 연결하고 초기 표시 상태를 구성합니다 */
 	void InitializeInGameMenu();
 
+	/** 설정된 대화 Widget을 Modal Layer에 한 번 생성하고 닫기 이벤트를 연결합니다 */
+	void InitializeDialogue();
+
 	/** Boss Result Widget의 Action 의도를 Local PlayerController에 전달합니다 */
 	void HandleBossResultActionRequested(ERSBossResultAction Action);
 
@@ -78,6 +88,9 @@ private:
 	/** 인게임 메뉴의 Level 전환 의도를 Local PlayerController에 전달합니다 */
 	void HandleInGameMenuActionRequested(ERSInGameMenuAction Action);
 
+	/** 대화 Widget의 닫기 의도를 Local PlayerController에 전달합니다 */
+	void HandleDialogueCloseRequested();
+
 private:
 	/** 인게임 플레이어 화면에 사용할 루트 레이아웃 클래스입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
@@ -86,4 +99,12 @@ private:
 	/** 현재 화면에 표시되는 루트 레이아웃입니다 */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSPrimaryLayout> PrimaryLayout;
+
+	/** Modal Layer에 생성할 튜토리얼 대화 Widget 클래스입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<URSDialogueWidget> DialogueWidgetClass;
+
+	/** HUD가 Modal Layer에 한 번 생성해 재사용하는 대화 Widget입니다 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RS|User Interface", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSDialogueWidget> DialogueWidget;
 };

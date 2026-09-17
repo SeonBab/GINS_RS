@@ -3,9 +3,11 @@
 #include "AbilitySystemComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
 #include "RSGameplayTags.h"
 #include "RSInteractable.h"
 #include "RSInteractionPromptWidget.h"
+#include "RSPlayerController.h"
 #include "Tasks/RSAbilityTask_ScanInteractables.h"
 
 URSGameplayAbility_InteractionScan::URSGameplayAbility_InteractionScan()
@@ -36,6 +38,12 @@ URSGameplayAbility_InteractionScan* URSGameplayAbility_InteractionScan::FindInst
 	return Cast<URSGameplayAbility_InteractionScan>(AbilitySpec->GetPrimaryInstance());
 }
 
+void URSGameplayAbility_InteractionScan::SetPromptSuppressed(bool bSuppressed)
+{
+	bIsPromptSuppressed = bSuppressed;
+	UpdatePromptForFocus(FocusedInteractable.Get());
+}
+
 void URSGameplayAbility_InteractionScan::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -57,6 +65,8 @@ void URSGameplayAbility_InteractionScan::ActivateAbility(const FGameplayAbilityS
 void URSGameplayAbility_InteractionScan::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	ClearGrantedInteractAbility();
+	FocusedInteractable.Reset();
+	NotifyControllerOfFocusChange(nullptr);
 
 	if (PromptWidgetComp)
 	{
@@ -64,14 +74,13 @@ void URSGameplayAbility_InteractionScan::EndAbility(const FGameplayAbilitySpecHa
 		PromptWidgetComp = nullptr;
 	}
 
-	FocusedInteractable.Reset();
-
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void URSGameplayAbility_InteractionScan::HandleFocusChanged(AActor* FocusedActor)
 {
 	FocusedInteractable = FocusedActor;
+	NotifyControllerOfFocusChange(FocusedActor);
 
 	UpdateGrantedAbilityForFocus(FocusedActor);
 	UpdatePromptForFocus(FocusedActor);
@@ -104,7 +113,7 @@ void URSGameplayAbility_InteractionScan::UpdatePromptForFocus(AActor* FocusedAct
 		return;
 	}
 
-	if (!IsValid(FocusedActor))
+	if (bIsPromptSuppressed || !IsValid(FocusedActor))
 	{
 		PromptWidgetComp->SetVisibility(false);
 
@@ -133,6 +142,16 @@ void URSGameplayAbility_InteractionScan::UpdatePromptForFocus(AActor* FocusedAct
 	}
 
 	PromptWidgetComp->SetVisibility(true);
+}
+
+void URSGameplayAbility_InteractionScan::NotifyControllerOfFocusChange(AActor* FocusedActor) const
+{
+	const APawn* AvatarPawn = Cast<APawn>(GetAvatarActorFromActorInfo());
+	ARSPlayerController* PlayerController = AvatarPawn ? Cast<ARSPlayerController>(AvatarPawn->GetController()) : nullptr;
+	if (PlayerController)
+	{
+		PlayerController->HandleInteractionFocusChanged(FocusedActor);
+	}
 }
 
 void URSGameplayAbility_InteractionScan::UpdateGrantedAbilityForFocus(AActor* FocusedActor)

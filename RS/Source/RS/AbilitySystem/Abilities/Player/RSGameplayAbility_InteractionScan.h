@@ -30,6 +30,9 @@ public:
 	/** 지금 선택된 상호작용 대상을 반환하며 없으면 nullptr을 반환합니다 */
 	AActor* GetFocusedInteractable() const { return FocusedInteractable.Get(); }
 
+	/** 대화 같은 Modal UI가 열려 있는 동안 프롬프트 표시를 억제합니다 */
+	void SetPromptSuppressed(bool bSuppressed);
+
 protected:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
@@ -44,6 +47,9 @@ private:
 
 	/** 프롬프트를 새 대상에 붙이고 문구를 갱신하며 대상이 없으면 숨깁니다 */
 	void UpdatePromptForFocus(AActor* FocusedActor);
+
+	/** 선택 변경을 로컬 PlayerController에 전달해 열린 대화의 범위 이탈을 처리합니다 */
+	void NotifyControllerOfFocusChange(AActor* FocusedActor) const;
 
 	/** 새 대상이 지정한 어빌리티를 부여하고 이전 대상의 부여는 회수합니다 */
 	void UpdateGrantedAbilityForFocus(AActor* FocusedActor);
@@ -74,6 +80,9 @@ private:
 
 	/** 지금 선택된 상호작용 대상입니다 */
 	TWeakObjectPtr<AActor> FocusedInteractable;
+
+	/** Modal UI가 프롬프트 표시를 일시적으로 소유하고 있는지 나타냅니다 */
+	bool bIsPromptSuppressed = false;
 
 	/** 선택된 대상이 지정한 어빌리티의 부여 핸들이며 선택이 유지되는 동안에만 유효합니다 */
 	FGameplayAbilitySpecHandle GrantedInteractAbilityHandle;
