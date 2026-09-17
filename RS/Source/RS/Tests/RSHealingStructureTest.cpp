@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
@@ -137,7 +138,14 @@ namespace RSHealingStructureTest
 			return nullptr;
 		}
 
+		// FinishSpawning이 컴포넌트를 등록해야 감지 영역이 Overlap을 잡습니다
 		Structure->FinishSpawning(SpawnTransform);
+
+		// 임시 월드에서는 FinishSpawning이 BeginPlay까지 디스패치하지 않아 시작 충전 상태가 적용되지 않습니다
+		if (!Structure->HasActorBegunPlay())
+		{
+			Structure->DispatchBeginPlay();
+		}
 
 		return Structure;
 	}
@@ -184,16 +192,27 @@ bool FRSHealingStructureChargeTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	// 충전 표시를 볼 시간을 주기 위해 충전이 찬 프레임에는 회복하지 않습니다
-	TestTrue(TEXT("Starting charged marks the structure usable"), Structure->IsCharged());
+	UStaticMeshComponent* ChargedMesh = Structure->FindComponentByClass<UStaticMeshComponent>();
+	TestNotNull(TEXT("Charged mesh"), ChargedMesh);
+	if (!ChargedMesh)
+	{
+		RSHealingStructureTest::DestroyTestWorld(TestWorld);
+
+		return false;
+	}
+
+	// 표시는 바로 보이고 회복만 지연되므로 어떤 경로로 소모되든 Mesh가 그 시간만큼은 화면에 남습니다
+	TestTrue(TEXT("Charging shows the charged mesh right away"), ChargedMesh->IsVisible());
+	TestFalse(TEXT("Charging does not open healing in the same frame"), Structure->IsReadyToHeal());
 	TestEqual(TEXT("Charging does not heal in the same frame"), HealthComp->GetHealth(), DamagedHealth);
-	TestTrue(TEXT("Charging schedules the delayed heal"), Structure->IsChargedHealDelayActiveForTest());
-	TestEqual(TEXT("The delayed heal waits the configured duration"), Structure->GetChargedHealDelayRemainingForTest(), RSHealingStructureTest::ChargedHealDelaySeconds);
+	TestTrue(TEXT("Charging schedules the moment healing opens"), Structure->IsChargedHealDelayActiveForTest());
+	TestEqual(TEXT("Healing opens after the configured delay"), Structure->GetChargedHealDelayRemainingForTest(), RSHealingStructureTest::ChargedHealDelaySeconds);
 
 	Structure->CompleteChargedHealDelayForTest();
 
-	TestEqual(TEXT("The delayed heal reaches the target already inside"), HealthComp->GetHealth(), DamagedHealth + RSHealingStructureTest::HealAmount);
-	TestFalse(TEXT("Successful healing consumes the charge"), Structure->IsCharged());
+	TestEqual(TEXT("Opened healing reaches the target already inside"), HealthComp->GetHealth(), DamagedHealth + RSHealingStructureTest::HealAmount);
+	TestFalse(TEXT("Successful healing closes healing again"), Structure->IsReadyToHeal());
+	TestFalse(TEXT("Successful healing hides the charged mesh"), ChargedMesh->IsVisible());
 	TestTrue(TEXT("Consumed charge schedules a recharge"), Structure->IsRechargeTimerActiveForTest());
 	TestEqual(TEXT("Recharge waits the configured duration"), Structure->GetRechargeRemainingForTest(), RSHealingStructureTest::RechargeSeconds);
 
@@ -202,13 +221,14 @@ bool FRSHealingStructureChargeTest::RunTest(const FString& Parameters)
 	// 재충전이 끝난 시점에 영역 안에 있으면 다시 들어오지 않아도 회복하며 같은 지연을 거칩니다
 	Structure->CompleteRechargeForTest();
 
-	TestTrue(TEXT("Recharge completion makes the structure usable again"), Structure->IsCharged());
+	TestTrue(TEXT("Recharge completion shows the charged mesh again"), ChargedMesh->IsVisible());
+	TestFalse(TEXT("Recharge completion does not open healing immediately"), Structure->IsReadyToHeal());
 	TestEqual(TEXT("Recharge completion does not heal before the delay"), HealthComp->GetHealth(), HealthAfterFirstHeal);
 
 	Structure->CompleteChargedHealDelayForTest();
 
 	TestEqual(TEXT("Recharge completion heals the target still inside"), HealthComp->GetHealth(), HealthAfterFirstHeal + RSHealingStructureTest::HealAmount);
-	TestFalse(TEXT("Immediate healing consumes the charge again"), Structure->IsCharged());
+	TestFalse(TEXT("Immediate healing closes healing again"), Structure->IsReadyToHeal());
 
 	RSHealingStructureTest::DestroyTestWorld(TestWorld);
 
@@ -247,7 +267,7 @@ bool FRSHealingStructureTargetFilterTest::RunTest(const FString& Parameters)
 
 	Structure->CompleteChargedHealDelayForTest();
 
-	TestFalse(TEXT("A full health target still consumes the charge"), Structure->IsCharged());
+	TestFalse(TEXT("A full health target still consumes the charge"), Structure->IsReadyToHeal());
 	TestTrue(TEXT("Healing a full health target keeps the recharge cycle running"), Structure->IsRechargeTimerActiveForTest());
 	TestEqual(TEXT("Healing does not push health above the maximum"), HealthComp->GetHealth(), HealthComp->GetMaxHealth());
 
@@ -268,7 +288,7 @@ bool FRSHealingStructureTargetFilterTest::RunTest(const FString& Parameters)
 	Structure->CompleteRechargeForTest();
 	Structure->CompleteChargedHealDelayForTest();
 
-	TestTrue(TEXT("A dead target does not consume the charge"), Structure->IsCharged());
+	TestTrue(TEXT("A dead target does not consume the charge"), Structure->IsReadyToHeal());
 	TestEqual(TEXT("A dead target is not healed"), HealthComp->GetHealth(), 0.0f);
 
 	RSHealingStructureTest::DestroyTestWorld(TestWorld);
@@ -309,7 +329,7 @@ bool FRSHealingStructureStartUnchargedTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	TestFalse(TEXT("Starting uncharged leaves the structure unusable"), Structure->IsCharged());
+	TestFalse(TEXT("Starting uncharged leaves the structure unusable"), Structure->IsReadyToHeal());
 	TestFalse(TEXT("Starting uncharged schedules no delayed heal"), Structure->IsChargedHealDelayActiveForTest());
 	TestEqual(TEXT("Starting uncharged heals nobody at BeginPlay"), HealthComp->GetHealth(), DamagedHealth);
 	TestTrue(TEXT("Starting uncharged schedules the first recharge"), Structure->IsRechargeTimerActiveForTest());

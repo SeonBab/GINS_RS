@@ -11,7 +11,7 @@ class UStaticMeshComponent;
 
 /**
  * 영역에 들어온 플레이어 캐릭터의 체력을 회복시키고 일정 시간이 지나면 다시 회복시킬 수 있게 되는 구조물입니다
- * 재충전이 끝난 시점에 이미 영역 안에 있는 대상도 바로 회복시키므로 회복을 받으려고 영역을 드나들 필요가 없습니다
+ * 재충전이 끝난 시점에 이미 영역 안에 있는 대상도 회복시키므로 회복을 받으려고 영역을 드나들 필요가 없습니다
  * 현재 게임은 싱글 플레이이므로 권한 판정과 복제를 두지 않습니다
  */
 UCLASS()
@@ -23,9 +23,12 @@ public:
 	/** 본체와 충전 표시 Mesh, 플레이어 캐릭터만 감지하는 영역을 구성합니다 */
 	ARSHealingStructure();
 
-	/** 지금 회복시킬 수 있는 상태인지 반환합니다 */
+	/**
+	 * 지금 회복시킬 수 있는 상태인지 반환합니다
+	 * 충전 표시가 보이기 시작한 뒤 ChargedHealDelaySeconds가 지나야 참이 됩니다
+	 */
 	UFUNCTION(BlueprintPure, Category = "RS|Healing")
-	bool IsCharged() const { return bIsCharged; }
+	bool IsReadyToHeal() const { return bIsReadyToHeal; }
 
 protected:
 	/** 시작 충전 상태를 적용하고 영역 진입 감지를 시작합니다 */
@@ -52,12 +55,12 @@ private:
 	void HandleRechargeCompleted();
 
 	/**
-	 * 충전을 채우고 영역 안의 대상을 회복시킬 시점을 예약합니다
+	 * 충전 표시를 보여 주고 회복이 열릴 시점을 예약합니다
 	 * 시작 충전과 재충전 완료가 같은 규칙을 따르도록 두 경로가 이 함수를 지납니다
 	 */
 	void BecomeCharged();
 
-	/** 충전 표시를 보여 줄 시간이 지난 뒤 영역 안의 대상을 회복시킵니다 */
+	/** 충전 표시를 보여 줄 시간이 지나 회복을 열고 영역 안의 대상을 회복시킵니다 */
 	void HandleChargedHealDelayFinished();
 
 	/**
@@ -74,9 +77,6 @@ private:
 
 	/** 회복을 받을 수 있는 대상인지 반환합니다 */
 	static bool CanReceiveHealing(const ARSPlayerCharacter* PlayerCharacter);
-
-	/** 충전 상태를 바꾸고 충전 표시 Mesh의 가시성을 맞춥니다 */
-	void SetCharged(bool bInCharged);
 
 	/** 충전을 비우고 재충전을 예약합니다 */
 	void StartRecharge();
@@ -101,9 +101,9 @@ private:
 	float HealAmount = 30.0f;
 
 	/**
-	 * 충전이 찬 뒤 영역 안에 있던 대상을 회복시키기까지 기다리는 시간입니다
-	 * 충전 표시가 나타난 프레임에 바로 회복하면 Mesh가 보이자마자 사라져 플레이어가 무슨 일이 있었는지 알 수 없습니다
-	 * 걸어 들어와서 받는 회복은 Mesh가 이미 보이고 있었으므로 이 시간을 기다리지 않습니다
+	 * 충전 표시가 나타난 뒤 회복이 열리기까지 기다리는 시간입니다
+	 * 표시가 나타난 프레임에 바로 회복하면 Mesh가 보이자마자 사라져 플레이어가 무슨 일이 있었는지 알 수 없습니다
+	 * 걸어 들어와서 받는 회복도 이 시간을 기다리므로 어떤 경로로 소모되든 표시가 그만큼은 화면에 남습니다
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RS|Healing", meta = (AllowPrivateAccess = "true", ClampMin = "0.0", UIMin = "0.0", Units = "s"))
 	float ChargedHealDelaySeconds = 1.0f;
@@ -113,13 +113,13 @@ private:
 	TSubclassOf<UGameplayEffect> HealEffectClass;
 
 private:
-	/** 현재 회복시킬 수 있는 상태인지 나타냅니다 */
-	bool bIsCharged = false;
+	/** 충전 표시가 나타나고 지연까지 지나 회복시킬 수 있는 상태인지 나타냅니다 */
+	bool bIsReadyToHeal = false;
 
 	/** 다시 회복시킬 수 있게 되는 시점을 예약한 타이머입니다 */
 	FTimerHandle RechargeTimerHandle;
 
-	/** 충전이 찬 뒤 영역 안의 대상을 회복시킬 시점을 예약한 타이머입니다 */
+	/** 충전 표시가 나타난 뒤 회복이 열릴 시점을 예약한 타이머입니다 */
 	FTimerHandle ChargedHealDelayTimerHandle;
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -133,13 +133,13 @@ public:
 	/** 자동 테스트가 전역 Frame을 조작하지 않고 재충전 완료 콜백을 실행합니다 */
 	void CompleteRechargeForTest();
 
-	/** 자동 테스트가 충전 직후 회복이 즉시 실행되지 않고 Timer로 예약됐는지 확인합니다 */
+	/** 자동 테스트가 충전 표시 직후 회복이 즉시 열리지 않고 Timer로 예약됐는지 확인합니다 */
 	bool IsChargedHealDelayActiveForTest() const;
 
-	/** 자동 테스트가 회복까지 남은 시간이 설정한 값인지 확인합니다 */
+	/** 자동 테스트가 회복이 열리기까지 남은 시간이 설정한 값인지 확인합니다 */
 	float GetChargedHealDelayRemainingForTest() const;
 
-	/** 자동 테스트가 전역 Frame을 조작하지 않고 충전 후 회복 콜백을 실행합니다 */
+	/** 자동 테스트가 전역 Frame을 조작하지 않고 회복이 열리는 콜백을 실행합니다 */
 	void CompleteChargedHealDelayForTest();
 #endif
 };

@@ -58,12 +58,13 @@ void ARSHealingStructure::HandleRechargeCompleted()
 
 void ARSHealingStructure::BecomeCharged()
 {
-	SetCharged(true);
+	// 표시를 먼저 보여 주고 회복은 지연 뒤에 엽니다
+	// 어떤 경로로 소모되든 Mesh가 나타난 뒤 최소한 이 시간만큼은 화면에 남습니다
+	ChargedMesh->SetVisibility(true, true);
 
-	// 충전 표시가 나타난 프레임에 바로 회복하면 Mesh가 보이자마자 사라져 아무 일도 없었던 것처럼 보입니다
 	if (ChargedHealDelaySeconds <= 0.0f)
 	{
-		// 0은 Timer가 아예 예약되지 않아 회복이 사라지므로 직접 호출합니다
+		// 0은 Timer가 아예 예약되지 않아 회복이 영영 열리지 않으므로 직접 호출합니다
 		HandleChargedHealDelayFinished();
 
 		return;
@@ -74,13 +75,15 @@ void ARSHealingStructure::BecomeCharged()
 
 void ARSHealingStructure::HandleChargedHealDelayFinished()
 {
-	// 충전이 찬 순간에 영역 안에 있던 대상이 다시 나갔다 들어와야 회복받는 상황을 만들지 않습니다
+	bIsReadyToHeal = true;
+
+	// 회복이 열린 순간에 영역 안에 있던 대상이 다시 나갔다 들어와야 회복받는 상황을 만들지 않습니다
 	TryHealTargetInTriggerArea();
 }
 
 bool ARSHealingStructure::TryHealTarget(AActor* TargetActor)
 {
-	if (!bIsCharged)
+	if (!bIsReadyToHeal)
 	{
 		return false;
 	}
@@ -165,18 +168,13 @@ bool ARSHealingStructure::CanReceiveHealing(const ARSPlayerCharacter* PlayerChar
 	return HealthComp && !HealthComp->IsDead();
 }
 
-void ARSHealingStructure::SetCharged(bool bInCharged)
-{
-	bIsCharged = bInCharged;
-
-	ChargedMesh->SetVisibility(bInCharged, true);
-}
-
 void ARSHealingStructure::StartRecharge()
 {
-	SetCharged(false);
+	bIsReadyToHeal = false;
 
-	// 걸어 들어온 대상이 지연 중에 회복을 가져갔으면 남은 예약은 의미가 없습니다
+	ChargedMesh->SetVisibility(false, true);
+
+	// 회복이 열리기 전에 소모될 수는 없지만 시작 시점에 남아 있을 수 있는 예약을 정리합니다
 	GetWorldTimerManager().ClearTimer(ChargedHealDelayTimerHandle);
 
 	GetWorldTimerManager().SetTimer(RechargeTimerHandle, this, &ThisClass::HandleRechargeCompleted, RechargeSeconds, false);
