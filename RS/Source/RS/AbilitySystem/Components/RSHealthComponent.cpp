@@ -44,6 +44,10 @@ void URSHealthComponent::InitializeWithAbilitySystem(URSAbilitySystemComponent* 
 
 	AbilitySystemComp = InAbilitySystemComponent;
 	HealthSet = FoundHealthSet;
+
+	// 아래 초기 통지가 기획 값을 담도록 Attribute 변경을 구독하기 전에 체력을 확정합니다
+	ApplyInitialHealthAttributes();
+
 	UpdateDeadGameplayTag();
 
 	// ASC가 제공하는 Attribute 변경 델리게이트를 컴포넌트의 외부 이벤트로 연결합니다
@@ -89,6 +93,12 @@ void URSHealthComponent::UninitializeFromAbilitySystem()
 	AbilitySystemComp = nullptr;
 }
 
+void URSHealthComponent::SetInitialMaxHealth(float InInitialMaxHealth)
+{
+	// HealthSet이 MaxHealth에 요구하는 하한을 여기서 먼저 적용해 잘못된 설정이 조용히 보정되지 않게 합니다
+	InitialMaxHealth = FMath::Max(InInitialMaxHealth, 1.0f);
+}
+
 float URSHealthComponent::GetHealth() const
 {
 	return HealthSet ? HealthSet->GetHealth() : 0.0f;
@@ -132,6 +142,19 @@ void URSHealthComponent::StartDeath()
 	bIsDead = true;
 	UpdateDeadGameplayTag();
 	OnDeathStarted.Broadcast(this);
+}
+
+void URSHealthComponent::ApplyInitialHealthAttributes()
+{
+	// 복제로 받은 체력을 되돌리지 않도록 권한이 있는 쪽에서만 초기 체력을 확정합니다
+	if (!AbilitySystemComp->IsOwnerActorAuthoritative())
+	{
+		return;
+	}
+
+	// 현재 체력은 최대 체력으로 Clamp되므로 최대 체력을 먼저 반영합니다
+	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetMaxHealthAttribute(), InitialMaxHealth);
+	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), InitialMaxHealth);
 }
 
 void URSHealthComponent::UpdateDeadGameplayTag()

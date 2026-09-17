@@ -37,6 +37,12 @@ public:
 	/** 기존 Attribute 변경 이벤트를 해제하고 참조를 초기화합니다 */
 	void UninitializeFromAbilitySystem();
 
+	/**
+	 * 초기 체력을 Blueprint 기본값 대신 런타임 값으로 바꿉니다
+	 * 초기 통지에도 반영되도록 InitializeWithAbilitySystem보다 먼저 호출합니다
+	 */
+	void SetInitialMaxHealth(float InInitialMaxHealth);
+
 	/** 현재 체력을 반환합니다 */
 	UFUNCTION(BlueprintPure, Category = "RS|Health")
 	float GetHealth() const;
@@ -78,6 +84,16 @@ private:
 
 	/** 현재 사망 상태에 맞춰 ASC의 Dead Gameplay Tag를 동기화합니다 */
 	void UpdateDeadGameplayTag();
+
+	/** 연결된 HealthSet의 체력을 InitialMaxHealth로 확정합니다 */
+	void ApplyInitialHealthAttributes();
+
+	/**
+	 * 이 캐릭터가 전투를 시작할 때 가질 최대 체력이며 현재 체력도 같은 값으로 채웁니다
+	 * HealthSet의 생성자 기본값 대신 이 값을 사용하므로 체력 조정은 Blueprint에서 끝납니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Health", meta = (AllowPrivateAccess = "true", ClampMin = "1.0", UIMin = "1.0"))
+	float InitialMaxHealth = 100.0f;
 
 private:
 	/** 현재 체력 Attribute를 제공하는 ASC입니다 */

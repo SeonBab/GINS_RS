@@ -239,8 +239,8 @@ void ARSBossFireball::InitializeAbilitySystem()
 		DefaultAbilitySet->GiveToAbilitySystem(AbilitySystemComp, &GrantedAbilityHandles, this);
 	}
 
-	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetMaxHealthAttribute(), FireballDefinition.RequiredHitCount);
-	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), FireballDefinition.RequiredHitCount);
+	// 필요한 타격 수는 생성 시점에 정해지므로 HealthComponent의 Blueprint 기본값 대신 이 값으로 체력을 초기화합니다
+	HealthComp->SetInitialMaxHealth(FireballDefinition.RequiredHitCount);
 
 	HealthComp->OnDeathStarted.AddUniqueDynamic(this, &ThisClass::HandleDeathStarted);
 	HealthComp->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleHealthChanged);
