@@ -38,6 +38,7 @@ public class RS : ModuleRules
 			Path.Combine(ModuleDirectory, "GameMode"),
 			Path.Combine(ModuleDirectory, "GameplayTags"),
 			Path.Combine(ModuleDirectory, "Input"),
+			Path.Combine(ModuleDirectory, "Loading"),
 			Path.Combine(ModuleDirectory, "PlayerState"),
 			Path.Combine(ModuleDirectory, "Settings"),
 			Path.Combine(ModuleDirectory, "UI"),
@@ -50,7 +51,7 @@ public class RS : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "DeveloperSettings", "AIModule", "NavigationSystem", "InputCore", "EnhancedInput", "Niagara", "GameplayAbilities", "GameplayTags", "GameplayTasks", "UMG", "SlateCore", "FieldNotification", "ModelViewViewModel" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry", "RenderCore" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

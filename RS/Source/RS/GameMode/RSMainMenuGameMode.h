@@ -7,6 +7,7 @@
 #include "RSMainMenuGameMode.generated.h"
 
 class ARSMainMenuPlayerController;
+class URSLoadingPreparationData;
 class USoundBase;
 
 /** 전투용 Pawn과 HUD 없이 Main Menu의 Stage 진입을 관리합니다 */
@@ -31,8 +32,14 @@ public:
 	const TSoftObjectPtr<UWorld>& GetStartLevel() const { return StartLevel; }
 
 private:
+	/** Fade Out이 끝난 뒤 Stage 준비 완료를 기다립니다 */
+	void HandleStartTransitionFadedOut();
+
 	/** 승인된 게임 시작 요청의 Stage Level을 엽니다 */
 	void OpenStartLevel();
+
+	/** Main Menu가 열린 동안 Stage용 에셋과 렌더링 준비를 시작합니다 */
+	void RequestStartGamePreparation();
 
 	/** 현재 World의 초기 음악을 재생 관리자에 요청합니다 */
 	void PlayInitialMusic();
@@ -41,6 +48,10 @@ private:
 	/** 실제 게임에 사용할 Stage Level입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
 	TSoftObjectPtr<UWorld> StartLevel;
+
+	/** Main Menu에서 미리 준비하고 Stage 전환 전에 완료를 기다릴 에셋 묶음입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Main Menu", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSLoadingPreparationData> StartGamePreparation;
 
 	/** Main Menu World가 시작될 때 재생할 음악입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Music", meta = (AllowPrivateAccess = "true"))
