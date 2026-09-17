@@ -246,9 +246,13 @@ struct FRSHitFeedbackDefinition
 {
 	GENERATED_BODY()
 
-	/** 적중한 대상마다 그 자리에서 재생할 Niagara입니다 */
+	/** 적중한 대상마다 재생할 Niagara이며 공격자의 캡슐 반높이에서 생성합니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
 	TObjectPtr<UNiagaraSystem> ImpactNiagara;
+
+	/** 타격 연출을 대상 중심에서 공격자 쪽으로 당길 거리이며 대상 캡슐 반지름에 대한 비율입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "ImpactNiagara != nullptr"))
+	float ImpactNiagaraPullRatio = 0.5f;
 
 	/** 적중했을 때 첫 대상 위치에서 한 번 재생할 Sound입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Combat|Feedback")
@@ -381,15 +385,29 @@ public:
 	/** 이번 판정에서 카메라를 흔들어야 하는지 시점 설정과 적중 여부로 판단합니다 */
 	static bool ShouldPlayCameraShake(const FRSHitFeedbackDefinition& Feedback, bool bHasHitTargets);
 
+	/**
+	 * 타격 연출을 재생할 월드 위치를 계산합니다
+	 * 높이는 공격자의 캡슐 반높이이며, 대상이 커져도 연출이 함께 떠오르지 않도록 대상의 크기를 쓰지 않습니다
+	 * 수평으로는 대상 중심에서 공격자 쪽으로 당기고, 당길 방향이 없거나 두 액터 사이보다 먼 거리는 당기지 않습니다
+	 */
+	static FVector CalculateHitImpactLocation(const FVector& AttackerLocation, const FVector& TargetGroundLocation, float AttackerCapsuleHalfHeight, float TargetCapsuleRadius, float PullRatio);
+
+	/** 액터의 캡슐 반높이이며 캡슐이 없는 액터는 Simple Collision의 반높이로 대신합니다 */
+	static float GetActorCapsuleHalfHeight(const AActor* Actor);
+
+	/** 액터의 캡슐 반지름이며 캡슐이 없는 액터는 Simple Collision의 반지름으로 대신합니다 */
+	static float GetActorCapsuleRadius(const AActor* Actor);
+
 	/** 지정한 월드 방향을 사용하는 넉백 반응을 대상에게 요청합니다 */
 	static void SendHitReactionWithKnockbackDirection(const AActor* Instigator, AActor* TargetActor, const FRSHitReactionDefinition& ReactionDefinition, const FVector& KnockbackDirection);
 
 	/**
 	 * Niagara 정의가 요청한 기준으로 System을 생성합니다
 	 * 소켓 기준 생성은 호출자가 소유한 Mesh를 사용하므로 어빌리티와 액터 어느 쪽이 부르든 같은 규칙을 따릅니다
+	 * 자동 활성화를 끄면 호출자가 배열 같은 인스턴스 파라미터를 설정한 뒤 직접 활성화할 수 있습니다
 	 * 정의가 비었거나 요청한 소켓이 없으면 아무것도 만들지 않고 nullptr을 반환합니다
 	 */
-	static UNiagaraComponent* SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy);
+	static UNiagaraComponent* SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy, bool bAutoActivate = true);
 
 	/** 판정 형상 드로우와 판정 결과 로그가 켜져 있는지 반환합니다 */
 	static bool IsHitCheckDebugEnabled();

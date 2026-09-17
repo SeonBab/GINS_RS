@@ -343,6 +343,56 @@ bool URSCombatFunctionLibrary::TryGetActorGroundLocation(const AActor* Actor, FV
 	return true;
 }
 
+float URSCombatFunctionLibrary::GetActorCapsuleHalfHeight(const AActor* Actor)
+{
+	if (!Actor)
+	{
+		return 0.0f;
+	}
+
+	const ACharacter* Character = Cast<const ACharacter>(Actor);
+	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
+
+	return CapsuleComp ? CapsuleComp->GetScaledCapsuleHalfHeight() : Actor->GetSimpleCollisionHalfHeight();
+}
+
+float URSCombatFunctionLibrary::GetActorCapsuleRadius(const AActor* Actor)
+{
+	if (!Actor)
+	{
+		return 0.0f;
+	}
+
+	const ACharacter* Character = Cast<const ACharacter>(Actor);
+	const UCapsuleComponent* CapsuleComp = Character ? Character->GetCapsuleComponent() : nullptr;
+
+	return CapsuleComp ? CapsuleComp->GetScaledCapsuleRadius() : Actor->GetSimpleCollisionRadius();
+}
+
+FVector URSCombatFunctionLibrary::CalculateHitImpactLocation(const FVector& AttackerLocation, const FVector& TargetGroundLocation, float AttackerCapsuleHalfHeight, float TargetCapsuleRadius, float PullRatio)
+{
+	// 무기가 닿은 높이는 공격자가 정하므로 대상이 아니라 공격자의 캡슐에서 가져옵니다
+	const FVector CenterLocation = TargetGroundLocation + FVector::UpVector * AttackerCapsuleHalfHeight;
+
+	FVector PullDirection = AttackerLocation - TargetGroundLocation;
+
+	// 수평 성분만 쓰지 않으면 서로의 높이 차이가 방금 정한 연출 높이를 다시 흔듭니다
+	PullDirection.Z = 0.0f;
+
+	const float HorizontalDistance = PullDirection.Size();
+
+	// 수평으로 겹쳐 선 순간에는 당길 방향이 없으므로 대상 중심에 그대로 둡니다
+	if (!PullDirection.Normalize())
+	{
+		return CenterLocation;
+	}
+
+	// 당기는 거리가 두 액터 사이보다 멀면 연출이 공격자 뒤로 넘어가므로 둘 사이로 제한합니다
+	const float PullDistance = FMath::Clamp(TargetCapsuleRadius * PullRatio, 0.0f, HorizontalDistance);
+
+	return CenterLocation + PullDirection * PullDistance;
+}
+
 bool URSCombatFunctionLibrary::IsLocationInsideAnnularSector(const FTransform& SectorTransform, const FRSAnnularSectorBounds& SectorBounds, const FVector& TargetLocation)
 {
 	if (SectorTransform.ContainsNaN() || TargetLocation.ContainsNaN() || !SectorBounds.IsDataValid())
@@ -489,7 +539,7 @@ void URSCombatFunctionLibrary::PlayCameraShake(const UObject* WorldContextObject
 	}
 }
 
-UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy)
+UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UObject* WorldContextObject, USkeletalMeshComponent* MeshComponent, const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy, bool bAutoActivate)
 {
 	if (!Definition.NiagaraSystem)
 	{
@@ -498,7 +548,7 @@ UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UO
 
 	if (Definition.SpawnMode == ERSNiagaraSpawnMode::WorldTransform)
 	{
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, true);
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, WorldTransform.GetLocation(), WorldTransform.Rotator(), WorldTransform.GetScale3D(), bAutoDestroy, bAutoActivate);
 	}
 
 	if (!MeshComponent || !MeshComponent->DoesSocketExist(Definition.SocketName))
@@ -514,10 +564,10 @@ UNiagaraComponent* URSCombatFunctionLibrary::SpawnNiagaraFromDefinition(const UO
 		const FRotator SpawnRotation = Definition.bUseSocketRotation ? SocketTransform.Rotator() : FRotator::ZeroRotator;
 		const FVector SpawnScale = Definition.bUseSocketScale ? SocketTransform.GetScale3D() : FVector::OneVector;
 
-		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, SocketTransform.GetLocation(), SpawnRotation, SpawnScale, bAutoDestroy, true);
+		return UNiagaraFunctionLibrary::SpawnSystemAtLocation(WorldContextObject, Definition.NiagaraSystem, SocketTransform.GetLocation(), SpawnRotation, SpawnScale, bAutoDestroy, bAutoActivate);
 	}
 
-	UNiagaraComponent* AttachedComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, true);
+	UNiagaraComponent* AttachedComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(Definition.NiagaraSystem, MeshComponent, Definition.SocketName, FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::SnapToTarget, bAutoDestroy, bAutoActivate);
 	if (!AttachedComponent)
 	{
 		return nullptr;
@@ -577,12 +627,21 @@ void URSCombatFunctionLibrary::PlayHitFeedback(AActor* Attacker, const TArray<AA
 	// 이펙트는 맞은 대상마다 나지만 소리는 한 타격에 하나여야 광역기에서 겹쳐 울리지 않습니다
 	if (Feedback.ImpactNiagara)
 	{
+		const FVector AttackerLocation = Attacker->GetActorLocation();
+		const float AttackerCapsuleHalfHeight = GetActorCapsuleHalfHeight(Attacker);
+
 		for (const AActor* HitTarget : HitTargets)
 		{
-			if (HitTarget)
+			// 대상 중심이 아니라 캡슐 바닥을 기준으로 삼아야 보스를 키워도 연출 높이가 따라 올라가지 않습니다
+			FVector TargetGroundLocation = FVector::ZeroVector;
+			if (!HitTarget || !TryGetActorGroundLocation(HitTarget, TargetGroundLocation))
 			{
-				UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Feedback.ImpactNiagara, HitTarget->GetActorLocation());
+				continue;
 			}
+
+			const FVector ImpactLocation = CalculateHitImpactLocation(AttackerLocation, TargetGroundLocation, AttackerCapsuleHalfHeight, GetActorCapsuleRadius(HitTarget), Feedback.ImpactNiagaraPullRatio);
+
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Feedback.ImpactNiagara, ImpactLocation);
 		}
 	}
 
