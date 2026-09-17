@@ -13,6 +13,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBossPhaseComponent.h"
@@ -53,28 +54,45 @@ namespace RSMeteorHazardTest
 		TestWorld->DestroyWorld(false);
 	}
 
-	/** 운석 Actor가 실제 공용 Telegraph Handle을 사용하도록 테스트 소유자에 컴포넌트를 구성합니다 */
-	URSAttackTelegraphComponent* AddTelegraphComponent(AActor* OwnerActor)
+	/** Blueprint에서 지정할 공용 Telegraph Material을 테스트에서 대신 주입합니다 */
+	bool ApplyTelegraphMaterial(URSAttackTelegraphComponent* TelegraphComp)
 	{
-		if (!OwnerActor)
+		if (!TelegraphComp)
 		{
-			return nullptr;
+			return false;
 		}
-
-		URSAttackTelegraphComponent* TelegraphComp = NewObject<URSAttackTelegraphComponent>(OwnerActor);
-		OwnerActor->AddInstanceComponent(TelegraphComp);
 
 		UMaterialInterface* TelegraphMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Resource/Telegraph/M_AttackTelegraph.M_AttackTelegraph"));
 		FObjectProperty* DecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("DecalMaterial"));
 		if (!TelegraphMaterial || !DecalMaterialProperty)
 		{
-			return nullptr;
+			return false;
 		}
 
 		DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
-		TelegraphComp->RegisterComponent();
 
-		return TelegraphComp;
+		return true;
+	}
+
+	/** 운석 Actor가 소유한 표시 슬롯의 Dynamic Material Instance를 찾습니다 */
+	UMaterialInstanceDynamic* FindVisibleTelegraphMaterialInstance(const AActor* HazardActor)
+	{
+		if (!HazardActor)
+		{
+			return nullptr;
+		}
+
+		TArray<UDecalComponent*> Decals;
+		HazardActor->GetComponents<UDecalComponent>(Decals);
+		for (UDecalComponent* Decal : Decals)
+		{
+			if (Decal && Decal->IsVisible())
+			{
+				return Cast<UMaterialInstanceDynamic>(Decal->GetDecalMaterial());
+			}
+		}
+
+		return nullptr;
 	}
 
 	/** 수명 이벤트를 발행할 Phase Component를 테스트 소유자에 추가합니다 */
@@ -134,6 +152,13 @@ namespace RSMeteorHazardTest
 
 		MeteorHazard->SetDefinitionForTest(Definition);
 		MeteorHazard->Initialize(TargetActor);
+
+		// 표시 컴포넌트를 Actor가 직접 소유하므로 BeginPlay 전에 Blueprint 몫의 Material을 주입합니다
+		if (!ApplyTelegraphMaterial(MeteorHazard->FindComponentByClass<URSAttackTelegraphComponent>()))
+		{
+			return nullptr;
+		}
+
 		MeteorHazard->FinishSpawning(SpawnTransform);
 		if (!MeteorHazard->HasActorBegunPlay())
 		{
@@ -153,6 +178,7 @@ bool FRSMeteorHazardDefinitionTest::RunTest(const FString& Parameters)
 	Definition.FallEffectLeadTime = 3.0f;
 	Definition.HazardRadius = 250.0f;
 	Definition.DamageInterval = 1.5f;
+	Definition.HazardTelegraphAlpha = 0.35f;
 	Definition.SpecialPatternCleanupOffset = 2;
 
 	TestTrue(TEXT("Standard meteor hazard definition is valid"), Definition.IsDataValid());
@@ -183,6 +209,14 @@ bool FRSMeteorHazardDefinitionTest::RunTest(const FString& Parameters)
 	InvalidDamageInterval.DamageInterval = 0.0f;
 	TestFalse(TEXT("Zero damage interval is rejected"), InvalidDamageInterval.IsDataValid());
 
+	FRSBossMeteorHazardDefinition InvisibleTelegraphAlpha = Definition;
+	InvisibleTelegraphAlpha.HazardTelegraphAlpha = 0.0f;
+	TestFalse(TEXT("A fully transparent hazard telegraph is rejected"), InvisibleTelegraphAlpha.IsDataValid());
+
+	FRSBossMeteorHazardDefinition OverbrightTelegraphAlpha = Definition;
+	OverbrightTelegraphAlpha.HazardTelegraphAlpha = 1.1f;
+	TestFalse(TEXT("A hazard telegraph brighter than full opacity is rejected"), OverbrightTelegraphAlpha.IsDataValid());
+
 	FRSBossMeteorHazardDefinition InvalidCleanupOffset = Definition;
 	InvalidCleanupOffset.SpecialPatternCleanupOffset = 0;
 	TestFalse(TEXT("Zero cleanup offset is rejected"), InvalidCleanupOffset.IsDataValid());
@@ -202,18 +236,6 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	TestWorld->InitializeActorsForPlay(FURL());
 
 	AActor* BossOwner = TestWorld->SpawnActor<AActor>();
-	URSAttackTelegraphComponent* TelegraphComp = NewObject<URSAttackTelegraphComponent>(BossOwner);
-	BossOwner->AddInstanceComponent(TelegraphComp);
-
-	UMaterialInterface* TelegraphMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Resource/Telegraph/M_AttackTelegraph.M_AttackTelegraph"));
-	FObjectProperty* DecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("DecalMaterial"));
-	TestNotNull(TEXT("Meteor test telegraph material"), TelegraphMaterial);
-	TestNotNull(TEXT("Meteor test DecalMaterial property"), DecalMaterialProperty);
-	if (TelegraphMaterial && DecalMaterialProperty)
-	{
-		DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
-	}
-	TelegraphComp->RegisterComponent();
 
 	URSBossPhaseComponent* PhaseComponent = NewObject<URSBossPhaseComponent>(BossOwner);
 	BossOwner->AddInstanceComponent(PhaseComponent);
@@ -232,6 +254,7 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	Definition.FallEffectLeadTime = 3.0f;
 	Definition.HazardRadius = 120.0f;
 	Definition.DamageInterval = 1.5f;
+	Definition.HazardTelegraphAlpha = 0.25f;
 	Definition.SpecialPatternCleanupOffset = 2;
 
 	const FTransform SpawnTransform(TargetCharacter ? TargetCharacter->GetActorLocation() : FVector::ZeroVector);
@@ -248,12 +271,24 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 
 	MeteorHazard->SetDefinitionForTest(Definition);
 	MeteorHazard->Initialize(TargetCharacter);
+	URSAttackTelegraphComponent* TelegraphComp = MeteorHazard->FindComponentByClass<URSAttackTelegraphComponent>();
+	TestNotNull(TEXT("Meteor owns its telegraph component"), TelegraphComp);
+	TestTrue(TEXT("Meteor test telegraph material"), RSMeteorHazardTest::ApplyTelegraphMaterial(TelegraphComp));
 	MeteorHazard->FinishSpawning(SpawnTransform);
 	if (!MeteorHazard->HasActorBegunPlay())
 	{
 		MeteorHazard->DispatchBeginPlay();
 	}
 	TestEqual(TEXT("Meteor starts by tracking"), MeteorHazard->GetMeteorHazardState(), ERSBossMeteorHazardState::Tracking);
+
+	const int32 WarningTelegraphHandle = MeteorHazard->GetTelegraphHandleForTest();
+	TestTrue(TEXT("The warning shows a telegraph on the hazard's own component"), WarningTelegraphHandle != INDEX_NONE);
+	UMaterialInstanceDynamic* WarningMaterialInstance = RSMeteorHazardTest::FindVisibleTelegraphMaterialInstance(MeteorHazard);
+	TestNotNull(TEXT("The warning display belongs to the hazard actor"), WarningMaterialInstance);
+	if (WarningMaterialInstance)
+	{
+		TestEqual(TEXT("The warning display uses full opacity"), WarningMaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), 1.0f);
+	}
 
 	TargetCharacter->SetActorLocation(FVector(200.0f, 300.0f, 200.0f));
 	MeteorHazard->Tick(1.0f);
@@ -276,6 +311,15 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Target loss after lock does not cancel the committed impact"), MeteorHazard->GetLockedImpactLocation().Equals(LockedBottom));
 	TestEqual(TEXT("100 percent activates the persistent hazard"), MeteorHazard->GetMeteorHazardState(), ERSBossMeteorHazardState::Hazard);
 	TestTrue(TEXT("Damage waits on an interval timer instead of applying at impact"), MeteorHazard->IsDamageTimerActiveForTest());
+	TestEqual(TEXT("The hazard keeps the telegraph handle it filled during the warning"), MeteorHazard->GetTelegraphHandleForTest(), WarningTelegraphHandle);
+
+	UMaterialInstanceDynamic* HazardMaterialInstance = RSMeteorHazardTest::FindVisibleTelegraphMaterialInstance(MeteorHazard);
+	TestNotNull(TEXT("The hazard keeps a visible range display"), HazardMaterialInstance);
+	if (HazardMaterialInstance)
+	{
+		TestEqual(TEXT("The hazard display stops moving at a full fill"), HazardMaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 1.0f);
+		TestEqual(TEXT("The hazard display is dimmer than the warning"), HazardMaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), Definition.HazardTelegraphAlpha);
+	}
 
 	MeteorHazard->Tick(100.0f);
 	TestEqual(TEXT("Hazard has no individual natural lifetime"), MeteorHazard->GetMeteorHazardState(), ERSBossMeteorHazardState::Hazard);
@@ -304,12 +348,10 @@ bool FRSMeteorHazardDamageAndCleanupTest::RunTest(const FString& Parameters)
 	}
 
 	ARSCombatShapeTestActor* BossOwner = TestWorld->SpawnActor<ARSCombatShapeTestActor>();
-	URSAttackTelegraphComponent* TelegraphComp = RSMeteorHazardTest::AddTelegraphComponent(BossOwner);
 	URSBossPhaseComponent* PhaseComponent = RSMeteorHazardTest::AddPhaseComponent(BossOwner);
 	ARSPlayerCharacter* PlayerCharacter = RSMeteorHazardTest::SpawnPlayer(TestWorld, FVector(0.0f, 0.0f, 100.0f));
 	UAbilitySystemComponent* BossAbilitySystemComp = BossOwner ? BossOwner->GetAbilitySystemComponent() : nullptr;
 	TestNotNull(TEXT("Meteor owner"), BossOwner);
-	TestNotNull(TEXT("Meteor owner telegraph"), TelegraphComp);
 	TestNotNull(TEXT("Meteor owner phase"), PhaseComponent);
 	TestNotNull(TEXT("Meteor player target"), PlayerCharacter);
 	TestNotNull(TEXT("Meteor owner ability system"), BossAbilitySystemComp);
@@ -318,7 +360,7 @@ bool FRSMeteorHazardDamageAndCleanupTest::RunTest(const FString& Parameters)
 		TEXT("Meteor player capsule responds to PlayerHurtBox"),
 		PlayerCharacter ? PlayerCharacter->GetCapsuleComponent()->GetCollisionResponseToChannel(ECC_GameTraceChannel1) : ECR_Ignore,
 		ECR_Overlap);
-	if (!BossOwner || !TelegraphComp || !PhaseComponent || !PlayerCharacter || !BossAbilitySystemComp)
+	if (!BossOwner || !PhaseComponent || !PlayerCharacter || !BossAbilitySystemComp)
 	{
 		RSMeteorHazardTest::DestroyTestWorld(TestWorld);
 

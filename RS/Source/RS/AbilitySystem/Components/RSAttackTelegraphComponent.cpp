@@ -143,6 +143,20 @@ bool URSAttackTelegraphComponent::SetExternalFill(int32 Handle, float Fill)
 	return true;
 }
 
+bool URSAttackTelegraphComponent::SetAlpha(int32 Handle, float Alpha)
+{
+	FRSTelegraphSlot* Slot = FindSlot(Handle);
+	if (!Slot || !Slot->MaterialInstance || !FMath::IsFinite(Alpha))
+	{
+		return false;
+	}
+
+	// 슬롯을 다시 구성하지 않는 한 이 값이 유지되므로 표시 중에 한 번만 낮추면 됩니다
+	Slot->MaterialInstance->SetScalarParameterValue(AlphaParameterName, FMath::Clamp(Alpha, 0.0f, 1.0f));
+
+	return true;
+}
+
 bool URSAttackTelegraphComponent::SetShapeTransform(int32 Handle, const FTransform& ShapeTransform)
 {
 	FRSTelegraphSlot* Slot = FindSlot(Handle);

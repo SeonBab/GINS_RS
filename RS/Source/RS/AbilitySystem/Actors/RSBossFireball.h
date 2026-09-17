@@ -10,6 +10,7 @@
 class UCurveFloat;
 class UNiagaraComponent;
 class URSAbilitySystemComponent;
+class URSAttackTelegraphComponent;
 class URSBossPersistentObjectLifetimeComponent;
 class URSFireballChargeWidget;
 class URSHealthComponent;
@@ -69,6 +70,13 @@ struct FRSBossFireballDefinition
 	/** 장판 전환 뒤 첫 피해와 이후 반복 피해 사이의 간격입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float DamageInterval = 1.0f;
+
+	/**
+	 * 장판 구간에서 유지할 Telegraph 불투명도이며 충전 예고보다 낮게 두어 두 표시를 구분합니다
+	 * 예고는 차오르며 움직이는 밝은 표시, 장판은 움직이지 않는 흐린 표시가 됩니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Fire Field", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float FireFieldTelegraphAlpha = 0.35f;
 
 	/** 생성 특수 패턴 이후 몇 번째 특수 패턴에서 이 화염구를 정리할지 나타냅니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Fireball|Lifetime", meta = (ClampMin = "1", UIMin = "1"))
@@ -145,6 +153,14 @@ public:
 	/** Timer, Widget, Niagara와 ASC 상태를 회수하고 Actor를 제거합니다 */
 	void RequestCleanup();
 
+#if WITH_DEV_AUTOMATION_TESTS
+	/** 자동 테스트가 충전 예고와 장판 표시가 같은 Handle을 이어 쓰는지 확인합니다 */
+	int32 GetTelegraphHandleForTest() const { return TelegraphHandle; }
+
+	/** 자동 테스트가 전역 Frame을 조작하지 않고 장판 전환 이후 상태를 확인합니다 */
+	void BeginFireFieldForTest() { BeginFireField(); }
+#endif
+
 private:
 	void BeginFalling();
 	void AdvanceFalling(float DeltaSeconds);
@@ -156,6 +172,19 @@ private:
 	void ApplyFireFieldDamage();
 	void UpdateChargeWidget(float Progress);
 	void UpdateHitPointWidget();
+
+	/** 착지한 자리에 장판 반경과 같은 예고 표시를 시작합니다 */
+	void ShowChargeTelegraph();
+
+	/** 충전 진행률을 예고 표시의 채움에 반영합니다 */
+	void UpdateChargeTelegraph(float Progress);
+
+	/** 충전 예고에 쓰던 표시를 장판 표시로 전환합니다 */
+	void SwitchTelegraphToFireField();
+
+	/** Telegraph Handle만 회수합니다 */
+	void HideTelegraph();
+
 	void ClearTimers();
 
 private:
@@ -166,6 +195,7 @@ private:
 	ERSBossFireballState FireballState = ERSBossFireballState::Falling;
 
 	float StateElapsedTime = 0.0f;
+	int32 TelegraphHandle = INDEX_NONE;
 	uint64 ChargeCompletionFrame = MAX_uint64;
 	FTimerHandle ChargeCompletionTimerHandle;
 	FTimerHandle FireFieldDamageTimerHandle;
@@ -192,6 +222,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UWidgetComponent> ChargeWidgetComp;
+
+	/**
+	 * 충전 예고와 장판 범위를 바닥에 그리는 표시 컴포넌트입니다
+	 * 이 Actor는 자신을 만든 패턴보다 오래 살아남으므로 보스의 컴포넌트를 빌리지 않고 직접 소유합니다
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSAttackTelegraphComponent> TelegraphComp;
 
 	/** 보스 패턴 순번과 공용 정리 이벤트를 이 Actor의 정리 요청으로 변환합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Fireball|Lifetime", meta = (AllowPrivateAccess = "true"))

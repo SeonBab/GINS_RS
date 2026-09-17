@@ -2,6 +2,8 @@
 
 #include "Misc/AutomationTest.h"
 
+#include <limits>
+
 #include "RSAttackTelegraphComponent.h"
 #include "Components/DecalComponent.h"
 #include "Engine/Engine.h"
@@ -137,8 +139,21 @@ bool FRSAttackTelegraphComponentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Tracking shape preserves its fixed radius"), TrackingDecal ? TrackingDecal->DecalSize.Y : 0.0, static_cast<double>(FirstHandledSphere.OuterRadius));
 	TestTrue(TEXT("Transform updates do not prevent external fill"), TelegraphComp->SetExternalFill(TrackingHandle, 0.75f));
 
+	// 지속 장판은 채움을 1로 고정한 채 불투명도만 낮춰 예고와 구분하므로 두 값을 따로 갱신할 수 있어야 합니다
+	TestTrue(TEXT("An active shape accepts a dimmer opacity"), TelegraphComp->SetAlpha(TrackingHandle, 0.25f));
+	UMaterialInstanceDynamic* TrackingMaterialInstance = TrackingDecal ? Cast<UMaterialInstanceDynamic>(TrackingDecal->GetDecalMaterial()) : nullptr;
+	TestNotNull(TEXT("Tracking shape uses a dynamic material instance"), TrackingMaterialInstance);
+	if (TrackingMaterialInstance)
+	{
+		TestEqual(TEXT("Lowering opacity keeps the requested fill"), TrackingMaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.75f);
+		TestEqual(TEXT("Lowering opacity reaches the material"), TrackingMaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), 0.25f);
+	}
+	TestFalse(TEXT("A non-finite opacity is rejected"), TelegraphComp->SetAlpha(TrackingHandle, std::numeric_limits<float>::infinity()));
+	TestFalse(TEXT("An unknown handle has no opacity to set"), TelegraphComp->SetAlpha(INDEX_NONE, 0.5f));
+
 	TelegraphComp->HideShape(TrackingHandle);
 	TestFalse(TEXT("Released handle cannot move a reused slot"), TelegraphComp->SetShapeTransform(TrackingHandle, FTransform::Identity));
+	TestFalse(TEXT("Released handle cannot change opacity"), TelegraphComp->SetAlpha(TrackingHandle, 0.5f));
 	TelegraphComp->HideShape(StationaryHandle);
 
 	FRSCombatShape Cone;

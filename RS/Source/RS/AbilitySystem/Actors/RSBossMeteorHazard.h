@@ -53,6 +53,13 @@ struct FRSBossMeteorHazardDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Damage", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "s"))
 	float DamageInterval = 1.0f;
 
+	/**
+	 * 장판 구간에서 유지할 Telegraph 불투명도이며 예고보다 낮게 두어 두 표시를 구분합니다
+	 * 예고는 차오르며 움직이는 밝은 표시, 장판은 움직이지 않는 흐린 표시가 됩니다
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float HazardTelegraphAlpha = 0.35f;
+
 	/** 생성 특수 패턴 이후 몇 번째 특수 패턴 요청에서 장판을 정리할지 나타냅니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Lifetime", meta = (ClampMin = "1", UIMin = "1"))
 	int32 SpecialPatternCleanupOffset = 2;
@@ -122,6 +129,9 @@ public:
 
 	/** 자동 테스트가 전역 Frame을 조작하지 않고 한 장판의 주기 피해 콜백을 실행합니다 */
 	void ApplyHazardDamageForTest();
+
+	/** 자동 테스트가 예고와 장판 표시가 같은 Handle을 이어 쓰는지 확인합니다 */
+	int32 GetTelegraphHandleForTest() const { return TelegraphHandle; }
 #endif
 
 private:
@@ -142,6 +152,9 @@ private:
 
 	/** 현재 장판 안의 플레이어마다 1회 피해 Gameplay Event를 보냅니다 */
 	void ApplyHazardDamage();
+
+	/** 예고에 쓰던 표시를 장판 표시로 전환합니다 */
+	void SwitchTelegraphToHazard();
 
 	/** Telegraph Handle만 회수합니다 */
 	void HideTelegraph();
@@ -164,6 +177,13 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UNiagaraComponent> HazardNiagaraComp;
 
+	/**
+	 * 예고와 장판 범위를 바닥에 그리는 표시 컴포넌트입니다
+	 * 이 Actor는 자신을 만든 패턴보다 오래 살아남으므로 보스의 컴포넌트를 빌리지 않고 직접 소유합니다
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<URSAttackTelegraphComponent> TelegraphComp;
+
 	/** 보스 패턴 순번과 공용 정리 이벤트를 이 Actor의 정리 요청으로 변환합니다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Meteor Hazard|Lifetime", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<URSBossPersistentObjectLifetimeComponent> PersistentObjectLifetimeComp;
@@ -178,9 +198,6 @@ private:
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AActor> TargetActor;
-
-	UPROPERTY(Transient)
-	TWeakObjectPtr<URSAttackTelegraphComponent> TelegraphComp;
 
 	FRSMeteorHazardPreparationFinishedSignature PreparationFinishedEvent;
 	FTimerHandle HazardDamageTimerHandle;

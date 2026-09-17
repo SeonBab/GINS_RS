@@ -158,11 +158,20 @@ public:
 	/** 외부 수명 표시의 채움 진행률을 갱신합니다 */
 	bool SetExternalFill(int32 Handle, float Fill);
 
+	/**
+	 * 표시의 형상과 진행률은 유지하고 불투명도만 갱신합니다
+	 * 지속 장판처럼 판정이 반복되는 표시를 예고보다 흐리게 두어 두 표시를 구분하는 데 사용합니다
+	 */
+	bool SetAlpha(int32 Handle, float Alpha);
+
 	/** 표시의 고정 형상은 유지하고 월드 Transform만 갱신합니다 */
 	bool SetShapeTransform(int32 Handle, const FTransform& ShapeTransform);
 
 	/** 지정한 표시를 즉시 회수합니다 */
 	void HideShape(int32 Handle);
+
+	/** 데칼 표시에 필요한 공용 Material이 지정됐는지 반환합니다 */
+	bool HasDecalMaterial() const { return IsValid(DecalMaterial); }
 
 	/**
 	 * 표시 중인 모든 형상을 페이드 없이 즉시 회수합니다

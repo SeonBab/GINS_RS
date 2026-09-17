@@ -3,6 +3,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/RSAttackTelegraphComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Combat/RSCombatFunctionLibrary.h"
@@ -58,6 +59,13 @@ bool FRSBossFireballDefinition::IsDataValid(FString* OutValidationError) const
 		return false;
 	}
 
+	if (!FMath::IsFinite(FireFieldTelegraphAlpha) || FireFieldTelegraphAlpha <= 0.0f || FireFieldTelegraphAlpha > 1.0f)
+	{
+		SetValidationError(TEXT("FireFieldTelegraphAlpha must be finite and satisfy 0 < FireFieldTelegraphAlpha <= 1."));
+
+		return false;
+	}
+
 	if (SpecialPatternCleanupOffset <= 0)
 	{
 		SetValidationError(TEXT("SpecialPatternCleanupOffset must be greater than zero."));
@@ -107,6 +115,8 @@ ARSBossFireball::ARSBossFireball()
 	ChargeWidgetComp->SetDrawAtDesiredSize(true);
 	ChargeWidgetComp->SetVisibility(false);
 
+	TelegraphComp = CreateDefaultSubobject<URSAttackTelegraphComponent>(TEXT("AttackTelegraphComponent"));
+
 	AbilitySystemComp = CreateDefaultSubobject<URSAbilitySystemComponent>(TEXT("RSAbilitySystemComponent"));
 	HealthSet = CreateDefaultSubobject<URSHealthSet>(TEXT("RSHealthSet"));
 	HealthComp = CreateDefaultSubobject<URSHealthComponent>(TEXT("HealthComponent"));
@@ -155,6 +165,7 @@ void ARSBossFireball::BeginPlay()
 void ARSBossFireball::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	ClearTimers();
+	HideTelegraph();
 	PersistentObjectLifetimeComp->OnCleanupRequired().RemoveAll(this);
 	PersistentObjectLifetimeComp->StopObserving();
 	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
@@ -201,6 +212,12 @@ EDataValidationResult ARSBossFireball::IsDataValid(FDataValidationContext& Conte
 	if (!FireFieldNiagaraComp || !FireFieldNiagaraComp->GetAsset())
 	{
 		Context.AddError(FText::FromString(TEXT("FireFieldNiagaraComponent has no Niagara System asset.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!TelegraphComp || !TelegraphComp->HasDecalMaterial())
+	{
+		Context.AddError(FText::FromString(TEXT("AttackTelegraphComponent has no DecalMaterial.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -297,6 +314,7 @@ void ARSBossFireball::BeginCharging()
 	UpdateChargeWidget(0.0f);
 	UpdateHitPointWidget();
 	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Hazard_Fireball_Vulnerable);
+	ShowChargeTelegraph();
 	SetActorTickEnabled(true);
 }
 
@@ -305,6 +323,7 @@ void ARSBossFireball::AdvanceCharging(float DeltaSeconds)
 	StateElapsedTime += DeltaSeconds;
 	const float Progress = FMath::Clamp(StateElapsedTime / FireballDefinition.ChargeDuration, 0.0f, 1.0f);
 	UpdateChargeWidget(Progress);
+	UpdateChargeTelegraph(Progress);
 
 	if (Progress >= 1.0f)
 	{
@@ -359,6 +378,7 @@ void ARSBossFireball::BeginFireField()
 	FireballNiagaraComp->Deactivate();
 	BoxComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ChargeWidgetComp->SetVisibility(false);
+	SwitchTelegraphToFireField();
 	FireFieldNiagaraComp->Activate(true);
 
 	if (UWorld* World = GetWorld())
@@ -412,6 +432,58 @@ void ARSBossFireball::UpdateHitPointWidget()
 		// 필요 타격 수를 최대 체력으로 두고 피해를 1로 정규화하므로 남은 체력이 곧 남은 타격 수입니다
 		ChargeWidget->SetHitPoints(FMath::RoundToInt(HealthComp->GetHealth()), FMath::RoundToInt(HealthComp->GetMaxHealth()));
 	}
+}
+
+void ARSBossFireball::ShowChargeTelegraph()
+{
+	if (!TelegraphComp || TelegraphHandle != INDEX_NONE)
+	{
+		return;
+	}
+
+	// 표시와 판정이 같은 형상을 읽으므로 보이는 범위가 장판 판정 반경과 어긋날 수 없습니다
+	FRSCombatShape TelegraphShape;
+	TelegraphShape.Type = ERSCombatShapeType::AnnularSector;
+	TelegraphShape.OuterRadius = FireballDefinition.FireFieldRadius;
+	TelegraphShape.InnerRadius = 0.0f;
+
+	// 표시에 실패해도 화염구 자체는 정상 동작해야 하므로 Handle 없이 계속 진행합니다
+	// 필수 에셋 누락은 Data Validation이 편집 시점에 막습니다
+	TelegraphHandle = TelegraphComp->ShowShapeWithExternalFill(TelegraphShape, FTransform(GetActorLocation()));
+}
+
+void ARSBossFireball::UpdateChargeTelegraph(float Progress)
+{
+	if (TelegraphComp && TelegraphHandle != INDEX_NONE)
+	{
+		TelegraphComp->SetExternalFill(TelegraphHandle, Progress);
+	}
+}
+
+void ARSBossFireball::SwitchTelegraphToFireField()
+{
+	// 충전 중 표시에 실패했더라도 장판 범위는 보여야 하므로 이 시점에 한 번 더 시도합니다
+	ShowChargeTelegraph();
+
+	if (!TelegraphComp || TelegraphHandle == INDEX_NONE)
+	{
+		return;
+	}
+
+	// 충전 예고에 쓰던 표시를 그대로 이어 쓰므로 장판이 시작될 때 범위가 비는 프레임이 없습니다
+	// 판정이 반복되는 동안에는 채움을 움직이지 않고 불투명도만 낮춰 예고와 구분합니다
+	TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f);
+	TelegraphComp->SetAlpha(TelegraphHandle, FireballDefinition.FireFieldTelegraphAlpha);
+}
+
+void ARSBossFireball::HideTelegraph()
+{
+	if (TelegraphComp)
+	{
+		TelegraphComp->HideShape(TelegraphHandle);
+	}
+
+	TelegraphHandle = INDEX_NONE;
 }
 
 void ARSBossFireball::ClearTimers()

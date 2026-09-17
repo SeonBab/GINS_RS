@@ -56,6 +56,13 @@ bool FRSBossMeteorHazardDefinition::IsDataValid(FString* OutValidationError) con
 		return false;
 	}
 
+	if (!FMath::IsFinite(HazardTelegraphAlpha) || HazardTelegraphAlpha <= 0.0f || HazardTelegraphAlpha > 1.0f)
+	{
+		SetValidationError(TEXT("HazardTelegraphAlpha must be finite and satisfy 0 < HazardTelegraphAlpha <= 1."));
+
+		return false;
+	}
+
 	if (SpecialPatternCleanupOffset <= 0)
 	{
 		SetValidationError(TEXT("SpecialPatternCleanupOffset must be greater than zero."));
@@ -89,6 +96,7 @@ ARSBossMeteorHazard::ARSBossMeteorHazard()
 	HazardNiagaraComp->SetUsingAbsoluteLocation(true);
 	HazardNiagaraComp->SetAutoActivate(false);
 
+	TelegraphComp = CreateDefaultSubobject<URSAttackTelegraphComponent>(TEXT("AttackTelegraphComponent"));
 	PersistentObjectLifetimeComp = CreateDefaultSubobject<URSBossPersistentObjectLifetimeComponent>(TEXT("PersistentObjectLifetimeComponent"));
 }
 
@@ -129,8 +137,7 @@ void ARSBossMeteorHazard::Tick(float DeltaSeconds)
 	}
 
 	const FVector DisplayLocation = MeteorHazardState == ERSBossMeteorHazardState::Tracking ? CurrentTargetLocation : LockedImpactLocation;
-	URSAttackTelegraphComponent* ActiveTelegraphComp = TelegraphComp.Get();
-	if (!ActiveTelegraphComp || !ActiveTelegraphComp->SetShapeTransform(TelegraphHandle, FTransform(DisplayLocation)) || !ActiveTelegraphComp->SetExternalFill(TelegraphHandle, Fill))
+	if (!TelegraphComp || !TelegraphComp->SetShapeTransform(TelegraphHandle, FTransform(DisplayLocation)) || !TelegraphComp->SetExternalFill(TelegraphHandle, Fill))
 	{
 		RequestCleanup();
 
@@ -158,9 +165,7 @@ void ARSBossMeteorHazard::BeginPlay()
 		PersistentObjectLifetimeComp->StartObserving(GetOwner(), MeteorHazardDefinition.SpecialPatternCleanupOffset);
 	}
 
-	AActor* OwnerActor = GetOwner();
-	TelegraphComp = OwnerActor ? OwnerActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
-	if (!MeteorHazardDefinition.IsDataValid() || !TelegraphComp.IsValid() || !UpdateTargetLocation())
+	if (!MeteorHazardDefinition.IsDataValid() || !TelegraphComp || !UpdateTargetLocation())
 	{
 		RequestCleanup();
 
@@ -232,6 +237,12 @@ EDataValidationResult ARSBossMeteorHazard::IsDataValid(FDataValidationContext& C
 	if (!HazardNiagaraComp || !HazardNiagaraComp->GetAsset())
 	{
 		Context.AddError(FText::FromString(TEXT("HazardNiagaraComponent has no Niagara System asset.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!TelegraphComp || !TelegraphComp->HasDecalMaterial())
+	{
+		Context.AddError(FText::FromString(TEXT("AttackTelegraphComponent has no DecalMaterial.")));
 		ValidationResult = EDataValidationResult::Invalid;
 	}
 
@@ -359,7 +370,7 @@ void ARSBossMeteorHazard::BeginHazard()
 	MeteorHazardState = ERSBossMeteorHazardState::Hazard;
 	SetActorTickEnabled(false);
 	SetActorLocation(LockedImpactLocation);
-	HideTelegraph();
+	SwitchTelegraphToHazard();
 
 	if (FallingNiagaraComp)
 	{
@@ -415,15 +426,28 @@ void ARSBossMeteorHazard::ApplyHazardDamage()
 	}
 }
 
+void ARSBossMeteorHazard::SwitchTelegraphToHazard()
+{
+	if (!TelegraphComp || TelegraphHandle == INDEX_NONE)
+	{
+		return;
+	}
+
+	// 예고에 쓰던 표시를 그대로 이어 쓰므로 장판이 시작될 때 범위가 비는 프레임이 없습니다
+	// 판정이 반복되는 동안에는 채움을 움직이지 않고 불투명도만 낮춰 예고와 구분합니다
+	TelegraphComp->SetShapeTransform(TelegraphHandle, FTransform(LockedImpactLocation));
+	TelegraphComp->SetExternalFill(TelegraphHandle, 1.0f);
+	TelegraphComp->SetAlpha(TelegraphHandle, MeteorHazardDefinition.HazardTelegraphAlpha);
+}
+
 void ARSBossMeteorHazard::HideTelegraph()
 {
-	if (URSAttackTelegraphComponent* ActiveTelegraphComp = TelegraphComp.Get())
+	if (TelegraphComp)
 	{
-		ActiveTelegraphComp->HideShape(TelegraphHandle);
+		TelegraphComp->HideShape(TelegraphHandle);
 	}
 
 	TelegraphHandle = INDEX_NONE;
-	TelegraphComp.Reset();
 }
 
 void ARSBossMeteorHazard::ClearTimers()

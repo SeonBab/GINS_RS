@@ -5,12 +5,17 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/Boss/RSGameplayAbility_FireballSpread.h"
 #include "Actors/RSBossFireball.h"
+#include "Components/DecalComponent.h"
+#include "Components/RSAttackTelegraphComponent.h"
 #include "Components/RSBossPersistentObjectLifetimeComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "RSGameplayTags.h"
 #include "RSHealthSet.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
@@ -39,6 +44,43 @@ namespace
 		TestWorld->RemoveFromRoot();
 		GEngine->DestroyWorldContext(TestWorld);
 		TestWorld->DestroyWorld(false);
+	}
+
+	/** Blueprint에서 지정할 공용 Telegraph Material을 테스트에서 대신 주입합니다 */
+	bool ApplyFireballTelegraphMaterial(AActor* FireballActor)
+	{
+		URSAttackTelegraphComponent* TelegraphComp = FireballActor ? FireballActor->FindComponentByClass<URSAttackTelegraphComponent>() : nullptr;
+		UMaterialInterface* TelegraphMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Resource/Telegraph/M_AttackTelegraph.M_AttackTelegraph"));
+		FObjectProperty* DecalMaterialProperty = FindFProperty<FObjectProperty>(URSAttackTelegraphComponent::StaticClass(), TEXT("DecalMaterial"));
+		if (!TelegraphComp || !TelegraphMaterial || !DecalMaterialProperty)
+		{
+			return false;
+		}
+
+		DecalMaterialProperty->SetObjectPropertyValue_InContainer(TelegraphComp, TelegraphMaterial);
+
+		return true;
+	}
+
+	/** 화염구 Actor가 소유한 표시 슬롯의 Dynamic Material Instance를 찾습니다 */
+	UMaterialInstanceDynamic* FindVisibleTelegraphMaterialInstance(const AActor* FireballActor)
+	{
+		if (!FireballActor)
+		{
+			return nullptr;
+		}
+
+		TArray<UDecalComponent*> Decals;
+		FireballActor->GetComponents<UDecalComponent>(Decals);
+		for (UDecalComponent* Decal : Decals)
+		{
+			if (Decal && Decal->IsVisible())
+			{
+				return Cast<UMaterialInstanceDynamic>(Decal->GetDecalMaterial());
+			}
+		}
+
+		return nullptr;
 	}
 
 	/** 실제 공격과 같은 Instant Damage GameplayEffect를 대상 ASC에 적용합니다 */
@@ -169,6 +211,72 @@ bool FRSBossFireballHealthDamageTest::RunTest(const FString& Parameters)
 	ApplyFireballTestDamage(FireballAbilitySystem, 50.0f);
 	TestEqual(TEXT("The third same-frame damage reduces health to zero"), FireballAbilitySystem->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), 0.0f);
 	TestEqual(TEXT("Zero health moves the actor to cleanup before field transition"), Fireball->GetFireballState(), ERSBossFireballState::Cleanup);
+
+	DestroyFireballTestWorld(TestWorld);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossFireballChargeTelegraphTest, "RS.Boss.FireballSpread.ChargeTelegraph", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRSBossFireballChargeTelegraphTest::RunTest(const FString& Parameters)
+{
+	FWorldContext* WorldContext = nullptr;
+	UWorld* TestWorld = CreateFireballTestWorld(WorldContext);
+	TestNotNull(TEXT("Fireball telegraph test world"), TestWorld);
+	if (!TestWorld)
+	{
+		return false;
+	}
+
+	ARSBossFireball* Fireball = TestWorld->SpawnActor<ARSBossFireball>();
+	TestNotNull(TEXT("Fireball actor"), Fireball);
+	if (!Fireball)
+	{
+		DestroyFireballTestWorld(TestWorld);
+
+		return false;
+	}
+
+	// 표시 컴포넌트를 Actor가 직접 소유하므로 첫 Tick 전에 Blueprint 몫의 Material을 주입합니다
+	TestTrue(TEXT("Fireball test telegraph material"), ApplyFireballTelegraphMaterial(Fireball));
+	Fireball->DispatchBeginPlay();
+
+	TestTrue(TEXT("Falling shows no ground display"), Fireball->GetTelegraphHandleForTest() == INDEX_NONE);
+
+	Fireball->Tick(1.1f);
+	TestEqual(TEXT("Finishing the fall starts charging"), Fireball->GetFireballState(), ERSBossFireballState::Charging);
+
+	const int32 ChargeTelegraphHandle = Fireball->GetTelegraphHandleForTest();
+	TestTrue(TEXT("Landing shows the fire field range as a warning"), ChargeTelegraphHandle != INDEX_NONE);
+	UMaterialInstanceDynamic* ChargeMaterialInstance = FindVisibleTelegraphMaterialInstance(Fireball);
+	TestNotNull(TEXT("The warning display belongs to the fireball actor"), ChargeMaterialInstance);
+	if (ChargeMaterialInstance)
+	{
+		TestEqual(TEXT("The warning starts empty"), ChargeMaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.0f);
+		TestEqual(TEXT("The warning uses full opacity"), ChargeMaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")), 1.0f);
+	}
+
+	Fireball->Tick(1.5f);
+	if (ChargeMaterialInstance)
+	{
+		TestEqual(TEXT("The warning fills with the charge progress"), ChargeMaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 0.5f);
+	}
+
+	Fireball->BeginFireFieldForTest();
+	TestEqual(TEXT("The fireball becomes a fire field"), Fireball->GetFireballState(), ERSBossFireballState::FireField);
+	TestEqual(TEXT("The fire field keeps the handle the warning used"), Fireball->GetTelegraphHandleForTest(), ChargeTelegraphHandle);
+
+	UMaterialInstanceDynamic* FieldMaterialInstance = FindVisibleTelegraphMaterialInstance(Fireball);
+	TestNotNull(TEXT("The fire field keeps a visible range display"), FieldMaterialInstance);
+	if (FieldMaterialInstance)
+	{
+		TestEqual(TEXT("The fire field display stops moving at a full fill"), FieldMaterialInstance->K2_GetScalarParameterValue(TEXT("Fill")), 1.0f);
+		TestTrue(TEXT("The fire field display is dimmer than the warning"), FieldMaterialInstance->K2_GetScalarParameterValue(TEXT("Alpha")) < 1.0f);
+	}
+
+	Fireball->RequestCleanup();
+	TestTrue(TEXT("Cleanup releases the range display"), Fireball->GetTelegraphHandleForTest() == INDEX_NONE);
 
 	DestroyFireballTestWorld(TestWorld);
 
