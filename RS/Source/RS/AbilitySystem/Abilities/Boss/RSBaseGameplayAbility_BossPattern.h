@@ -24,6 +24,14 @@ enum class ERSBossPatternNiagaraPlacement : uint8
 	FillHitShape	UMETA(DisplayName = "Fill Hit Shape",	ToolTip = "공격 판정 범위를 격자로 채워 재생합니다. Niagara Fill Spacing으로 밀도를 조절합니다.")
 };
 
+/** 계산한 여러 연출 Transform을 Niagara System으로 묶는 방식입니다 */
+UENUM(BlueprintType)
+enum class ERSBossPatternNiagaraSpawnPolicy : uint8
+{
+	IndividualSystems	UMETA(DisplayName = "Individual Systems", ToolTip = "각 Transform마다 독립 Niagara System을 생성하는 기존 호환 방식입니다."),
+	PositionArray		UMETA(DisplayName = "Position Array", ToolTip = "한 Niagara System에 위치, 회전과 스케일 배열을 전달합니다. 배열 입력을 지원하는 Niagara 에셋이 필요합니다.")
+};
+
 /**
  * 패턴이 재생할 Niagara 하나와 그 배치 방식입니다
  * 한 연출이 바닥, 충격파, 섬광처럼 성격이 다른 Niagara를 겹쳐 쓸 수 있으므로 배치도 항목마다 따로 정합니다
@@ -44,12 +52,20 @@ struct FRSBossPatternNiagaraEntry
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
 	ERSBossPatternNiagaraPlacement Placement = ERSBossPatternNiagaraPlacement::AbilityDefined;
 
+	/** 계산한 Transform마다 System을 만들지, 한 System에 배열로 전달할지 정합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation")
+	ERSBossPatternNiagaraSpawnPolicy SpawnPolicy = ERSBossPatternNiagaraSpawnPolicy::IndividualSystems;
+
 	/**
 	 * 공격 범위를 이 Niagara로 채울 때 사용할 격자 간격이며 좁을수록 빼곡해집니다
 	 * 범위보다 넓게 두면 범위를 대표하는 지점에 하나만 생성합니다
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation", meta = (ClampMin = "1.0", UIMin = "10.0", ForceUnits = "cm", EditCondition = "Placement == ERSBossPatternNiagaraPlacement::FillHitShape", EditConditionHides))
 	float FillSpacing = 150.0f;
+
+	/** 배열의 위치 바깥으로 파티클이 뻗는 거리를 Fixed Bounds에 더합니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Boss Pattern|Presentation", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm", EditCondition = "SpawnPolicy == ERSBossPatternNiagaraSpawnPolicy::PositionArray", EditConditionHides))
+	float BoundsPadding = 200.0f;
 };
 
 /**
@@ -94,6 +110,11 @@ public:
 	 * 판정이 없는 패턴을 메인 기믹으로 지정하면 그 페이즈가 로그 없이 항상 실패하므로 Data Validation이 이 값을 검사합니다
 	 */
 	virtual bool HasGimmickBreakCondition() const { return true; }
+
+#if WITH_DEV_AUTOMATION_TESTS
+	/** 자동 테스트에서 배열 방식의 좌표 변환과 Bounds 계산을 검증합니다 */
+	static bool BuildNiagaraTransformArraysForTest(TArrayView<const FTransform> WorldTransforms, const FTransform& SystemTransform, float BoundsPadding, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<FVector>& OutScales, FBox& OutLocalBounds);
+#endif
 
 protected:
 	/**
@@ -149,7 +170,7 @@ protected:
 
 	/**
 	 * 이 패턴의 연출을 재생하며 적중 여부는 보지 않습니다
-	 * Niagara는 넘긴 위치마다 하나씩, Sound와 카메라 셰이크는 호출마다 한 번 재생합니다
+	 * Niagara는 항목의 SpawnPolicy에 따라 개별 System 또는 Transform 배열로 재생하고 Sound와 카메라 셰이크는 호출마다 한 번 재생합니다
 	 * 어느 위치에서 몇 번 재생할지는 패턴마다 다르므로 부모가 정하지 않고 호출자가 위치를 넘깁니다
 	 */
 	void PlayPatternPresentation(const TArray<FTransform>& NiagaraTransforms, const FVector& SoundLocation) const;
@@ -187,7 +208,6 @@ protected:
 	 * 소켓 기준 생성은 보스 Skeletal Mesh를 사용하며 소켓이 없으면 경고를 남기고 건너뜁니다
 	 */
 	UNiagaraComponent* SpawnNiagaraFromDefinition(const FRSNiagaraSpawnDefinition& Definition, const FTransform& WorldTransform, bool bAutoDestroy) const;
-
 protected:
 	/**
 	 * 이 패턴이 자기 연출 시점에 재생할 Niagara, Sound와 카메라 셰이크입니다
@@ -217,6 +237,15 @@ private:
 	 * 모든 공개 형태가 이 지점을 지나므로 Sound와 카메라 셰이크의 1회 재생을 여기서만 보장합니다
 	 */
 	void PlayPatternPresentationInternal(TArrayView<const FRSCombatShape> HitShapes, TArrayView<const FTransform> PresentationTransforms, const FVector& SoundLocation) const;
+
+	/** 연출 항목의 배치 규칙으로 계산한 모든 Transform을 선택한 생성 방식으로 재생합니다 */
+	void PlayNiagaraEntry(const FRSBossPatternNiagaraEntry& NiagaraEntry, TArrayView<const FTransform> WorldTransforms, const FVector& SystemLocation) const;
+
+	/** 한 Component에 로컬 위치, 회전과 스케일 배열을 설정한 뒤 활성화합니다 */
+	void SpawnPositionArrayNiagaraSystem(const FRSBossPatternNiagaraEntry& NiagaraEntry, TArrayView<const FTransform> WorldTransforms, const FVector& SystemLocation) const;
+
+	/** 월드 Transform을 한 Niagara Component 기준의 로컬 배열과 Fixed Bounds로 변환합니다 */
+	static bool BuildNiagaraTransformArrays(TArrayView<const FTransform> WorldTransforms, const FTransform& SystemTransform, float BoundsPadding, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<FVector>& OutScales, FBox& OutLocalBounds);
 
 	/** 재생이 끝난 Montage 하나를 게이트에서 내리고 마지막 하나였으면 보류한 정상 종료를 진행합니다 */
 	UFUNCTION()
