@@ -59,6 +59,7 @@ namespace RSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Combo_Duration, "SetByCaller.Combo.Duration", "콤보의 다음 공격 준비 상태가 유지될 시간입니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Cooldown_Duration, "SetByCaller.Cooldown.Duration", "Ability마다 다른 쿨다운 시간을 공용 쿨다운 GameplayEffect에 전달합니다");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Damage, "SetByCaller.Damage", "타격마다 다른 피해량을 공용 대미지 GameplayEffect에 전달합니다");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Healing, "SetByCaller.Healing", "회복원마다 다른 회복량을 공용 회복 GameplayEffect에 전달합니다");
 
 	// State
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Action_BasicAttackLocked, "State.Action.BasicAttackLocked", "기본 공격의 활성화만 차단하는 상태이며 State.Action.Locked의 하위 태그로 만들면 다른 행동까지 함께 막히므로 형제 태그로 둡니다");

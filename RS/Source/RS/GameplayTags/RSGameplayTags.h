@@ -60,6 +60,7 @@ namespace RSGameplayTags
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Combo_Duration);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Cooldown_Duration);
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
+	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Healing);
 
 	// State
 	RS_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Action_BasicAttackLocked);
