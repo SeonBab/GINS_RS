@@ -1,4 +1,4 @@
-﻿#if WITH_DEV_AUTOMATION_TESTS
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 
@@ -16,6 +16,7 @@
 #include "GameplayEffect.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBossPhaseComponent.h"
 #include "RSBossPhaseData.h"
@@ -268,7 +269,9 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	Definition.SpecialPatternCleanupOffset = 2;
 
 	const FTransform SpawnTransform(TargetCharacter ? TargetCharacter->GetActorLocation() : FVector::ZeroVector);
-	ARSBossMeteorHazard* MeteorHazard = TestWorld->SpawnActorDeferred<ARSBossMeteorHazard>(ARSBossMeteorHazard::StaticClass(), SpawnTransform, BossOwner, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	UClass* MeteorHazardClass = LoadClass<ARSBossMeteorHazard>(nullptr, TEXT("/Game/Blueprints/Actor/BP_BossMeteorHazard.BP_BossMeteorHazard_C"));
+	TestNotNull(TEXT("Meteor hazard Blueprint class"), MeteorHazardClass);
+	ARSBossMeteorHazard* MeteorHazard = MeteorHazardClass ? TestWorld->SpawnActorDeferred<ARSBossMeteorHazard>(MeteorHazardClass, SpawnTransform, BossOwner, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn) : nullptr;
 	TestNotNull(TEXT("Meteor hazard actor"), MeteorHazard);
 	if (!MeteorHazard || !TargetCharacter)
 	{
@@ -304,6 +307,11 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	const FVector FirstTrackedBottom = TargetCharacter->GetCapsuleComponent()->GetComponentLocation() - FVector::UpVector * TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	TestTrue(TEXT("Meteor tracks the target capsule bottom before 75 percent"), MeteorHazard->GetCurrentTargetLocation().Equals(FirstTrackedBottom));
 	TestTrue(TEXT("Falling effect starts at impact minus lead time"), MeteorHazard->HasStartedFallingEffect());
+	UNiagaraComponent* FallingNiagaraComp = FindObjectFast<UNiagaraComponent>(MeteorHazard, TEXT("FallingNiagaraComponent"));
+	TestNotNull(TEXT("Meteor owns its falling effect component"), FallingNiagaraComp);
+	const FVector FallingStartOffset = FallingNiagaraComp ? FallingNiagaraComp->GetComponentLocation() - FirstTrackedBottom : FVector::ZeroVector;
+	TestTrue(TEXT("Falling effect starts above the tracked target"), FallingStartOffset.Z > 0.0f);
+	TestTrue(TEXT("Falling effect starts directly above the tracked target"), FVector2D(FallingStartOffset).IsNearlyZero());
 
 	TargetCharacter->SetActorLocation(FVector(400.0f, -100.0f, 200.0f));
 	MeteorHazard->Tick(2.0f);
@@ -311,6 +319,8 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Meteor locks exactly when progress reaches 75 percent"), MeteorHazard->GetMeteorHazardState(), ERSBossMeteorHazardState::Locked);
 	TestTrue(TEXT("Locked impact location uses the last tracked capsule bottom"), MeteorHazard->GetLockedImpactLocation().Equals(LockedBottom));
 
+	const FVector FallingMidOffset = FallingNiagaraComp ? FallingNiagaraComp->GetComponentLocation() - LockedBottom : FVector::ZeroVector;
+	TestTrue(TEXT("Falling effect approaches the impact during the telegraph"), FallingMidOffset.SizeSquared() < FallingStartOffset.SizeSquared());
 	TargetCharacter->SetActorLocation(FVector(900.0f, 900.0f, 200.0f));
 	MeteorHazard->Tick(0.5f);
 	TestTrue(TEXT("Target movement after 75 percent does not move the impact"), MeteorHazard->GetLockedImpactLocation().Equals(LockedBottom));
@@ -319,6 +329,9 @@ bool FRSMeteorHazardTimelineTest::RunTest(const FString& Parameters)
 	MeteorHazard->Tick(0.5f);
 	TestTrue(TEXT("Target loss after lock does not cancel the committed impact"), MeteorHazard->GetLockedImpactLocation().Equals(LockedBottom));
 	TestEqual(TEXT("100 percent activates the persistent hazard"), MeteorHazard->GetMeteorHazardState(), ERSBossMeteorHazardState::Hazard);
+	TestTrue(TEXT("Falling effect reaches the locked impact location"), FallingNiagaraComp && FallingNiagaraComp->GetComponentLocation().Equals(LockedBottom));
+	TestTrue(TEXT("Falling effect remains scheduled through the impact frame"), MeteorHazard->IsFallingEffectFinishTimerActiveForTest());
+	TestTrue(TEXT("Falling effect keeps a 0.3 second impact hold"), FMath::IsNearlyEqual(MeteorHazard->GetFallingEffectFinishTimerRemainingForTest(), 0.3f));
 	TestTrue(TEXT("Damage waits on an interval timer instead of applying at impact"), MeteorHazard->IsDamageTimerActiveForTest());
 	TestEqual(TEXT("The hazard keeps the telegraph handle it filled during the warning"), MeteorHazard->GetTelegraphHandleForTest(), WarningTelegraphHandle);
 

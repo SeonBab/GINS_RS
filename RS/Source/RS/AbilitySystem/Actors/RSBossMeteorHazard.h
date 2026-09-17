@@ -46,6 +46,10 @@ struct FRSBossMeteorHazardDefinition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Timing", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "s"))
 	float FallEffectLeadTime = 1.0f;
 
+	/** 낙하 Niagara가 타격점 위에서 시작할 높이입니다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Presentation", meta = (ClampMin = "0.0", UIMin = "0.0", ForceUnits = "cm"))
+	float FallEffectHeight = 1200.0f;
+
 	/** Telegraph 표시와 수평 HitCheck가 공유하는 최종 반경입니다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RS|Meteor Hazard|Area", meta = (ClampMin = "0.01", UIMin = "0.01", ForceUnits = "cm"))
 	float HazardRadius = 250.0f;
@@ -124,6 +128,12 @@ public:
 	/** 자동 테스트가 첫 피해가 즉시 실행되지 않고 Timer로 예약됐는지 확인합니다 */
 	bool IsDamageTimerActiveForTest() const;
 
+	/** 자동 테스트가 낙하 Niagara 종료 예약을 확인합니다 */
+	bool IsFallingEffectFinishTimerActiveForTest() const;
+
+	/** 자동 테스트가 낙하 Niagara 종료까지 남은 시간을 확인합니다 */
+	float GetFallingEffectFinishTimerRemainingForTest() const;
+
 	/** 자동 테스트가 첫 피해까지 남은 시간이 설정한 한 주기인지 확인합니다 */
 	float GetDamageTimerRemainingForTest() const;
 
@@ -143,6 +153,12 @@ private:
 
 	/** 현재 목표 위치를 낙하 Niagara Component에 반영합니다 */
 	void UpdateFallingEffectLocation(const FVector& TargetLocation);
+
+	/** 장판 시작 후 충돌 표시 시간을 채운 낙하 Niagara를 종료합니다 */
+	void FinishFallingEffect();
+
+	/** 낙하와 충돌 유지 구간에 One-shot Niagara가 종료되면 다시 활성화합니다 */
+	void KeepFallingEffectActive();
 
 	/** 현재 목표를 장판 중심으로 한 번 고정합니다 */
 	void LockImpactLocation();
@@ -204,6 +220,7 @@ private:
 	TWeakObjectPtr<AActor> TargetActor;
 
 	FRSMeteorHazardPreparationFinishedSignature PreparationFinishedEvent;
+	FTimerHandle FallingEffectFinishTimerHandle;
 	FTimerHandle HazardDamageTimerHandle;
 	FVector CurrentTargetLocation = FVector::ZeroVector;
 	FVector LockedImpactLocation = FVector::ZeroVector;
