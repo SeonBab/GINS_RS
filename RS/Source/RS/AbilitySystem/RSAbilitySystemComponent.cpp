@@ -243,7 +243,19 @@ void URSAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGameP
 	else if (!bGamePaused)
 	{
 		// 일시 정지 중에는 남은 시간을 줄이지 않아 메뉴를 닫은 뒤에도 직전 입력이 그대로 유효합니다
+		const bool bWasBufferedInputPending = BufferedInputTag.IsValid();
 		ProcessBufferedAbilityInput(DeltaTime);
+
+		// 새 입력도 보관한 입력도 없을 때만 유지 입력을 다시 시도해, 한 프레임에 콤보의 두 단계가 연달아 활성화되지 않게 합니다
+		if (!bWasBufferedInputPending)
+		{
+			const FGameplayTag HeldRepeatInputTag = FindHeldRepeatInputTag();
+
+			if (HeldRepeatInputTag.IsValid())
+			{
+				TryActivateInputTriggeredAbilities(HeldRepeatInputTag);
+			}
+		}
 	}
 
 	// 해제는 실행 중인 어빌리티만 소비하므로 활성화를 시도하지 않습니다
@@ -281,6 +293,34 @@ void URSAbilitySystemComponent::ClearAbilityInput()
 	bAbilityInputPressedThisFrame = false;
 
 	ClearBufferedAbilityInput();
+}
+
+FGameplayTag URSAbilitySystemComponent::FindHeldRepeatInputTag() const
+{
+	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	{
+		if (!AbilitySpec.Ability || !InputHeldSpecHandles.Contains(AbilitySpec.Handle))
+		{
+			continue;
+		}
+
+		const URSBaseGameplayAbility* RSAbility = Cast<URSBaseGameplayAbility>(AbilitySpec.Ability);
+
+		if (!RSAbility || RSAbility->GetActivationPolicy() != ERSAbilityActivationPolicy::OnInputTriggered || !RSAbility->ShouldRepeatWhileInputHeld())
+		{
+			continue;
+		}
+
+		// AbilitySet이 Spec에 입력 태그 하나만 넣으므로 첫 태그가 이 어빌리티의 입력 슬롯입니다
+		const FGameplayTagContainer& SpecSourceTags = AbilitySpec.GetDynamicSpecSourceTags();
+
+		if (!SpecSourceTags.IsEmpty())
+		{
+			return SpecSourceTags.First();
+		}
+	}
+
+	return FGameplayTag();
 }
 
 ERSInputActivationResult URSAbilitySystemComponent::TryActivateInputTriggeredAbilities(const FGameplayTag& InputTag)

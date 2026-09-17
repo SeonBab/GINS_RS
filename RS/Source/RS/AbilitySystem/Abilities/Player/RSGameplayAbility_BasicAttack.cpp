@@ -12,6 +12,9 @@ URSGameplayAbility_BasicAttack::URSGameplayAbility_BasicAttack()
 {
 	ActivationPolicy = ERSAbilityActivationPolicy::OnInputTriggered;
 
+	// 입력을 유지하는 동안 다음 타가 이어지게 하며, 한 번의 활성화가 한 타라는 규칙은 그대로 둡니다
+	bRepeatWhileInputHeld = true;
+
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_BasicAttack);
 	SetAssetTags(AssetTags);

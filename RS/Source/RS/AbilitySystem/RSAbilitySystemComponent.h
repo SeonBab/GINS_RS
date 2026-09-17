@@ -171,6 +171,9 @@ public:
 	/** 복원까지 남은 시간을 반환하며 예약이 없으면 0입니다 */
 	float GetHitStopRemainingForTest() const;
 
+	/** 이번 프레임에 유지 입력으로 다시 활성화할 입력 태그를 반환합니다 */
+	FGameplayTag FindHeldRepeatInputTagForTest() const { return FindHeldRepeatInputTag(); }
+
 #endif
 
 public:
@@ -201,6 +204,12 @@ private:
 	 * 이번 프레임의 입력과 보관한 입력이 같은 경로를 사용합니다
 	 */
 	ERSInputActivationResult TryActivateInputTriggeredAbilities(const FGameplayTag& InputTag);
+
+	/**
+	 * 유지 중인 입력 중 반복 활성화를 허용한 단발 어빌리티의 입력 태그를 반환합니다
+	 * 활성화 가능 여부는 보지 않고 재시도할 입력만 고르며, 후보가 없으면 빈 태그를 반환합니다
+	 */
+	FGameplayTag FindHeldRepeatInputTag() const;
 
 	/**
 	 * 보관한 입력의 남은 시간을 갱신하고 활성화를 다시 시도합니다
