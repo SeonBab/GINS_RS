@@ -24,16 +24,16 @@
 
 namespace
 {
-	constexpr int32 PatternAttackCount = 3;
-	constexpr int32 BarrierZoneCount = 4;
-	constexpr float FirstBarrierAngleDegrees = 45.0f;
-	constexpr float BarrierAngleStepDegrees = 90.0f;
+	constexpr int32 CollapsePatternAttackCount = 3;
+	constexpr int32 CollapseBarrierZoneCount = 4;
+	constexpr float CollapseFirstBarrierAngleDegrees = 45.0f;
+	constexpr float CollapseBarrierAngleStepDegrees = 90.0f;
 
 	/** 방어막을 만들 때 그린 원은 표시 크기와 판정 반지름을 비교할 수 있도록 예고와 세 공격 동안 남깁니다 */
-	constexpr float BarrierFieldDebugLifeTime = 30.0f;
+	constexpr float CollapseBarrierFieldDebugLifeTime = 30.0f;
 
 	/** 판정 프레임의 안전지대는 다음 공격의 원과 섞이지 않게 짧게만 남깁니다 */
-	constexpr float BarrierHitCheckDebugLifeTime = 1.0f;
+	constexpr float CollapseBarrierHitCheckDebugLifeTime = 1.0f;
 }
 
 URSGameplayAbility_Barrier_Collapse_Gimmick::URSGameplayAbility_Barrier_Collapse_Gimmick()
@@ -51,11 +51,11 @@ URSGameplayAbility_Barrier_Collapse_Gimmick::URSGameplayAbility_Barrier_Collapse
 void URSGameplayAbility_Barrier_Collapse_Gimmick::CalculateBarrierZoneCenters(const FVector& PatternCenter, float DistanceFromCenterValue, TArray<FVector>& OutZoneCenters)
 {
 	OutZoneCenters.Reset();
-	OutZoneCenters.Reserve(BarrierZoneCount);
+	OutZoneCenters.Reserve(CollapseBarrierZoneCount);
 
-	for (int32 ZoneIndex = 0; ZoneIndex < BarrierZoneCount; ++ZoneIndex)
+	for (int32 ZoneIndex = 0; ZoneIndex < CollapseBarrierZoneCount; ++ZoneIndex)
 	{
-		const float AngleRadians = FMath::DegreesToRadians(FirstBarrierAngleDegrees + BarrierAngleStepDegrees * ZoneIndex);
+		const float AngleRadians = FMath::DegreesToRadians(CollapseFirstBarrierAngleDegrees + CollapseBarrierAngleStepDegrees * ZoneIndex);
 		OutZoneCenters.Add(PatternCenter + FVector(FMath::Cos(AngleRadians), FMath::Sin(AngleRadians), 0.0f) * DistanceFromCenterValue);
 	}
 }
@@ -201,7 +201,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::BeginPatternTimeline()
 		return;
 	}
 
-	DrawDebugBarrierZones(BarrierFieldDebugLifeTime);
+	DrawDebugBarrierZones(CollapseBarrierFieldDebugLifeTime);
 	StartPreviewMontage();
 }
 
@@ -422,7 +422,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::EndGameplayEventTasks()
 
 void URSGameplayAbility_Barrier_Collapse_Gimmick::HandleEyeNiagaraEvent(FGameplayEventData Payload)
 {
-	if (PreviewEventCount >= PatternAttackCount)
+	if (PreviewEventCount >= CollapsePatternAttackCount)
 	{
 		CancelForInvalidRuntime(TEXT("received too many preview presentation events"));
 
@@ -469,7 +469,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::HandleHitCheckEvent(FGameplayE
 	}
 
 	bReceivedHitCheck = true;
-	DrawDebugBarrierZones(BarrierHitCheckDebugLifeTime);
+	DrawDebugBarrierZones(CollapseBarrierHitCheckDebugLifeTime);
 	PlayBeamPresentation();
 	ExecuteCurrentHitCheck();
 }
@@ -495,7 +495,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::HandlePreviewMontageCompleted(
 		return;
 	}
 
-	if (PreviewEventCount != PatternAttackCount)
+	if (PreviewEventCount != CollapsePatternAttackCount)
 	{
 		CancelForInvalidRuntime(TEXT("RoarMontage did not emit exactly three presentation events"));
 
@@ -520,7 +520,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::HandleAttackMontageCompleted()
 	}
 
 	++AttackIndex;
-	if (AttackIndex >= PatternAttackCount)
+	if (AttackIndex >= CollapsePatternAttackCount)
 	{
 		EndGameplayEventTasks();
 		EndActiveBossFacing();
@@ -690,7 +690,7 @@ EDataValidationResult URSGameplayAbility_Barrier_Collapse_Gimmick::IsDataValid(F
 		return Count;
 	};
 
-	if (!RoarMontage || CountNotify(RoarMontage, RSGameplayTags::GameplayEvent_Presentation_Niagara) != PatternAttackCount)
+	if (!RoarMontage || CountNotify(RoarMontage, RSGameplayTags::GameplayEvent_Presentation_Niagara) != CollapsePatternAttackCount)
 	{
 		AddError(TEXT("RoarMontage must contain exactly three GameplayEvent.Presentation.Niagara notifies."));
 	}
