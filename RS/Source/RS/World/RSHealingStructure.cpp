@@ -3,12 +3,16 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Components/SphereComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
+#include "NiagaraComponent.h"
 #include "RSGameplayTags.h"
 #include "RSHealthComponent.h"
 #include "RSPlayerCharacter.h"
 #include "TimerManager.h"
+
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
 
 ARSHealingStructure::ARSHealingStructure()
 {
@@ -23,11 +27,11 @@ ARSHealingStructure::ARSHealingStructure()
 	TriggerArea->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	TriggerArea->SetGenerateOverlapEvents(true);
 
-	ChargedMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChargedMesh"));
-	ChargedMesh->SetupAttachment(TriggerArea);
+	ChargedNiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("ChargedNiagaraComponent"));
+	ChargedNiagaraComp->SetupAttachment(TriggerArea);
 
-	// 충전 표시는 상태를 보여줄 뿐이므로 플레이어의 이동이나 판정을 막지 않습니다
-	ChargedMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 충전 여부는 BeginPlay가 정하므로 스스로 재생을 시작하지 않습니다
+	ChargedNiagaraComp->SetAutoActivate(false);
 }
 
 void ARSHealingStructure::BeginPlay()
@@ -46,6 +50,27 @@ void ARSHealingStructure::BeginPlay()
 	}
 }
 
+#if WITH_EDITOR
+EDataValidationResult ARSHealingStructure::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
+
+	if (!ChargedNiagaraComp || !ChargedNiagaraComp->GetAsset())
+	{
+		Context.AddError(FText::FromString(TEXT("ChargedNiagaraComponent has no Niagara System asset.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	if (!HealEffectClass)
+	{
+		Context.AddError(FText::FromString(TEXT("HealEffectClass is not configured.")));
+		ValidationResult = EDataValidationResult::Invalid;
+	}
+
+	return ValidationResult;
+}
+#endif
+
 void ARSHealingStructure::HandleTriggerAreaBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	TryHealTarget(OtherActor);
@@ -59,8 +84,10 @@ void ARSHealingStructure::HandleRechargeCompleted()
 void ARSHealingStructure::BecomeCharged()
 {
 	// 표시를 먼저 보여 주고 회복은 지연 뒤에 엽니다
-	// 어떤 경로로 소모되든 Mesh가 나타난 뒤 최소한 이 시간만큼은 화면에 남습니다
-	ChargedMesh->SetVisibility(true, true);
+	// 어떤 경로로 소모되든 Niagara가 나타난 뒤 최소한 이 시간만큼은 화면에 남습니다
+	// 충전마다 처음부터 재생해야 표시가 다시 나타난 것으로 보입니다
+	ChargedNiagaraComp->SetVisibility(true, true);
+	ChargedNiagaraComp->Activate(true);
 
 	if (ChargedHealDelaySeconds <= 0.0f)
 	{
@@ -172,7 +199,10 @@ void ARSHealingStructure::StartRecharge()
 {
 	bIsReadyToHeal = false;
 
-	ChargedMesh->SetVisibility(false, true);
+	// 가시성만 내리면 보이지 않는 동안에도 시뮬레이션이 돌므로 재생까지 함께 멈춥니다
+	// 남은 Particle이 사라지기를 기다리면 충전이 비었는지를 한눈에 알 수 없으므로 즉시 종료합니다
+	ChargedNiagaraComp->DeactivateImmediate();
+	ChargedNiagaraComp->SetVisibility(false, true);
 
 	// 회복이 열리기 전에 소모될 수는 없지만 시작 시점에 남아 있을 수 있는 예약을 정리합니다
 	GetWorldTimerManager().ClearTimer(ChargedHealDelayTimerHandle);

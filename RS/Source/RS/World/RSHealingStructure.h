@@ -6,8 +6,8 @@
 
 class ARSPlayerCharacter;
 class UGameplayEffect;
+class UNiagaraComponent;
 class USphereComponent;
-class UStaticMeshComponent;
 
 /**
  * 영역에 들어온 플레이어 캐릭터의 체력을 회복시키고 일정 시간이 지나면 다시 회복시킬 수 있게 되는 구조물입니다
@@ -20,7 +20,7 @@ class RS_API ARSHealingStructure : public AActor
 	GENERATED_BODY()
 
 public:
-	/** 본체와 충전 표시 Mesh, 플레이어 캐릭터만 감지하는 영역을 구성합니다 */
+	/** 충전 표시 Niagara와 플레이어 캐릭터만 감지하는 영역을 구성합니다 */
 	ARSHealingStructure();
 
 	/**
@@ -34,6 +34,11 @@ protected:
 	/** 시작 충전 상태를 적용하고 영역 진입 감지를 시작합니다 */
 	virtual void BeginPlay() override;
 
+#if WITH_EDITOR
+	/** 충전 표시와 회복에 필요한 에셋이 지정되었는지 검사합니다 */
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
+
 protected:
 	/**
 	 * 플레이어 캐릭터의 접근을 감지할 영역이며 반지름이 곧 회복이 닿는 거리입니다
@@ -42,9 +47,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Healing")
 	TObjectPtr<USphereComponent> TriggerArea;
 
-	/** 회복시킬 수 있는 상태에서만 보이는 Mesh이며 플레이어가 멀리서 사용 가능 여부를 판단하는 근거입니다 */
+	/**
+	 * 회복시킬 수 있는 상태에서만 재생되는 Niagara이며 플레이어가 멀리서 사용 가능 여부를 판단하는 근거입니다
+	 * 재생할 System은 Blueprint에서 이 Component의 Asset에 지정합니다
+	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RS|Healing")
-	TObjectPtr<UStaticMeshComponent> ChargedMesh;
+	TObjectPtr<UNiagaraComponent> ChargedNiagaraComp;
 
 private:
 	/** 영역에 들어온 대상에게 회복을 시도합니다 */

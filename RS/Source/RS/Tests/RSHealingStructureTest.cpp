@@ -4,10 +4,10 @@
 
 #include "AbilitySystemComponent.h"
 #include "Components/SphereComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameplayEffect.h"
+#include "NiagaraComponent.h"
 #include "RSHealingStructure.h"
 #include "RSHealingStructureTestTypes.h"
 #include "RSHealthComponent.h"
@@ -192,17 +192,17 @@ bool FRSHealingStructureChargeTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UStaticMeshComponent* ChargedMesh = Structure->FindComponentByClass<UStaticMeshComponent>();
-	TestNotNull(TEXT("Charged mesh"), ChargedMesh);
-	if (!ChargedMesh)
+	UNiagaraComponent* ChargedNiagaraComp = Structure->FindComponentByClass<UNiagaraComponent>();
+	TestNotNull(TEXT("Charged effect"), ChargedNiagaraComp);
+	if (!ChargedNiagaraComp)
 	{
 		RSHealingStructureTest::DestroyTestWorld(TestWorld);
 
 		return false;
 	}
 
-	// 표시는 바로 보이고 회복만 지연되므로 어떤 경로로 소모되든 Mesh가 그 시간만큼은 화면에 남습니다
-	TestTrue(TEXT("Charging shows the charged mesh right away"), ChargedMesh->IsVisible());
+	// 표시는 바로 보이고 회복만 지연되므로 어떤 경로로 소모되든 Niagara가 그 시간만큼은 화면에 남습니다
+	TestTrue(TEXT("Charging shows the charged effect right away"), ChargedNiagaraComp->IsVisible());
 	TestFalse(TEXT("Charging does not open healing in the same frame"), Structure->IsReadyToHeal());
 	TestEqual(TEXT("Charging does not heal in the same frame"), HealthComp->GetHealth(), DamagedHealth);
 	TestTrue(TEXT("Charging schedules the moment healing opens"), Structure->IsChargedHealDelayActiveForTest());
@@ -212,7 +212,7 @@ bool FRSHealingStructureChargeTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("Opened healing reaches the target already inside"), HealthComp->GetHealth(), DamagedHealth + RSHealingStructureTest::HealAmount);
 	TestFalse(TEXT("Successful healing closes healing again"), Structure->IsReadyToHeal());
-	TestFalse(TEXT("Successful healing hides the charged mesh"), ChargedMesh->IsVisible());
+	TestFalse(TEXT("Successful healing hides the charged effect"), ChargedNiagaraComp->IsVisible());
 	TestTrue(TEXT("Consumed charge schedules a recharge"), Structure->IsRechargeTimerActiveForTest());
 	TestEqual(TEXT("Recharge waits the configured duration"), Structure->GetRechargeRemainingForTest(), RSHealingStructureTest::RechargeSeconds);
 
@@ -221,7 +221,7 @@ bool FRSHealingStructureChargeTest::RunTest(const FString& Parameters)
 	// 재충전이 끝난 시점에 영역 안에 있으면 다시 들어오지 않아도 회복하며 같은 지연을 거칩니다
 	Structure->CompleteRechargeForTest();
 
-	TestTrue(TEXT("Recharge completion shows the charged mesh again"), ChargedMesh->IsVisible());
+	TestTrue(TEXT("Recharge completion shows the charged effect again"), ChargedNiagaraComp->IsVisible());
 	TestFalse(TEXT("Recharge completion does not open healing immediately"), Structure->IsReadyToHeal());
 	TestEqual(TEXT("Recharge completion does not heal before the delay"), HealthComp->GetHealth(), HealthAfterFirstHeal);
 
