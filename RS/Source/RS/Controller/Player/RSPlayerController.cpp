@@ -8,6 +8,7 @@
 #include "InputAction.h"
 #include "Kismet/GameplayStatics.h"
 #include "RSAbilitySystemComponent.h"
+#include "Combat/RSCombatFunctionLibrary.h"
 #include "RSBossEncounter.h"
 #include "RSCheatManager.h"
 #include "RSGameModeBase.h"
@@ -20,6 +21,15 @@
 #include "RSDialogueWidget.h"
 #include "RSInGameMenuWidget.h"
 #include "RSPlayerState.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogRSCursorTrace, Log, All);
+
+namespace
+{
+	// 카메라가 장식용 충돌 안에서 시작해도 실제 커서 대상까지 다시 조회할 수 있을 만큼만 반복합니다
+	constexpr int32 RSCursorTraceMaximumOriginBlockers = 8;
+	constexpr float RSCursorTraceOriginDistanceTolerance = 1.0f;
+}
 
 ARSPlayerController::ARSPlayerController()
 {
@@ -91,11 +101,92 @@ bool ARSPlayerController::GetCursorWorldLocation(FVector& OutCursorWorldLocation
 		return false;
 	}
 
+	FVector2D MousePosition = FVector2D::ZeroVector;
+	const bool bHasMousePosition = GetMousePosition(MousePosition.X, MousePosition.Y);
+	if (!bHasMousePosition)
+	{
+		return false;
+	}
+
 	FHitResult CursorHit;
-	const ETraceTypeQuery TraceChannel = UEngineTypes::ConvertToTraceType(ECC_Visibility);
+	FCollisionQueryParams CollisionQueryParams(SCENE_QUERY_STAT(RSCursorWorldLocation), false);
+	bool bHasCursorHit = false;
+	int32 IgnoredOriginBlockerCount = 0;
+
+	for (int32 TraceAttempt = 0; TraceAttempt <= RSCursorTraceMaximumOriginBlockers; ++TraceAttempt)
+	{
+		CursorHit = FHitResult();
+		bHasCursorHit = GetHitResultAtScreenPosition(MousePosition, ECC_Visibility, CollisionQueryParams, CursorHit);
+		if (!bHasCursorHit || !CursorHit.bBlockingHit)
+		{
+			break;
+		}
+
+		const bool bIsOriginBlockingHit = CursorHit.bStartPenetrating || CursorHit.Distance <= RSCursorTraceOriginDistanceTolerance;
+		if (!bIsOriginBlockingHit)
+		{
+			break;
+		}
+
+		AActor* OriginBlockingActor = CursorHit.GetActor();
+		if (!OriginBlockingActor || TraceAttempt == RSCursorTraceMaximumOriginBlockers)
+		{
+			break;
+		}
+
+		if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
+		{
+			UE_LOG(LogRSCursorTrace, Log,
+				TEXT("CursorTrace ignored origin blocker Attempt=%d Actor=%s Component=%s StartPenetrating=%s Distance=%.3f"),
+				TraceAttempt + 1,
+				*GetNameSafe(OriginBlockingActor),
+				*GetNameSafe(CursorHit.GetComponent()),
+				CursorHit.bStartPenetrating ? TEXT("true") : TEXT("false"),
+				CursorHit.Distance);
+		}
+
+		CollisionQueryParams.AddIgnoredActor(OriginBlockingActor);
+		++IgnoredOriginBlockerCount;
+	}
+
+	if (URSCombatFunctionLibrary::IsHitCheckDebugEnabled())
+	{
+		FVector MouseWorldOrigin = FVector::ZeroVector;
+		FVector MouseWorldDirection = FVector::ZeroVector;
+		const bool bHasMouseWorldRay = DeprojectMousePositionToWorld(MouseWorldOrigin, MouseWorldDirection);
+
+		const APawn* ControlledPawn = GetPawn();
+		const FVector PawnLocation = ControlledPawn ? ControlledPawn->GetActorLocation() : FVector::ZeroVector;
+		const float PawnToImpactDistance2D = ControlledPawn && CursorHit.bBlockingHit
+			? FVector::Dist2D(PawnLocation, CursorHit.ImpactPoint)
+			: -1.0f;
+
+		UE_LOG(LogRSCursorTrace, Log,
+			TEXT("CursorTrace Query=%s Blocking=%s IgnoredOriginBlockers=%d Mouse=%s Screen=(%.1f, %.1f) Deproject=%s RayOrigin=%s RayDirection=%s Pawn=%s PawnLocation=%s HitActor=%s HitComponent=%s ImpactPoint=%s Location=%s HitDistance=%.3f StartPenetrating=%s PawnDistance2D=%.1f TraceStart=%s TraceEnd=%s"),
+			bHasCursorHit ? TEXT("true") : TEXT("false"),
+			CursorHit.bBlockingHit ? TEXT("true") : TEXT("false"),
+			IgnoredOriginBlockerCount,
+			bHasMousePosition ? TEXT("true") : TEXT("false"),
+			MousePosition.X,
+			MousePosition.Y,
+			bHasMouseWorldRay ? TEXT("true") : TEXT("false"),
+			*MouseWorldOrigin.ToString(),
+			*MouseWorldDirection.ToString(),
+			*GetNameSafe(ControlledPawn),
+			*PawnLocation.ToString(),
+			*GetNameSafe(CursorHit.GetActor()),
+			*GetNameSafe(CursorHit.GetComponent()),
+			*CursorHit.ImpactPoint.ToString(),
+			*CursorHit.Location.ToString(),
+			CursorHit.Distance,
+			CursorHit.bStartPenetrating ? TEXT("true") : TEXT("false"),
+			PawnToImpactDistance2D,
+			*CursorHit.TraceStart.ToString(),
+			*CursorHit.TraceEnd.ToString());
+	}
 
 	// 이동 허용 여부는 Character와 Navigation이 판단하고 Controller는 Visibility Hit 위치만 제공합니다
-	if (!GetHitResultUnderCursorByChannel(TraceChannel, false, CursorHit) || !CursorHit.bBlockingHit)
+	if (!bHasCursorHit || !CursorHit.bBlockingHit)
 	{
 		return false;
 	}
