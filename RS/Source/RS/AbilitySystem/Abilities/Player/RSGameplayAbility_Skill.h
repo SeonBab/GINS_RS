@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RSBaseGameplayAbility_Attack.h"
+#include "RSBaseGameplayAbility_MontageAttack.h"
 #include "RSGameplayAbility_Skill.generated.h"
 
 class UAnimMontage;
 
 /** 기존 Montage 설정을 유지하면서 타격별 판정과 공통 쿨다운을 사용하는 일반 스킬 어빌리티입니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_Skill : public URSBaseGameplayAbility_Attack
+class RS_API URSGameplayAbility_Skill : public URSBaseGameplayAbility_MontageAttack
 {
 	GENERATED_BODY()
 

@@ -5,23 +5,23 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineTypes.h"
 #include "Combat/RSCombatFunctionLibrary.h"
-#include "RSBaseGameplayAbility.h"
-#include "RSBaseGameplayAbility_Attack.generated.h"
+#include "RSBaseGameplayAbility_Attack.h"
+#include "RSBaseGameplayAbility_MontageAttack.generated.h"
 
 class UAnimMontage;
 class UGameplayEffect;
 
 /**
  * Montage를 재생하고 타임라인의 판정 시점마다 타격을 실행해 피해를 적용하는 공격 어빌리티의 기반입니다
- * 노리는 진영과 판정 범위를 데이터로 받으므로 플레이어와 적이 같은 클래스를 사용합니다
+ * 현재 플레이어 기본 공격과 스킬이 Montage·Notify 기반 판정 흐름을 공유합니다
  */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSBaseGameplayAbility_Attack : public URSBaseGameplayAbility
+class RS_API URSBaseGameplayAbility_MontageAttack : public URSBaseGameplayAbility_Attack
 {
 	GENERATED_BODY()
 
 public:
-	URSBaseGameplayAbility_Attack();
+	URSBaseGameplayAbility_MontageAttack();
 
 protected:
 	/** 실행 조건을 확인하고 쿨다운을 적용한 뒤 공격 Montage와 판정 대기를 시작합니다 */

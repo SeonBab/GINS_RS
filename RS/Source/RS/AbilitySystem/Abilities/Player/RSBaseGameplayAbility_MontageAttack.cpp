@@ -1,6 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "RSBaseGameplayAbility_Attack.h"
+#include "RSBaseGameplayAbility_MontageAttack.h"
 
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
@@ -13,7 +13,7 @@
 #include "RSAnimNotify_GameplayEvent.h"
 #endif
 
-URSBaseGameplayAbility_Attack::URSBaseGameplayAbility_Attack()
+URSBaseGameplayAbility_MontageAttack::URSBaseGameplayAbility_MontageAttack()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
@@ -22,7 +22,7 @@ URSBaseGameplayAbility_Attack::URSBaseGameplayAbility_Attack()
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 }
 
-void URSBaseGameplayAbility_Attack::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void URSBaseGameplayAbility_MontageAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid() || !ActorInfo->AvatarActor.IsValid() || !GetAttackMontage() || !FMath::IsFinite(GetAttackMontagePlayRate()) || GetAttackMontagePlayRate() <= 0.0f)
 	{
@@ -43,7 +43,7 @@ void URSBaseGameplayAbility_Attack::ActivateAbility(const FGameplayAbilitySpecHa
 	StartAttackMontage();
 }
 
-void URSBaseGameplayAbility_Attack::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+void URSBaseGameplayAbility_MontageAttack::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
 	EndAnimationGameplayStatesForMontage(ActorInfo, GetAttackMontage());
 
@@ -51,7 +51,7 @@ void URSBaseGameplayAbility_Attack::EndAbility(const FGameplayAbilitySpecHandle 
 }
 
 #if WITH_EDITOR
-EDataValidationResult URSBaseGameplayAbility_Attack::IsDataValid(FDataValidationContext& Context) const
+EDataValidationResult URSBaseGameplayAbility_MontageAttack::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult ValidationResult = Super::IsDataValid(Context);
 
@@ -91,7 +91,7 @@ EDataValidationResult URSBaseGameplayAbility_Attack::IsDataValid(FDataValidation
 }
 #endif
 
-void URSBaseGameplayAbility_Attack::StartAttackMontage()
+void URSBaseGameplayAbility_MontageAttack::StartAttackMontage()
 {
 	UAnimMontage* AttackMontage = GetAttackMontage();
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, GetAttackMontagePlayRate());
@@ -111,37 +111,37 @@ void URSBaseGameplayAbility_Attack::StartAttackMontage()
 	HitCheckTask->ReadyForActivation();
 }
 
-UAnimMontage* URSBaseGameplayAbility_Attack::GetAttackMontage() const
+UAnimMontage* URSBaseGameplayAbility_MontageAttack::GetAttackMontage() const
 {
 	return nullptr;
 }
 
-float URSBaseGameplayAbility_Attack::GetAttackMontagePlayRate() const
+float URSBaseGameplayAbility_MontageAttack::GetAttackMontagePlayRate() const
 {
 	return 1.0f;
 }
 
-void URSBaseGameplayAbility_Attack::HandleAttackMontageCompleted()
+void URSBaseGameplayAbility_MontageAttack::HandleAttackMontageCompleted()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
-void URSBaseGameplayAbility_Attack::HandleAttackMontageBlendedOut()
+void URSBaseGameplayAbility_MontageAttack::HandleAttackMontageBlendedOut()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
-void URSBaseGameplayAbility_Attack::HandleAttackMontageInterrupted()
+void URSBaseGameplayAbility_MontageAttack::HandleAttackMontageInterrupted()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
-void URSBaseGameplayAbility_Attack::HandleAttackMontageCancelled()
+void URSBaseGameplayAbility_MontageAttack::HandleAttackMontageCancelled()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
-void URSBaseGameplayAbility_Attack::HandleHitCheckEvent(FGameplayEventData Payload)
+void URSBaseGameplayAbility_MontageAttack::HandleHitCheckEvent(FGameplayEventData Payload)
 {
 	const UAnimMontage* AttackMontage = GetAttackMontage();
 

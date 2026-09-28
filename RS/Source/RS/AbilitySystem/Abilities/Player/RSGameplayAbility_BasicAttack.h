@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "ActiveGameplayEffectHandle.h"
-#include "RSBaseGameplayAbility_Attack.h"
+#include "RSBaseGameplayAbility_MontageAttack.h"
 #include "RSGameplayAbility_BasicAttack.generated.h"
 
 class UGameplayEffect;
@@ -15,7 +15,7 @@ class UGameplayEffect;
  * Montage 수명과 타격 판정은 기반 클래스가 소유합니다
  */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_BasicAttack : public URSBaseGameplayAbility_Attack
+class RS_API URSGameplayAbility_BasicAttack : public URSBaseGameplayAbility_MontageAttack
 {
 	GENERATED_BODY()
 
