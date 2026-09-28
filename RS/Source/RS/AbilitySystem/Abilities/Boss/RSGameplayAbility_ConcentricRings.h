@@ -30,7 +30,7 @@ struct FRSRingSafeSequence
  * 플레이어는 반응이 아니라 예고에서 본 순서를 기억해 회피하므로 실행 단계에는 표시를 하지 않습니다
  *
  * 예고 시간이 애니메이션과 독립한 게임플레이 값이어야 하므로 판정 시점을 Montage Notify가 정하는
- * URSBaseGameplayAbility_Attack을 상속하지 않고 타이밍을 이 어빌리티가 직접 소유합니다
+ * Montage 기반 타격 계층을 상속하지 않고 타이밍을 이 어빌리티가 직접 소유합니다
  */
 UCLASS(Abstract, Blueprintable)
 class RS_API URSGameplayAbility_ConcentricRings : public URSBaseGameplayAbility_BossPattern

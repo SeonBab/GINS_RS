@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Combat/RSCombatFunctionLibrary.h"
 #include "Containers/ArrayView.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_Attack.h"
 #include "RSBossPatternHitDefinition.h"
 #include "RSNiagaraSpawnDefinition.h"
 #include "RSBaseGameplayAbility_BossPattern.generated.h"
@@ -14,6 +14,8 @@ class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 class UNiagaraComponent;
 class USoundBase;
+class ARSBossCharacter;
+class ARSBossController;
 class URSAbilityTask_BossFacing;
 struct FRSBossFacingRequest;
 
@@ -101,11 +103,13 @@ struct FRSBossPatternPresentation
  * 이번 실행이 실제로 기믹인지는 페이즈 상태를 아는 URSBossPhaseComponent가 정하므로 패턴은 알지 않습니다
  */
 UCLASS(Abstract)
-class RS_API URSBaseGameplayAbility_BossPattern : public URSBaseGameplayAbility
+class RS_API URSBaseGameplayAbility_BossPattern : public URSBaseGameplayAbility_Attack
 {
 	GENERATED_BODY()
 
 public:
+	URSBaseGameplayAbility_BossPattern();
+
 	/**
 	 * 이 패턴에 파훼 판정이 있는지 반환합니다
 	 * 판정이 없는 패턴을 메인 기믹으로 지정하면 그 페이즈가 로그 없이 항상 실패하므로 Data Validation이 이 값을 검사합니다
@@ -115,11 +119,6 @@ public:
 #if WITH_EDITOR
 	/** 모든 보스 패턴이 공유하는 피해 GameplayEffect, 피해량과 피격 반응 설정을 검사합니다 */
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
-#endif
-
-#if WITH_DEV_AUTOMATION_TESTS
-	/** 자동 테스트에서 배열 방식의 좌표 변환과 Bounds 계산을 검증합니다 */
-	static bool BuildNiagaraTransformArraysForTest(TArrayView<const FTransform> WorldTransforms, const FTransform& SystemTransform, float BoundsPadding, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<FVector>& OutScales, FBox& OutLocalBounds);
 #endif
 
 protected:
@@ -134,6 +133,9 @@ protected:
 
 	/** 현재 Ability 레벨에서 공통 피해량을 반환합니다 */
 	float GetPatternDamageAmount() const;
+
+	/** 현재 ActorInfo에서 보스 캐릭터와 그 AI Controller를 함께 반환합니다 */
+	bool TryGetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
 
 	/**
 	 * 이전 실행의 상태를 되돌린 뒤 선딜만큼 기다렸다가 BeginPatternTimeline()을 부릅니다
@@ -259,15 +261,6 @@ private:
 	 * 모든 공개 형태가 이 지점을 지나므로 Sound와 카메라 셰이크의 1회 재생을 여기서만 보장합니다
 	 */
 	void PlayPatternPresentationInternal(TArrayView<const FRSCombatShape> HitShapes, TArrayView<const FTransform> PresentationTransforms, const FVector& SoundLocation) const;
-
-	/** 연출 항목의 배치 규칙으로 계산한 모든 Transform을 선택한 생성 방식으로 재생합니다 */
-	void PlayNiagaraEntry(const FRSBossPatternNiagaraEntry& NiagaraEntry, TArrayView<const FTransform> WorldTransforms, const FVector& SystemLocation) const;
-
-	/** 한 Component에 로컬 위치, 회전과 스케일 배열을 설정한 뒤 활성화합니다 */
-	void SpawnPositionArrayNiagaraSystem(const FRSBossPatternNiagaraEntry& NiagaraEntry, TArrayView<const FTransform> WorldTransforms, const FVector& SystemLocation) const;
-
-	/** 월드 Transform을 한 Niagara Component 기준의 로컬 배열과 Fixed Bounds로 변환합니다 */
-	static bool BuildNiagaraTransformArrays(TArrayView<const FTransform> WorldTransforms, const FTransform& SystemTransform, float BoundsPadding, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<FVector>& OutScales, FBox& OutLocalBounds);
 
 	/** 재생이 끝난 Montage 하나를 게이트에서 내리고 마지막 하나였으면 보류한 정상 종료를 진행합니다 */
 	UFUNCTION()

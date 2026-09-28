@@ -93,9 +93,6 @@ bool FRSSequentialSweepExplosionDefinition::IsDataValid(FString* OutValidationEr
 
 URSGameplayAbility_SequentialSweepExplosion::URSGameplayAbility_SequentialSweepExplosion()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_SequentialSweepExplosion);
 	SetAssetTags(AssetTags);
@@ -113,7 +110,7 @@ void URSGameplayAbility_SequentialSweepExplosion::BeginPatternTimeline()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| !CurrentActorInfo
 		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !BossCharacter->GetCharacterMovement()
@@ -161,7 +158,7 @@ void URSGameplayAbility_SequentialSweepExplosion::EndAbility(const FGameplayAbil
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	GetBossContext(BossCharacter, BossController);
+	TryGetBossContext(BossCharacter, BossController);
 
 	if (TimelineTask)
 	{
@@ -184,7 +181,7 @@ void URSGameplayAbility_SequentialSweepExplosion::BeginAim()
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -240,7 +237,7 @@ void URSGameplayAbility_SequentialSweepExplosion::ConfirmAttack()
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	UCapsuleComponent* CapsuleComp = nullptr;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| !(CapsuleComp = BossCharacter->GetCapsuleComponent())
 		|| !RSSequentialSweepExplosionMath::TryCalculateLockedAttackTransform(CapsuleComp->GetComponentTransform(), CapsuleComp->GetScaledCapsuleHalfHeight(), BossCharacter->GetActorForwardVector(), LockedAttackTransform))
 	{
@@ -361,7 +358,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ShowWarningSector(int32 Sector
 	ARSBossController* BossController = nullptr;
 	FRSCombatShape TelegraphShape;
 	FTransform TelegraphTransform;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| !WarningSectorHandles.IsValidIndex(SectorIndex)
 		|| WarningSectorHandles[SectorIndex] != INDEX_NONE
 		|| !TryBuildSectorShape(SectorIndex, TelegraphShape, TelegraphTransform))
@@ -390,7 +387,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::HideWarningSector(int32 Sector
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController) || !WarningSectorHandles.IsValidIndex(SectorIndex))
+	if (!TryGetBossContext(BossCharacter, BossController) || !WarningSectorHandles.IsValidIndex(SectorIndex))
 	{
 		return false;
 	}
@@ -408,7 +405,7 @@ bool URSGameplayAbility_SequentialSweepExplosion::ExecuteSectorExplosion(int32 S
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController) || !WarningSectorHandles.IsValidIndex(SectorIndex))
+	if (!TryGetBossContext(BossCharacter, BossController) || !WarningSectorHandles.IsValidIndex(SectorIndex))
 	{
 		return false;
 	}
@@ -484,14 +481,6 @@ void URSGameplayAbility_SequentialSweepExplosion::HideAllWarningSectors()
 	}
 
 	WarningSectorHandles.Reset();
-}
-
-bool URSGameplayAbility_SequentialSweepExplosion::GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const
-{
-	OutBossCharacter = CurrentActorInfo ? Cast<ARSBossCharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
-	OutBossController = OutBossCharacter ? Cast<ARSBossController>(OutBossCharacter->GetController()) : nullptr;
-
-	return OutBossCharacter && OutBossController;
 }
 
 void URSGameplayAbility_SequentialSweepExplosion::ResetTransientState()

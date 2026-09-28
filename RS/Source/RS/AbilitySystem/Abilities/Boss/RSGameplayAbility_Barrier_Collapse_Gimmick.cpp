@@ -38,9 +38,6 @@ namespace
 
 URSGameplayAbility_Barrier_Collapse_Gimmick::URSGameplayAbility_Barrier_Collapse_Gimmick()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	AttackShape.Type = ERSCombatShapeType::AnnularSector;
@@ -367,7 +364,7 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::StartAttackFacing()
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		return;
 	}
@@ -395,14 +392,6 @@ void URSGameplayAbility_Barrier_Collapse_Gimmick::StartAttackFacing()
 	}
 
 	FacingTask->ReadyForActivation();
-}
-
-bool URSGameplayAbility_Barrier_Collapse_Gimmick::GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const
-{
-	OutBossCharacter = CurrentActorInfo ? Cast<ARSBossCharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
-	OutBossController = OutBossCharacter ? Cast<ARSBossController>(OutBossCharacter->GetController()) : nullptr;
-
-	return OutBossCharacter && OutBossController;
 }
 
 void URSGameplayAbility_Barrier_Collapse_Gimmick::EndGameplayEventTasks()

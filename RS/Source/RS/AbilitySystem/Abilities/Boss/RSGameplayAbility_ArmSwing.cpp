@@ -37,9 +37,6 @@ FRSArmSwingPathDefinition FRSArmSwingVariantDefinition::GetPathDefinition() cons
 
 URSGameplayAbility_ArmSwing::URSGameplayAbility_ArmSwing()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 	HitDefinition.Reaction.Type = ERSHitReactionType::Knockdown;
 }
@@ -52,7 +49,7 @@ void URSGameplayAbility_ArmSwing::BeginPatternTimeline()
 	ARSBossController* BossController = nullptr;
 	if (!CurrentActorInfo
 		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
-		|| !GetBossContext(BossCharacter, BossController)
+		|| !TryGetBossContext(BossCharacter, BossController)
 		|| !BossCharacter->GetCharacterMovement()
 		|| !BossCharacter->GetAttackTelegraphComponent()
 		|| !IsVariantRuntimeValid(LeftVariant)
@@ -129,7 +126,7 @@ void URSGameplayAbility_ArmSwing::EndAbility(const FGameplayAbilitySpecHandle Ha
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	GetBossContext(BossCharacter, BossController);
+	TryGetBossContext(BossCharacter, BossController);
 	if (BossCharacter && ActiveTelegraphHandle != INDEX_NONE)
 	{
 		if (URSAttackTelegraphComponent* TelegraphComp = BossCharacter->GetAttackTelegraphComponent())
@@ -182,7 +179,7 @@ void URSGameplayAbility_ArmSwing::ConfirmAttack()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -225,7 +222,7 @@ void URSGameplayAbility_ArmSwing::StartAttackMontage()
 	ARSBossController* BossController = nullptr;
 	UAnimInstance* AnimInstance = CurrentActorInfo ? CurrentActorInfo->GetAnimInstance() : nullptr;
 	FRSAnnularSectorBounds TelegraphBounds;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| !AnimInstance
 		|| !AnimInstance->Montage_IsActive(SelectedVariant->AttackMontage)
 		|| !URSAbilityTask_ObserveAttackWindow::TryGetAttackWindowRange(SelectedVariant->AttackMontage, AttackWindowStartPosition, AttackWindowEndPosition)
@@ -279,7 +276,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackMontagePositionUpdated(float Monta
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
 	if (!FRSAttackWindowMath::TryCalculateAlpha(MontagePosition, TelegraphStartPosition, AttackWindowStartPosition, Fill)
-		|| !GetBossContext(BossCharacter, BossController)
+		|| !TryGetBossContext(BossCharacter, BossController)
 		|| !BossCharacter->GetAttackTelegraphComponent()->SetExternalFill(ActiveTelegraphHandle, Fill))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -297,7 +294,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowBegan()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| ActiveTelegraphHandle == INDEX_NONE
 		|| !BossCharacter->GetAttackTelegraphComponent()->SetExternalFill(ActiveTelegraphHandle, 1.0f))
 	{
@@ -365,7 +362,7 @@ void URSGameplayAbility_ArmSwing::HandleAttackWindowEnded()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (GetBossContext(BossCharacter, BossController) && ActiveTelegraphHandle != INDEX_NONE)
+	if (TryGetBossContext(BossCharacter, BossController) && ActiveTelegraphHandle != INDEX_NONE)
 	{
 		BossCharacter->GetAttackTelegraphComponent()->HideShape(ActiveTelegraphHandle);
 	}
@@ -407,7 +404,7 @@ bool URSGameplayAbility_ArmSwing::ExecuteAttackSectorSlice(float PreviousSweepPr
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!SelectedVariant || !GetBossContext(BossCharacter, BossController))
+	if (!SelectedVariant || !TryGetBossContext(BossCharacter, BossController))
 	{
 		return false;
 	}
@@ -493,14 +490,6 @@ void URSGameplayAbility_ArmSwing::HandleAttackMontageInterrupted()
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 	}
-}
-
-bool URSGameplayAbility_ArmSwing::GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const
-{
-	OutBossCharacter = CurrentActorInfo ? Cast<ARSBossCharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
-	OutBossController = OutBossCharacter ? Cast<ARSBossController>(OutBossCharacter->GetController()) : nullptr;
-
-	return OutBossCharacter && OutBossController;
 }
 
 bool URSGameplayAbility_ArmSwing::IsVariantRuntimeValid(const FRSArmSwingVariantDefinition& Variant, int32* OutAttackWindowCount) const

@@ -15,9 +15,6 @@
 
 URSGameplayAbility_PizzaMemoryPattern::URSGameplayAbility_PizzaMemoryPattern()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	// 위험한 여섯 조각의 기준점이 아니라 각 조각의 전체 면적에 폭발 연출을 배치합니다

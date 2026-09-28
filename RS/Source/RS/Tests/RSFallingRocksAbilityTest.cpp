@@ -6,6 +6,7 @@
 #include "RSBossCharacter.h"
 #include "RSBossPhaseComponent.h"
 #include "RSBossPhaseData.h"
+#include "RSGameplayTags.h"
 #include "Tasks/RSAbilityTask_PendingFallingRock.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -48,7 +49,10 @@ bool FRSFallingRocksAbilityTest::RunTest(const FString& Parameters)
 
 	const FGameplayAbilitySpecHandle AbilityHandle = AbilitySystemComp->GiveAbility(FGameplayAbilitySpec(URSFallingRocksTestAbility::StaticClass(), 1));
 	TestTrue(TEXT("Granted ability handle is valid"), AbilityHandle.IsValid());
-	TestTrue(TEXT("Configured phase entry activates the granted ability"), PhaseComponent->EnterCurrentPhase());
+
+	AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Action_Locked);
+	TestTrue(TEXT("Action lock does not block the persistent phase ability"), PhaseComponent->EnterCurrentPhase());
+	AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Action_Locked);
 
 	FGameplayAbilitySpec* AbilitySpec = AbilitySystemComp->FindAbilitySpecFromHandle(AbilityHandle);
 	URSFallingRocksTestAbility* AbilityInstance = AbilitySpec ? Cast<URSFallingRocksTestAbility>(AbilitySpec->GetPrimaryInstance()) : nullptr;

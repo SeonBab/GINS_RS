@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "RSBaseGameplayAbility_BossPattern.h"
+#include "RSBossPatternPresentationExecutor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRSBossPatternNiagaraTransformArrayTest, "RS.Boss.PatternNiagara.TransformArray", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -21,7 +22,7 @@ bool FRSBossPatternNiagaraTransformArrayTest::RunTest(const FString& Parameters)
 	TArray<FQuat> LocalRotations;
 	TArray<FVector> LocalScales;
 	FBox LocalBounds(EForceInit::ForceInit);
-	TestTrue(TEXT("Valid world transforms build Niagara arrays"), URSBaseGameplayAbility_BossPattern::BuildNiagaraTransformArraysForTest(WorldTransforms, SystemTransform, 25.0f, LocalPositions, LocalRotations, LocalScales, LocalBounds));
+	TestTrue(TEXT("Valid world transforms build Niagara arrays"), FRSBossPatternPresentationExecutor::BuildNiagaraTransformArrays(WorldTransforms, SystemTransform, 25.0f, LocalPositions, LocalRotations, LocalScales, LocalBounds));
 	TestEqual(TEXT("Every transform creates one position"), LocalPositions.Num(), WorldTransforms.Num());
 	TestEqual(TEXT("Every transform creates one rotation"), LocalRotations.Num(), WorldTransforms.Num());
 	TestEqual(TEXT("Every transform creates one scale"), LocalScales.Num(), WorldTransforms.Num());
@@ -43,7 +44,7 @@ bool FRSBossPatternNiagaraTransformArrayTest::RunTest(const FString& Parameters)
 	TArray<FQuat> UntouchedRotations = { FQuat::Identity };
 	TArray<FVector> UntouchedScales = { FVector::OneVector };
 	FBox UntouchedBounds(FVector::ZeroVector, FVector::OneVector);
-	TestFalse(TEXT("Negative bounds padding fails"), URSBaseGameplayAbility_BossPattern::BuildNiagaraTransformArraysForTest(WorldTransforms, SystemTransform, -1.0f, UntouchedPositions, UntouchedRotations, UntouchedScales, UntouchedBounds));
+	TestFalse(TEXT("Negative bounds padding fails"), FRSBossPatternPresentationExecutor::BuildNiagaraTransformArrays(WorldTransforms, SystemTransform, -1.0f, UntouchedPositions, UntouchedRotations, UntouchedScales, UntouchedBounds));
 	TestEqual(TEXT("Failed conversion leaves positions untouched"), UntouchedPositions.Num(), 1);
 	TestEqual(TEXT("Failed conversion leaves rotations untouched"), UntouchedRotations.Num(), 1);
 	TestEqual(TEXT("Failed conversion leaves scales untouched"), UntouchedScales.Num(), 1);

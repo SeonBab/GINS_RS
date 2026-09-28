@@ -1,14 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_Attack.h"
 #include "RSGameplayAbility_MeteorHazardDamage.generated.h"
 
 class UGameplayEffect;
 
 /** 운석 장판 이벤트 하나를 받아 플레이어 한 명에게 피해만 적용하고 즉시 끝납니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_MeteorHazardDamage : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_MeteorHazardDamage : public URSBaseGameplayAbility_Attack
 {
 	GENERATED_BODY()
 

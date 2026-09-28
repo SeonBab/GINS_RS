@@ -76,9 +76,6 @@ bool FRSBarrierFieldDefinition::IsDataValid(FString* OutValidationError) const
 
 URSGameplayAbility_Barrier_Memory_Gimmick::URSGameplayAbility_Barrier_Memory_Gimmick()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	AttackShape.Type = ERSCombatShapeType::AnnularSector;

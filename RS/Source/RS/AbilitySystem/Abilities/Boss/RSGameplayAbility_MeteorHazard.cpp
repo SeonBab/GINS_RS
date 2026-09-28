@@ -16,9 +16,6 @@
 
 URSGameplayAbility_MeteorHazard::URSGameplayAbility_MeteorHazard()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_MeteorHazard);
 	SetAssetTags(AssetTags);

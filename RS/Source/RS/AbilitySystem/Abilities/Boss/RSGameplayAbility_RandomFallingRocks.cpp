@@ -75,9 +75,7 @@ bool FRSRandomFallingRocksDefinition::IsDataValid(FString* OutValidationError) c
 
 URSGameplayAbility_RandomFallingRocks::URSGameplayAbility_RandomFallingRocks()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
+	// 페이즈 진입 시 일반 패턴과 병행해야 하므로 다른 패턴과 달리 State.Action.Locked로 활성화를 차단하지 않습니다
 	FallingRocksDefinition.AttackShape.Type = ERSCombatShapeType::AnnularSector;
 	FallingRocksDefinition.AttackShape.OuterRadius = 150.0f;
 	FallingRocksDefinition.AttackShape.InnerRadius = 0.0f;

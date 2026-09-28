@@ -1,14 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RSBaseGameplayAbility.h"
+#include "RSBaseGameplayAbility_Attack.h"
 #include "RSGameplayAbility_FireFieldDamage.generated.h"
 
 class UGameplayEffect;
 
 /** 화염구 장판 이벤트 하나를 받아 플레이어 한 명에게 피해와 Reaction을 적용하고 즉시 끝납니다 */
 UCLASS(Abstract, Blueprintable)
-class RS_API URSGameplayAbility_FireFieldDamage : public URSBaseGameplayAbility
+class RS_API URSGameplayAbility_FireFieldDamage : public URSBaseGameplayAbility_Attack
 {
 	GENERATED_BODY()
 

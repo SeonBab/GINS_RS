@@ -7,8 +7,6 @@
 #include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_SequentialSweepExplosion.generated.h"
 
-class ARSBossCharacter;
-class ARSBossController;
 class UAnimMontage;
 class UGameplayEffect;
 class URSAbilityTask_ObserveElapsedTime;
@@ -129,9 +127,6 @@ private:
 
 	/** 현재 Ability가 만든 모든 Telegraph Handle을 회수합니다 */
 	void HideAllWarningSectors();
-
-	/** 현재 ActorInfo에서 필요한 Boss Character와 Controller를 반환합니다 */
-	bool GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
 
 	/** 재사용되는 Ability 인스턴스의 실행 상태를 초기화합니다 */
 	void ResetTransientState();

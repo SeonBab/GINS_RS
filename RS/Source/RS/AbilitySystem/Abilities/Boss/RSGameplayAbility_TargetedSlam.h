@@ -8,8 +8,6 @@
 #include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_TargetedSlam.generated.h"
 
-class ARSBossCharacter;
-class ARSBossController;
 class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitDelay;
 class UAnimMontage;
@@ -79,9 +77,6 @@ private:
 
 	/** 재사용되는 Ability 인스턴스에서 현재 Strike의 상태를 초기화합니다 */
 	void ResetStrikeTransientState();
-
-	/** 현재 ActorInfo에서 Targeted Slam 실행에 필요한 Boss Character와 Controller를 반환합니다 */
-	bool GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
 
 private:
 	/** 한 활성화에서 실행할 Strike 수이며 현재 패턴은 1회형과 2회형만 지원합니다 */

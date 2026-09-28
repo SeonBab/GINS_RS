@@ -14,9 +14,6 @@
 
 URSGameplayAbility_ConcentricRings::URSGameplayAbility_ConcentricRings()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	// 외부에서 이 패턴만 지목해 취소할 수 있게 합니다
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_ConcentricRings);

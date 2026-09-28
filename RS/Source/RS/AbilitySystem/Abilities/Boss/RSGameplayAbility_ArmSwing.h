@@ -10,8 +10,6 @@
 #include "Tasks/RSAbilityTask_BossFacing.h"
 #include "RSGameplayAbility_ArmSwing.generated.h"
 
-class ARSBossCharacter;
-class ARSBossController;
 class UAbilityTask_PlayMontageAndWait;
 class UAnimMontage;
 class UGameplayEffect;
@@ -115,9 +113,6 @@ private:
 	/** 선택한 Montage가 중단되거나 Task가 취소되면 Ability를 취소 종료합니다 */
 	UFUNCTION()
 	void HandleAttackMontageInterrupted();
-
-	/** 현재 ActorInfo에서 Arm Swing 실행에 필요한 Boss Character와 Controller를 반환합니다 */
-	bool GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
 
 	/** Variant의 Montage·경로와 Attack Window 구성이 유효한지 검사합니다 */
 	bool IsVariantRuntimeValid(const FRSArmSwingVariantDefinition& Variant, int32* OutAttackWindowCount = nullptr) const;

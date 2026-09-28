@@ -149,9 +149,6 @@ bool FRSFireballSpreadDefinition::TryGenerateLandingLocations(const FVector& Cen
 
 URSGameplayAbility_FireballSpread::URSGameplayAbility_FireballSpread()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(RSGameplayTags::Ability_Combat_FireballSpread);
 	SetAssetTags(AssetTags);

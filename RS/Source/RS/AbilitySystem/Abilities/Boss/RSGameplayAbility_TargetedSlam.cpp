@@ -15,9 +15,6 @@
 
 URSGameplayAbility_TargetedSlam::URSGameplayAbility_TargetedSlam()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	AttackShape.Type = ERSCombatShapeType::AnnularSector;
@@ -46,7 +43,7 @@ void URSGameplayAbility_TargetedSlam::BeginPatternTimeline()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController)
+	if (!TryGetBossContext(BossCharacter, BossController)
 		|| !CurrentActorInfo
 		|| !CurrentActorInfo->AbilitySystemComponent.IsValid()
 		|| !BossCharacter->GetCharacterMovement()
@@ -105,7 +102,7 @@ void URSGameplayAbility_TargetedSlam::EndAbility(const FGameplayAbilitySpecHandl
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	GetBossContext(BossCharacter, BossController);
+	TryGetBossContext(BossCharacter, BossController);
 
 	if (BossCharacter && bHasCommittedActivation)
 	{
@@ -139,7 +136,7 @@ void URSGameplayAbility_TargetedSlam::BeginStrike()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -195,7 +192,7 @@ void URSGameplayAbility_TargetedSlam::ConfirmAttack()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -226,7 +223,7 @@ void URSGameplayAbility_TargetedSlam::StartStrike()
 {
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -283,7 +280,7 @@ void URSGameplayAbility_TargetedSlam::HandleImpactDelayFinished()
 
 	ARSBossCharacter* BossCharacter = nullptr;
 	ARSBossController* BossController = nullptr;
-	if (!GetBossContext(BossCharacter, BossController))
+	if (!TryGetBossContext(BossCharacter, BossController))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 
@@ -365,14 +362,6 @@ void URSGameplayAbility_TargetedSlam::ResetStrikeTransientState()
 	bHasCompletedMontage = false;
 	ImpactDelayTask = nullptr;
 	MontageTask = nullptr;
-}
-
-bool URSGameplayAbility_TargetedSlam::GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const
-{
-	OutBossCharacter = CurrentActorInfo ? Cast<ARSBossCharacter>(CurrentActorInfo->AvatarActor.Get()) : nullptr;
-	OutBossController = OutBossCharacter ? Cast<ARSBossController>(OutBossCharacter->GetController()) : nullptr;
-
-	return OutBossCharacter && OutBossController;
 }
 
 #if WITH_EDITOR

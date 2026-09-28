@@ -181,9 +181,6 @@ bool FRSPizzaPatternDefinition::IsLocationInExplosionGroup(const FTransform& Loc
 
 URSGameplayAbility_PizzaPattern::URSGameplayAbility_PizzaPattern()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-
 	ActivationBlockedTags.AddTag(RSGameplayTags::State_Action_Locked);
 
 	// 이번에 터지는 조각과 안전한 조각을 구분해서 보여 줘야 하므로 조각 중심 한 점 대신 조각을 채웁니다

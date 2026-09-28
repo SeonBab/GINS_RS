@@ -9,8 +9,6 @@
 #include "RSNiagaraSpawnDefinition.h"
 #include "RSGameplayAbility_Barrier_Collapse_Gimmick.generated.h"
 
-class ARSBossCharacter;
-class ARSBossController;
 class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitGameplayEvent;
 class UAnimMontage;
@@ -100,9 +98,6 @@ private:
 	 * 판정이 전 방향이라 조준 정확도가 결과를 바꾸지 않으므로 완료를 기다리지 않고 칼을 드는 동안 회전을 겹칩니다
 	 */
 	void StartAttackFacing();
-
-	/** 보스 캐릭터와 Controller를 함께 확인합니다 */
-	bool GetBossContext(ARSBossCharacter*& OutBossCharacter, ARSBossController*& OutBossController) const;
 
 	/** 현재 Montage용 Gameplay Event Task를 끝냅니다 */
 	void EndGameplayEventTasks();
