@@ -67,6 +67,62 @@ URSBossPhaseComponent* URSBossPhaseComponent::FindPhaseComponent(const APawn* Pa
 
 #pragma region Pattern Cycle
 
+#if !UE_BUILD_SHIPPING
+bool URSBossPhaseComponent::QueueDebugPattern(const FString& PatternName)
+{
+	const FRSBossPhaseDefinition* Phase = GetCurrentPhase();
+	if (!Phase || (GetOwner() && !GetOwner()->HasAuthority()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RunPattern requires phase data and authority"));
+		return false;
+	}
+	TSubclassOf<URSBaseGameplayAbility> Match;
+	for (const ERSBossPatternType Type : { ERSBossPatternType::Basic, ERSBossPatternType::Special })
+	{
+		const TArray<TSubclassOf<URSBaseGameplayAbility>>* Candidates = GetPatternCandidates(Type);
+		if (!Candidates || !Phase->CycleSequence.Contains(Type))
+		{
+			continue;
+		}
+		for (const TSubclassOf<URSBaseGameplayAbility> Candidate : *Candidates)
+		{
+			if (!Candidate)
+			{
+				continue;
+			}
+			FString Name = Candidate->GetName();
+			Name.RemoveFromEnd(TEXT("_C"));
+			if (PatternName.IsEmpty())
+			{
+				UE_LOG(LogTemp, Log, TEXT("%s: %s"), *GetPatternTypeName(Type), *Name);
+			}
+			else if (Name.Equals(PatternName, ESearchCase::IgnoreCase) || Candidate->GetPathName().Equals(PatternName, ESearchCase::IgnoreCase))
+			{
+				if (Match && Match != Candidate)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Ambiguous pattern name; use the full class path"));
+					return false;
+				}
+				Match = Candidate;
+			}
+		}
+	}
+	if (PatternName.IsEmpty())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Use RS.Boss.RunPattern <name>; queued: %s"), *GetNameSafe(DebugPatternOverride));
+		return true;
+	}
+	if (!Match)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Pattern '%s' is not a selectable candidate in this phase; omit the argument to list candidates"), *PatternName);
+		return false;
+	}
+	DebugPatternOverride = Match;
+	UE_LOG(LogTemp, Log, TEXT("Queued %s once for the next matching pattern turn; phase changes or encounter cleanup cancel the request"), *GetNameSafe(Match));
+	return true;
+}
+#endif
+
 bool URSBossPhaseComponent::TryGetCurrentPatternType(ERSBossPatternType& OutPatternType) const
 {
 	const FRSBossPhaseDefinition* CurrentPhase = GetCurrentPhase();
@@ -101,7 +157,21 @@ bool URSBossPhaseComponent::TrySelectPattern(ERSBossPatternType PatternType, TSu
 		return false;
 	}
 
-	const int32 SelectedIndex = PickPatternIndex(PatternType, Candidates->Num());
+	int32 SelectedIndex = INDEX_NONE;
+#if !UE_BUILD_SHIPPING
+	if (DebugPatternOverride)
+	{
+		SelectedIndex = Candidates->IndexOfByKey(DebugPatternOverride);
+		if (SelectedIndex != INDEX_NONE)
+		{
+			DebugPatternOverride = nullptr;
+		}
+	}
+#endif
+	if (SelectedIndex == INDEX_NONE)
+	{
+		SelectedIndex = PickPatternIndex(PatternType, Candidates->Num());
+	}
 	const TSubclassOf<URSBaseGameplayAbility> SelectedAbilityClass = (*Candidates)[SelectedIndex];
 	if (!SelectedAbilityClass)
 	{
@@ -180,6 +250,7 @@ void URSBossPhaseComponent::AdvancePatternCycle()
 
 void URSBossPhaseComponent::ResetPatternCycle()
 {
+	DebugPatternOverride = nullptr;
 	CurrentCycleIndex = 0;
 
 	UE_LOG(LogTemp, Log, TEXT("[BossPhase] Reset"));
@@ -231,6 +302,7 @@ int32 URSBossPhaseComponent::GetCycleLength() const
 
 void URSBossPhaseComponent::RequestPersistentObjectCleanup()
 {
+	DebugPatternOverride = nullptr;
 	PersistentObjectCleanupRequestedEvent.Broadcast();
 }
 
@@ -332,6 +404,7 @@ void URSBossPhaseComponent::ReportMainGimmickOutcome(const UGameplayAbility* Rep
 
 void URSBossPhaseComponent::AdvanceToNextPhase()
 {
+	DebugPatternOverride = nullptr;
 	// 마지막 페이즈에는 다음 페이즈가 없으므로 진행 요청을 무시합니다
 	if (CurrentPhaseIndex + 1 >= GetPhaseCount())
 	{

@@ -75,6 +75,14 @@ public:
 	/** 지정한 Pawn이 소유한 진행 컴포넌트를 반환합니다 */
 	static URSBossPhaseComponent* FindPhaseComponent(const APawn* Pawn);
 
+#if !UE_BUILD_SHIPPING
+	/**
+	 * 이름을 지정하면 현재 페이즈에서 그 패턴과 같은 종류(Basic/Special)를 다음에 선택할 때 지정한 패턴을 한 번 선택합니다
+	 * 이름이 비어 있으면 선택 가능한 패턴 목록을 출력합니다
+	 */
+	bool QueueDebugPattern(const FString& PatternName);
+#endif
+
 #pragma region Pattern Cycle
 
 	/** 현재 사이클 차례의 패턴 종류를 반환합니다 */
@@ -215,6 +223,13 @@ protected:
 	TObjectPtr<URSBossPhaseData> PhaseData;
 
 private:
+	/**
+	 * RS.Boss.RunPattern 명령으로 다음에 선택하도록 지정한 패턴입니다
+	 * 한 번 선택하면 비우며, 선택 전 페이즈가 바뀌거나 사이클이 초기화되거나 지속 오브젝트 정리가 요청되어도 취소합니다
+	 */
+	UPROPERTY(Transient)
+	TSubclassOf<URSBaseGameplayAbility> DebugPatternOverride;
+
 	/** 진행 중인 페이즈의 순서 번호입니다 */
 	UPROPERTY(Transient)
 	int32 CurrentPhaseIndex = 0;

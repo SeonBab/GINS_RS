@@ -10,6 +10,169 @@
 #include "RSBossEncounter.h"
 #include "RSGameplayTags.h"
 #include "RSPlayerState.h"
+#include "RSHealthSet.h"
+#include "RSBossPhaseComponent.h"
+#include "RSBaseGameplayAbility.h"
+
+URSAbilitySystemComponent* URSCheatManager::FindPlayerAbilitySystemComponent() const
+{
+	const APlayerController* PlayerController = GetPlayerController();
+	const ARSPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<ARSPlayerState>() : nullptr;
+	URSAbilitySystemComponent* AbilitySystemComp = PlayerState ? PlayerState->GetRSAbilitySystemComponent() : nullptr;
+	if (!AbilitySystemComp || !IsValid(AbilitySystemComp->GetAvatarActor()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No player AbilitySystemComponent with a live avatar"));
+		return nullptr;
+	}
+	return AbilitySystemComp;
+}
+
+void URSCheatManager::ApplyPlayerHealthEffect(int32 Amount, bool bHealing)
+{
+	URSAbilitySystemComponent* AbilitySystemComp = FindPlayerAbilitySystemComponent();
+	if (!AbilitySystemComp)
+	{
+		return;
+	}
+	if (!AbilitySystemComp->GetAvatarActor()->HasAuthority() || Amount <= 0 || AbilitySystemComp->HasMatchingGameplayTag(RSGameplayTags::State_Dead))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Health cheats require authority, a living player and a positive amount"));
+		return;
+	}
+	const TCHAR* EffectPath = bHealing
+		? TEXT("/Game/AbilitySystem/GameplayEffects/GE_Heal_Basic.GE_Heal_Basic_C")
+		: TEXT("/Game/AbilitySystem/GameplayEffects/GE_Damage_Basic.GE_Damage_Basic_C");
+	const TSubclassOf<UGameplayEffect> EffectClass = LoadClass<UGameplayEffect>(nullptr, EffectPath);
+	if (!EffectClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load %s"), EffectPath);
+		return;
+	}
+	const float PreviousHealth = AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute());
+	const FGameplayEffectSpecHandle Spec = AbilitySystemComp->MakeOutgoingSpec(EffectClass, 1.0f, AbilitySystemComp->MakeEffectContext());
+	if (!Spec.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to create health GameplayEffectSpec"));
+		return;
+	}
+	Spec.Data->SetSetByCallerMagnitude(bHealing ? RSGameplayTags::SetByCaller_Healing : RSGameplayTags::SetByCaller_Damage, static_cast<float>(Amount));
+	AbilitySystemComp->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+	UE_LOG(LogTemp, Log, TEXT("Player %s %d: Health %.0f -> %.0f"), bHealing ? TEXT("Heal") : TEXT("Damage"), Amount, PreviousHealth, AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute()));
+}
+
+void URSCheatManager::DamagePlayer(int32 Amount)
+{
+	ApplyPlayerHealthEffect(Amount, false);
+}
+
+void URSCheatManager::HealPlayer(int32 Amount)
+{
+	ApplyPlayerHealthEffect(Amount, true);
+}
+
+void URSCheatManager::KillPlayer()
+{
+	URSAbilitySystemComponent* AbilitySystemComp = FindPlayerAbilitySystemComponent();
+	if (!AbilitySystemComp || !AbilitySystemComp->GetAvatarActor()->HasAuthority())
+	{
+		return;
+	}
+	// 무적 상태에서도 사망을 테스트할 수 있도록 피해 대신 Health를 직접 0으로 설정합니다
+	// 사망 태그와 보스전 실패 처리는 체력 변경을 감시하는 기존 코드에 맡깁니다
+	AbilitySystemComp->SetNumericAttributeBase(URSHealthSet::GetHealthAttribute(), 0.0f);
+	UE_LOG(LogTemp, Log, TEXT("Player Health set to zero"));
+}
+
+void URSCheatManager::ClearPlayerInvulnerability()
+{
+	if (URSAbilitySystemComponent* AbilitySystemComp = InvulnerableAbilitySystemComp.Get())
+	{
+		AbilitySystemComp->RemoveLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
+	}
+	InvulnerableAbilitySystemComp.Reset();
+}
+
+void URSCheatManager::BeginDestroy()
+{
+	ClearPlayerInvulnerability();
+	Super::BeginDestroy();
+}
+
+void URSCheatManager::SetPlayerInvulnerable(bool bEnabled)
+{
+	URSAbilitySystemComponent* AbilitySystemComp = FindPlayerAbilitySystemComponent();
+	if (!AbilitySystemComp || !AbilitySystemComp->GetAvatarActor()->HasAuthority())
+	{
+		return;
+	}
+	if (!bEnabled || InvulnerableAbilitySystemComp.Get() != AbilitySystemComp)
+	{
+		ClearPlayerInvulnerability();
+	}
+	if (bEnabled && !InvulnerableAbilitySystemComp.IsValid())
+	{
+		AbilitySystemComp->AddLooseGameplayTag(RSGameplayTags::State_Immunity_Damage);
+		InvulnerableAbilitySystemComp = AbilitySystemComp;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Player cheat damage immunity %s; other immunity sources are preserved"), bEnabled ? TEXT("enabled") : TEXT("disabled"));
+}
+
+void URSCheatManager::DumpState() const
+{
+	auto PrintAbilitySystem = [](const TCHAR* Label, URSAbilitySystemComponent* AbilitySystemComp)
+	{
+		if (!AbilitySystemComp)
+		{
+			return;
+		}
+		FGameplayTagContainer Tags;
+		AbilitySystemComp->GetOwnedGameplayTags(Tags);
+		UE_LOG(LogTemp, Log, TEXT("%s %s Health %.0f/%.0f Tags: %s"), Label, *GetNameSafe(AbilitySystemComp->GetAvatarActor()), AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetHealthAttribute()), AbilitySystemComp->GetNumericAttribute(URSHealthSet::GetMaxHealthAttribute()), *Tags.ToStringSimple());
+		for (const FGameplayAbilitySpec& Spec : AbilitySystemComp->GetActivatableAbilities())
+		{
+			if (Spec.IsActive())
+			{
+				UE_LOG(LogTemp, Log, TEXT("  Active Ability: %s"), *GetNameSafe(Spec.Ability));
+			}
+		}
+	};
+	PrintAbilitySystem(TEXT("Player"), FindPlayerAbilitySystemComponent());
+	for (TActorIterator<ARSBossCharacter> It(GetWorld()); It; ++It)
+	{
+		PrintAbilitySystem(TEXT("Boss"), It->GetRSAbilitySystemComponent());
+		if (const URSBossPhaseComponent* Phase = URSBossPhaseComponent::FindPhaseComponent(*It))
+		{
+			UE_LOG(LogTemp, Log, TEXT("  Phase index %d Cycle index %d"), Phase->GetCurrentPhaseIndex(), Phase->GetCurrentCycleIndex());
+		}
+	}
+	if (const ARSBossEncounter* Encounter = FindTargetBossEncounter())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Encounter %s State %s Result %s Remaining %.2fs Hits %d"), *GetNameSafe(Encounter), *UEnum::GetValueAsString(Encounter->GetEncounterState()), *UEnum::GetValueAsString(Encounter->GetEncounterResult()), Encounter->GetRemainingTimeSeconds(), Encounter->GetHitCount());
+	}
+}
+
+void URSCheatManager::RunBossPattern(const FString& PatternName)
+{
+	ARSBossCharacter* Target = nullptr;
+	for (TActorIterator<ARSBossCharacter> It(GetWorld()); It; ++It)
+	{
+		if (Target)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("RunPattern requires exactly one boss in the world"));
+			return;
+		}
+		Target = *It;
+	}
+	URSBossPhaseComponent* Phase = URSBossPhaseComponent::FindPhaseComponent(Target);
+	if (!Phase)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No boss phase component"));
+		return;
+	}
+#if !UE_BUILD_SHIPPING
+	Phase->QueueDebugPattern(PatternName);
+#endif
+}
 
 namespace RSCheatDamage
 {

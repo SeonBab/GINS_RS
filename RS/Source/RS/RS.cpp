@@ -3,6 +3,7 @@
 #include "RS.h"
 #include "Modules/ModuleManager.h"
 #include "AbilitySystem/Combat/RSCombatFunctionLibrary.h"
+#include "RSConsoleCommands.h"
 
 /**
  * RS 게임 모듈입니다
@@ -16,6 +17,7 @@ public:
 	{
 #if !UE_BUILD_SHIPPING
 		RSCombatDebug::RegisterConsoleCommands();
+		RSConsoleCommands::Register();
 #endif
 	}
 
@@ -23,6 +25,7 @@ public:
 	{
 #if !UE_BUILD_SHIPPING
 		RSCombatDebug::UnregisterConsoleCommands();
+		RSConsoleCommands::Unregister();
 #endif
 	}
 };
